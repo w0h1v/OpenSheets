@@ -1,0 +1,132 @@
+.container {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  width: 400px;
+  max-width: 90vw;
+  z-index: 1000;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.closeButton {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.closeButton:hover {
+  background: #f0f0f0;
+}
+
+.body {
+  padding: 16px;
+}
+
+.field {
+  margin-bottom: 16px;
+}
+
+.field label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.field input[type="text"],
+.field input[type="number"],
+.field input[type="date"],
+.field select,
+.field textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.field input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.removeButton {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.removeButton:hover {
+  background: #c82333;
+}
+
+.cancelButton {
+  background: #f0f0f0;
+  color: #333;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.cancelButton:hover {
+  background: #e0e0e0;
+}
+
+.applyButton {
+  background: #1a73e8;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.applyButton:hover {
+  background: #1557b0;
+}

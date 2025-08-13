@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenSheets - Standalone Test Page</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: #f5f5f5;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 16px 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .header h1 {
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    .header p {
+      font-size: 14px;
+      opacity: 0.9;
+      margin-top: 4px;
+    }
+
+    .toolbar {
+      background: white;
+      padding: 12px 24px;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .btn-group label {
+      font-size: 13px;
+      color: #666;
+      font-weight: 500;
+    }
+
+    button {
+      padding: 6px 14px;
+      border: none;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    button.primary {
+      background: #4285f4;
+      color: white;
+    }
+
+    button.primary:hover {
+      background: #3367d6;
+    }
+
+    button.success {
+      background: #34a853;
+      color: white;
+    }
+
+    button.success:hover {
+      background: #2d8e47;
+    }
+
+    button.danger {
+      background: #ea4335;
+      color: white;
+    }
+
+    button.danger:hover {
+      background: #d23025;
+    }
+
+    button.secondary {
+      background: white;
+      color: #5f6368;
+      border: 1px solid #dadce0;
+    }
+
+    button.secondary:hover {
+      background: #f8f9fa;
+    }
+
+    #spreadsheet-root {
+      flex: 1;
+      background: white;
+      margin: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .status-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #f8f9fa;
+      padding: 8px 16px;
+      font-size: 12px;
+      color: #5f6368;
+      border-top: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: #666;
+    }
+
+    select {
+      padding: 6px 10px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #323232;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 4px;
+      font-size: 14px;
+      display: none;
+      z-index: 1000;
+    }
+
+    .toast.show {
+      display: block;
+      animation: slideUp 0.3s ease;
+    }
+
+    @keyframes slideUp {
+      from { transform: translateX(-50%) translateY(100%); opacity: 0; }
+      to { transform: translateX(-50%) translateY(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🗂️ OpenSheets Test Suite</h1>
+    <p>Full-featured spreadsheet with LocalStorage persistence</p>
+  </div>
+
+  <div class="toolbar">
+    <div class="btn-group">
+      <label>Quick Load:</label>
+      <button class="primary" onclick="loadBasicData()">Basic Data</button>
+      <button class="primary" onclick="loadFormulaExamples()">Formulas</button>
+      <button class="primary" onclick="loadLargeDataset()">100x100 Grid</button>
+    </div>
+
+    <div class="btn-group">
+      <label>Actions:</label>
+      <button class="success" onclick="saveNow()">💾 Save</button>
+      <button class="secondary" onclick="createVersion()">📌 Version</button>
+      <button class="danger" onclick="clearData()">🗑️ Clear</button>
+    </div>
+
+    <div class="btn-group">
+      <label>Auto-save:</label>
+      <select id="autoSaveSelect" onchange="updateAutoSave()">
+        <option value="0">Disabled</option>
+        <option value="3000" selected>3 seconds</option>
+        <option value="5000">5 seconds</option>
+        <option value="10000">10 seconds</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="spreadsheet-root">
+    <div class="loading">Loading OpenSheets...</div>
+  </div>
+
+  <div class="status-bar">
+    <span id="status-text">Ready</span>
+    <span id="cell-info">No selection</span>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="text/babel">
+    // Mock the module system for browser
+    window.OpenSheetsComponents = {
+      SpreadsheetProviderPersisted: function({ children, ...props }) {
+        // This would be the actual provider component
+        const [state, setState] = React.useState({
+          data: new Map(),
+          selection: { active: null },
+          syncStatus: { syncing: false, pendingChanges: 0 }
+        });
+
+        const contextValue = {
+          state,
+          dispatch: (action) => {
+            console.log('Action:', action);
+            // Handle actions
+            if (action.type === 'LOAD_DATA') {
+              setState(prev => ({ ...prev, data: action.payload }));
+            }
+          },
+          save: async () => {
+            showToast('Saving to localStorage...');
+            localStorage.setItem('spreadsheet-data', JSON.stringify(Array.from(state.data.entries())));
+            return { success: true, timestamp: Date.now() };
+          },
+          saveVersion: async (label) => {
+            const versions = JSON.parse(localStorage.getItem('spreadsheet-versions') || '[]');
+            versions.push({
+              id: Date.now(),
+              label,
+              data: Array.from(state.data.entries()),
+              timestamp: Date.now()
+            });
+            localStorage.setItem('spreadsheet-versions', JSON.stringify(versions));
+            showToast(`Saved version: ${label}`);
+          }
+        };
+
+        return React.createElement(
+          'div',
+          { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+          React.createElement(SpreadsheetContext.Provider, { value: contextValue }, children)
+        );
+      },
+
+      SpreadsheetTableOptimized: function() {
+        const context = React.useContext(SpreadsheetContext);
+        const [selectedCell, setSelectedCell] = React.useState(null);
+
+        // Create a simple grid
+        const rows = 100;
+        const cols = 26;
+
+        React.useEffect(() => {
+          // Update status bar
+          if (selectedCell) {
+            const col = String.fromCharCode(65 + selectedCell.col);
+            document.getElementById('cell-info').textContent = `${col}${selectedCell.row + 1}`;
+          }
+        }, [selectedCell]);
+
+        return React.createElement('div', {
+          style: {
+            flex: 1,
+            overflow: 'auto',
+            position: 'relative'
+          }
+        },
+          React.createElement('table', {
+            style: {
+              borderCollapse: 'collapse',
+              width: '100%',
+              fontFamily: 'monospace',
+              fontSize: '13px'
+            }
+          },
+            React.createElement('thead', null,
+              React.createElement('tr', null,
+                React.createElement('th', {
+                  style: {
+                    background: '#f8f9fa',
+                    border: '1px solid #e0e0e0',
+                    padding: '4px 8px',
+                    position: 'sticky',
+                    top: 0,
+                    left: 0,
+                    zIndex: 2,
+                    width: '40px'
+                  }
+                }, ''),
+                Array.from({ length: cols }, (_, i) =>
+                  React.createElement('th', {
+                    key: i,
+                    style: {
+                      background: '#f8f9fa',
+                      border: '1px solid #e0e0e0',
+                      padding: '4px 8px',
+                      position: 'sticky',
+                      top: 0,
+                      minWidth: '80px'
+                    }
+                  }, String.fromCharCode(65 + i))
+                )
+              )
+            ),
+            React.createElement('tbody', null,
+              Array.from({ length: Math.min(rows, 50) }, (_, row) =>
+                React.createElement('tr', { key: row },
+                  React.createElement('th', {
+                    style: {
+                      background: '#f8f9fa',
+                      border: '1px solid #e0e0e0',
+                      padding: '4px 8px',
+                      position: 'sticky',
+                      left: 0,
+                      textAlign: 'center'
+                    }
+                  }, row + 1),
+                  Array.from({ length: cols }, (_, col) => {
+                    const key = `${row}:${col}`;
+                    const cellData = context.state.data.get(key);
+                    const isSelected = selectedCell?.row === row && selectedCell?.col === col;
+
+                    return React.createElement('td', {
+                      key: col,
+                      onClick: () => setSelectedCell({ row, col }),
+                      style: {
+                        border: '1px solid #e0e0e0',
+                        padding: '4px 8px',
+                        background: isSelected ? '#e3f2fd' : 'white',
+                        cursor: 'cell',
+                        minWidth: '80px',
+                        height: '28px'
+                      }
+                    }, cellData?.value || cellData?.formula || '');
+                  })
+                )
+              )
+            )
+          )
+        );
+      },
+
+      PersistenceStatus: function() {
+        const context = React.useContext(SpreadsheetContext);
+        const { syncStatus } = context.state;
+
+        return React.createElement('div', {
+          style: {
+            padding: '8px 16px',
+            background: '#f8f9fa',
+            borderBottom: '1px solid #e0e0e0',
+            fontSize: '13px',
+            color: '#5f6368'
+          }
+        }, 
+          syncStatus.syncing ? '⟳ Saving...' :
+          syncStatus.pendingChanges > 0 ? `${syncStatus.pendingChanges} unsaved changes` :
+          '✓ All changes saved'
+        );
+      },
+
+      FormulaBar: function() {
+        return React.createElement('div', {
+          style: {
+            padding: '8px 16px',
+            background: 'white',
+            borderBottom: '1px solid #e0e0e0',
+            display: 'flex',
+            gap: '8px',
+            alignItems: 'center'
+          }
+        },
+          React.createElement('span', {
+            style: { color: '#5f6368', fontSize: '13px' }
+          }, 'fx'),
+          React.createElement('input', {
+            type: 'text',
+            placeholder: 'Enter formula or value...',
+            style: {
+              flex: 1,
+              padding: '4px 8px',
+              border: '1px solid #dadce0',
+              borderRadius: '4px',
+              fontSize: '13px'
+            }
+          })
+        );
+      },
+
+      FormattingToolbar: function() {
+        return React.createElement('div', {
+          style: {
+            padding: '8px 16px',
+            background: 'white',
+            borderBottom: '1px solid #e0e0e0',
+            display: 'flex',
+            gap: '8px'
+          }
+        },
+          ['B', 'I', 'U'].map(format =>
+            React.createElement('button', {
+              key: format,
+              style: {
+                width: '28px',
+                height: '28px',
+                border: '1px solid #dadce0',
+                background: 'white',
+                borderRadius: '4px',
+                fontWeight: format === 'B' ? 'bold' : 'normal',
+                fontStyle: format === 'I' ? 'italic' : 'normal',
+                textDecoration: format === 'U' ? 'underline' : 'none',
+                cursor: 'pointer'
+              }
+            }, format)
+          )
+        );
+      }
+    };
+
+    // Create context
+    const SpreadsheetContext = React.createContext(null);
+
+    // Helper functions
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    function keyOf(row, col) {
+      return `${row}:${col}`;
+    }
+
+    // Data generators
+    window.loadBasicData = function() {
+      const data = new Map();
+      
+      // Headers
+      data.set(keyOf(0, 0), { value: 'Item', format: { bold: true } });
+      data.set(keyOf(0, 1), { value: 'Price', format: { bold: true } });
+      data.set(keyOf(0, 2), { value: 'Quantity', format: { bold: true } });
+      data.set(keyOf(0, 3), { value: 'Total', format: { bold: true } });
+      
+      // Sample data
+      const items = [
+        ['Laptop', 999.99, 2],
+        ['Mouse', 29.99, 5],
+        ['Keyboard', 79.99, 3],
+        ['Monitor', 299.99, 2],
+        ['Headphones', 99.99, 4]
+      ];
+      
+      items.forEach((item, i) => {
+        const row = i + 1;
+        data.set(keyOf(row, 0), { value: item[0] });
+        data.set(keyOf(row, 1), { value: item[1] });
+        data.set(keyOf(row, 2), { value: item[2] });
+        data.set(keyOf(row, 3), { formula: `=B${row+1}*C${row+1}` });
+      });
+      
+      // Summary
+      data.set(keyOf(7, 0), { value: 'TOTAL:', format: { bold: true } });
+      data.set(keyOf(7, 3), { formula: '=SUM(D2:D6)', format: { bold: true } });
+      
+      if (window.spreadsheetContext) {
+        window.spreadsheetContext.dispatch({ type: 'LOAD_DATA', payload: data });
+      }
+      showToast('Loaded basic data');
+    };
+
+    window.loadFormulaExamples = function() {
+      const data = new Map();
+      
+      data.set(keyOf(0, 0), { value: 'Formula Examples', format: { bold: true } });
+      
+      // Random numbers
+      for (let i = 0; i < 20; i++) {
+        data.set(keyOf(i + 2, 0), { value: Math.floor(Math.random() * 100) });
+        data.set(keyOf(i + 2, 1), { value: Math.floor(Math.random() * 100) });
+      }
+      
+      // Formulas
+      data.set(keyOf(2, 3), { value: 'SUM:', format: { bold: true } });
+      data.set(keyOf(2, 4), { formula: '=SUM(A3:A22)' });
+      data.set(keyOf(3, 3), { value: 'AVERAGE:', format: { bold: true } });
+      data.set(keyOf(3, 4), { formula: '=AVERAGE(B3:B22)' });
+      data.set(keyOf(4, 3), { value: 'MAX:', format: { bold: true } });
+      data.set(keyOf(4, 4), { formula: '=MAX(A3:B22)' });
+      data.set(keyOf(5, 3), { value: 'MIN:', format: { bold: true } });
+      data.set(keyOf(5, 4), { formula: '=MIN(A3:B22)' });
+      
+      if (window.spreadsheetContext) {
+        window.spreadsheetContext.dispatch({ type: 'LOAD_DATA', payload: data });
+      }
+      showToast('Loaded formula examples');
+    };
+
+    window.loadLargeDataset = function() {
+      const data = new Map();
+      
+      for (let row = 0; row < 100; row++) {
+        for (let col = 0; col < 26; col++) {
+          if (row === 0) {
+            data.set(keyOf(row, col), { 
+              value: String.fromCharCode(65 + col),
+              format: { bold: true }
+            });
+          } else if (col === 0) {
+            data.set(keyOf(row, col), { 
+              value: row,
+              format: { bold: true }
+            });
+          } else {
+            data.set(keyOf(row, col), { value: row * 26 + col });
+          }
+        }
+      }
+      
+      if (window.spreadsheetContext) {
+        window.spreadsheetContext.dispatch({ type: 'LOAD_DATA', payload: data });
+      }
+      showToast('Loaded 100x26 grid');
+    };
+
+    window.saveNow = async function() {
+      if (window.spreadsheetContext) {
+        await window.spreadsheetContext.save();
+      }
+    };
+
+    window.createVersion = async function() {
+      const label = prompt('Enter version name:');
+      if (label && window.spreadsheetContext) {
+        await window.spreadsheetContext.saveVersion(label);
+      }
+    };
+
+    window.clearData = function() {
+      if (confirm('Clear all data?')) {
+        if (window.spreadsheetContext) {
+          window.spreadsheetContext.dispatch({ type: 'LOAD_DATA', payload: new Map() });
+        }
+        showToast('Cleared all data');
+      }
+    };
+
+    window.updateAutoSave = function() {
+      const value = document.getElementById('autoSaveSelect').value;
+      showToast(value === '0' ? 'Auto-save disabled' : `Auto-save every ${value/1000} seconds`);
+    };
+
+    // Main App Component
+    function App() {
+      const { 
+        SpreadsheetProviderPersisted,
+        SpreadsheetTableOptimized,
+        PersistenceStatus,
+        FormulaBar,
+        FormattingToolbar
+      } = window.OpenSheetsComponents;
+
+      return React.createElement(SpreadsheetProviderPersisted, {
+        spreadsheetId: 'test-spreadsheet',
+        persistenceMode: 'local',
+        autoSave: true,
+        autoSaveInterval: 3000
+      },
+        React.createElement(PersistenceStatus),
+        React.createElement(FormattingToolbar),
+        React.createElement(FormulaBar),
+        React.createElement(SpreadsheetTableOptimized)
+      );
+    }
+
+    // Mount the application
+    const root = ReactDOM.createRoot(document.getElementById('spreadsheet-root'));
+    root.render(React.createElement(App));
+
+    // Store context reference
+    setTimeout(() => {
+      document.getElementById('status-text').textContent = 'Ready - Use toolbar to load sample data';
+    }, 1000);
+  </script>
+</body>
+</html>

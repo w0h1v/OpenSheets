@@ -1,0 +1,31 @@
+.handle {
+  position: absolute;
+  background: transparent;
+  z-index: 10;
+}
+
+.handle.column {
+  cursor: col-resize;
+  width: 4px;
+  height: 100%;
+  right: -2px;
+  top: 0;
+}
+
+.handle.row {
+  cursor: row-resize;
+  height: 4px;
+  width: 100%;
+  bottom: -2px;
+  left: 0;
+}
+
+.handle:hover {
+  background: #1a73e8;
+  opacity: 0.5;
+}
+
+.handle.resizing {
+  background: #1a73e8;
+  opacity: 1;
+}
