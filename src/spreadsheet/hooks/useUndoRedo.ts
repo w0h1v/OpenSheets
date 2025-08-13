@@ -104,14 +104,14 @@ export function useUndoRedo(
         const previousState = undo();
         if (previousState) {
           // Dispatch a special action to restore state
-          dispatch({ type: 'RESTORE_STATE' as any, payload: previousState });
+          dispatch({ type: 'RESTORE_STATE', payload: previousState });
         }
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
         e.preventDefault();
         const nextState = redo();
         if (nextState) {
           // Dispatch a special action to restore state
-          dispatch({ type: 'RESTORE_STATE' as any, payload: nextState });
+          dispatch({ type: 'RESTORE_STATE', payload: nextState });
         }
       }
     };

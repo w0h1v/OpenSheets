@@ -1,3 +1,11 @@
+export interface ConditionalFormat {
+  type: 'cellValue' | 'textContains' | 'dateOccurring' | 'formula';
+  condition: 'greaterThan' | 'lessThan' | 'between' | 'equal' | 'notEqual' | 'contains' | 'startsWith' | 'endsWith' | 'notBetween' | 'notContains';
+  value1?: any;
+  value2?: any; // for 'between' condition
+  format: CellFormat;
+}
+
 export interface CellData {
   value: any;
   formula?: string;
@@ -19,16 +27,37 @@ export interface BorderSide {
 }
 
 export interface CellFormat {
+  // Text formatting
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
   strikethrough?: boolean;
+  
+  // Font properties
+  fontFamily?: string;
+  fontSize?: number;
+  color?: string;
+  
+  // Alignment
   textAlign?: 'left' | 'center' | 'right';
   verticalAlign?: 'top' | 'middle' | 'bottom';
+  
+  // Text wrapping and rotation
+  wrapText?: boolean;
+  textRotation?: number; // degrees
+  
+  // Cell appearance
   backgroundColor?: string;
-  color?: string;
   borders?: BorderStyle;
-  numberFormat?: string;
+  
+  // Number and date formatting
+  numberFormat?: string; // Custom format string
+  formatType?: 'automatic' | 'number' | 'currency' | 'percentage' | 'scientific' | 'accounting' | 'date' | 'time' | 'duration' | 'text';
+  currencySymbol?: string;
+  decimalPlaces?: number;
+  
+  // Conditional formatting (future use)
+  conditionalFormat?: ConditionalFormat;
 }
 
 export interface SelectionRect {
@@ -58,6 +87,40 @@ export const keyOf = (row: number, col: number) => `${row}:${col}`;
 export const parseKey = (key: string) =>
   key.split(':').map(Number) as [number, number];
 
+export interface SheetFormatting {
+  theme?: string;
+  showGridlines?: boolean;
+  frozenRows?: number;
+  frozenCols?: number;
+  defaultRowHeight?: number;
+  defaultColWidth?: number;
+  defaultFont?: {
+    family: string;
+    size: number;
+    color: string;
+  };
+}
+
+export interface FilterRule {
+  column: number;
+  type: 'text' | 'number' | 'date' | 'boolean' | 'custom';
+  condition: 'equals' | 'notEquals' | 'contains' | 'notContains' | 'startsWith' | 'endsWith' | 
+           'greaterThan' | 'lessThan' | 'greaterEqual' | 'lessEqual' | 'between' | 'notBetween' |
+           'isEmpty' | 'isNotEmpty' | 'isTrue' | 'isFalse';
+  value?: any;
+  value2?: any; // for 'between' conditions
+  caseSensitive?: boolean;
+  customFunction?: (value: any) => boolean;
+}
+
+export interface FilterState {
+  rules: FilterRule[];
+  hiddenRows: Set<number>;
+  showFilterHeaders?: boolean;
+  sortColumn?: number;
+  sortDirection?: 'asc' | 'desc';
+}
+
 export interface SpreadsheetState {
   data: SparseMatrix<CellData>;
   maxRows: number;
@@ -70,6 +133,8 @@ export interface SpreadsheetState {
   colWidths?: number[];
   validation?: Map<string, ValidationRule>;
   clipboardData?: { cells: CellData[][]; source: SelectionRect };
+  sheetFormatting?: SheetFormatting;
+  filterState?: FilterState;
 }
 
 export interface ValidationRule {
@@ -80,4 +145,12 @@ export interface ValidationRule {
   customValidator?: (value: any) => boolean;
   errorMessage?: string;
   showError?: boolean;
+  
+  // Enhanced dropdown features
+  allowCustomValues?: boolean; // Allow entries not in the list
+  showDropdownArrow?: boolean; // Show dropdown arrow indicator
+  searchable?: boolean; // Enable search/filter in dropdown
+  multiSelect?: boolean; // Allow multiple selections (comma-separated)
+  placeholder?: string; // Placeholder text for empty cells
+  sourceRange?: string; // Reference to range for dynamic lists (e.g., "A1:A10")
 }

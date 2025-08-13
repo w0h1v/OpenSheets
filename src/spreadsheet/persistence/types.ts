@@ -1,4 +1,4 @@
-import { SparseMatrix, CellData, SpreadsheetState } from '../types/spreadsheet';
+import { CellData } from '../types/spreadsheet';
 
 export interface PersistenceAdapter {
   // Core persistence methods

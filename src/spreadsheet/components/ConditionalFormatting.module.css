@@ -1,0 +1,368 @@
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panel {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  min-width: 500px;
+  max-width: 700px;
+  min-height: 400px;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #dadce0;
+  background: #f8f9fa;
+}
+
+.header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: #3c4043;
+}
+
+.closeButton {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+  color: #5f6368;
+  font-size: 16px;
+}
+
+.closeButton:hover {
+  background: #e8eaed;
+}
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid #dadce0;
+  background: white;
+}
+
+.tab {
+  flex: 1;
+  border: none;
+  background: none;
+  padding: 12px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #5f6368;
+  transition: all 0.15s ease;
+}
+
+.tab:hover {
+  background: #f1f3f4;
+}
+
+.tab.active {
+  color: #1a73e8;
+  border-bottom: 2px solid #1a73e8;
+  background: white;
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+/* Custom Rules Tab */
+.rulesTab {
+  display: flex;
+  flex-direction: column;
+}
+
+.ruleBuilder {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.formGroup label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #3c4043;
+}
+
+.select, .input {
+  padding: 8px 12px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+  background: white;
+}
+
+.select:focus, .input:focus {
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 1px #1a73e8;
+}
+
+.formatSection {
+  background: #f8f9fa;
+  padding: 16px;
+  border-radius: 6px;
+  border: 1px solid #e8eaed;
+}
+
+.formatSection h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #3c4043;
+}
+
+.formatGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.colorInput {
+  padding: 4px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  width: 50px;
+  height: 32px;
+  cursor: pointer;
+  background: none;
+}
+
+.styleOptions {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #3c4043;
+  cursor: pointer;
+}
+
+.checkboxLabel input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.previewCell {
+  padding: 8px 12px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.applyButton {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  background: #1a73e8;
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  align-self: flex-start;
+}
+
+.applyButton:hover {
+  background: #1557b0;
+}
+
+/* Templates Tab */
+.templatesTab, .dfirTab {
+  display: flex;
+  flex-direction: column;
+}
+
+.description {
+  font-size: 13px;
+  color: #5f6368;
+  margin: 0 0 16px 0;
+  line-height: 1.4;
+}
+
+.templatesList, .dfirRulesList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.templateCard, .dfirRuleCard {
+  background: white;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  padding: 16px;
+  transition: all 0.15s ease;
+}
+
+.templateCard:hover, .dfirRuleCard:hover {
+  border-color: #1a73e8;
+  box-shadow: 0 2px 8px rgba(26, 115, 232, 0.1);
+}
+
+.templateHeader, .dfirRuleHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.templateHeader h4, .dfirRuleHeader h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #3c4043;
+}
+
+.templatePreview, .dfirRulePreview {
+  width: 40px;
+  height: 20px;
+  border-radius: 3px;
+  border: 1px solid #dadce0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.templateDescription, .dfirRuleDescription {
+  font-size: 12px;
+  color: #5f6368;
+  margin: 0 0 12px 0;
+  line-height: 1.3;
+}
+
+.templateButton, .dfirRuleButton {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 12px;
+  color: #3c4043;
+  transition: all 0.15s ease;
+}
+
+.templateButton:hover, .dfirRuleButton:hover {
+  background: #f1f3f4;
+  border-color: #1a73e8;
+}
+
+.dfirRuleButton {
+  background: #e8f0fe;
+  color: #1a73e8;
+  border-color: #1a73e8;
+}
+
+.dfirRuleButton:hover {
+  background: #1a73e8;
+  color: white;
+}
+
+/* Trigger Button */
+.triggerButton {
+  border: 1px solid #dadce0;
+  background: white;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #3c4043;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.triggerButton:hover {
+  background: #f8f9fa;
+  border-color: #1a73e8;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .panel {
+    min-width: 90vw;
+    max-width: 95vw;
+    min-height: 70vh;
+    max-height: 90vh;
+  }
+
+  .content {
+    padding: 16px;
+  }
+
+  .templatesList, .dfirRulesList {
+    grid-template-columns: 1fr;
+  }
+
+  .formatGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .styleOptions {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+/* Scrollbar Styling */
+.content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.content::-webkit-scrollbar-track {
+  background: #f1f3f4;
+  border-radius: 3px;
+}
+
+.content::-webkit-scrollbar-thumb {
+  background: #dadce0;
+  border-radius: 3px;
+}
+
+.content::-webkit-scrollbar-thumb:hover {
+  background: #9aa0a6;
+}

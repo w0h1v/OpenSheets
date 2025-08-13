@@ -49,13 +49,13 @@ const enhancedReducer = (state: SpreadsheetState, action: SpreadsheetAction): Sp
   }
 
   // Handle special restore state action
-  if ((action as any).type === 'RESTORE_STATE') {
-    return (action as any).payload;
+  if (action.type === 'RESTORE_STATE') {
+    return action.payload;
   }
 
   // Handle load from persistence
-  if ((action as any).type === 'LOAD_STATE') {
-    const loadedState = (action as any).payload as SpreadsheetState;
+  if (action.type === 'LOAD_STATE') {
+    const loadedState = action.payload;
     return {
       ...state,
       data: loadedState.data,
@@ -149,7 +149,7 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
       const loadedState = await persistenceManager.current.load();
       
       if (loadedState) {
-        dispatch({ type: 'LOAD_STATE' as any, payload: loadedState });
+        dispatch({ type: 'LOAD_STATE', payload: loadedState });
         lastSavedState.current = JSON.stringify(loadedState.data);
         onLoadComplete?.(true);
       } else {
@@ -258,7 +258,7 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
       const versionState = await persistenceManager.current.loadVersion(versionId);
       
       if (versionState) {
-        dispatch({ type: 'LOAD_STATE' as any, payload: versionState });
+        dispatch({ type: 'LOAD_STATE', payload: versionState });
       }
     } catch (error) {
       console.error('Failed to load version:', error);

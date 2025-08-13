@@ -1,4 +1,4 @@
-import { CellData, Selection, SelectionRect, CellFormat } from './spreadsheet';
+import { CellData, Selection, SelectionRect, CellFormat, ValidationRule, SpreadsheetState, SheetFormatting } from './spreadsheet';
 
 export type SpreadsheetAction =
   | { type: 'SET_CELL'; payload: { row: number; col: number; data: Partial<CellData> } }
@@ -18,20 +18,14 @@ export type SpreadsheetAction =
   | { type: 'APPLY_FORMAT_TO_SELECTION'; payload: Partial<CellFormat> }
   | { type: 'FILL_RANGE'; payload: { range: SelectionRect; direction: 'down' | 'right' | 'up' | 'left'; type: 'copy' | 'series' } }
   | { type: 'SORT_RANGE'; payload: { range: SelectionRect; column: number; ascending: boolean } }
-  | { type: 'SET_VALIDATION'; payload: { row: number; col: number; validation: ValidationRule } }
+  | { type: 'SET_VALIDATION'; payload: { row: number; col: number; validation: ValidationRule | null } }
+  | { type: 'UPDATE_SHEET_FORMATTING'; payload: Partial<SheetFormatting> }
+  | { type: 'LOAD_STATE'; payload: SpreadsheetState }
+  | { type: 'RESTORE_STATE'; payload: SpreadsheetState }
   | { type: 'UNDO' }
   | { type: 'REDO' }
   | { type: 'BATCH'; payload: SpreadsheetAction[] };
 
-export interface ValidationRule {
-  type: 'number' | 'date' | 'list' | 'custom' | 'text';
-  min?: number | Date;
-  max?: number | Date;
-  list?: string[];
-  customValidator?: (value: any) => boolean;
-  errorMessage?: string;
-  showError?: boolean;
-}
 
 export interface Command {
   execute: () => void;

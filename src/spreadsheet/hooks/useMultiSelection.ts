@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { SpreadsheetAction } from '../types/actions';
 import { SelectionRect, SpreadsheetState } from '../types/spreadsheet';
-import { normalizeRect } from '../utils/selectionUtils';
+// import { normalizeRect } from '../utils/selectionUtils'; // Unused for now
 
 export function useMultiSelection(
   state: SpreadsheetState,

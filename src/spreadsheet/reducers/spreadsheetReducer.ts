@@ -11,11 +11,11 @@ export function spreadsheetReducer(
     case 'SET_CELL': {
       const { row, col, data } = action.payload;
       const key = keyOf(row, col);
-      const existing = state.data.get(key) || {};
-      const updated = { ...existing, ...data };
+      const existing = state.data.get(key) || { value: '' };
+      const updated: CellData = { ...existing, ...data, value: data.value ?? existing.value };
       const newData = new Map(state.data);
       
-      if (Object.keys(updated).length === 0 || (updated.value === '' && !updated.formula && !updated.format)) {
+      if (updated.value === '' && !updated.formula && !updated.format) {
         newData.delete(key);
       } else {
         newData.set(key, updated);
@@ -28,10 +28,10 @@ export function spreadsheetReducer(
       const newData = new Map(state.data);
       action.payload.updates.forEach(({ row, col, data }) => {
         const key = keyOf(row, col);
-        const existing = newData.get(key) || {};
-        const updated = { ...existing, ...data };
+        const existing = newData.get(key) || { value: '' };
+        const updated: CellData = { ...existing, ...data, value: data.value ?? existing.value };
         
-        if (Object.keys(updated).length === 0 || (updated.value === '' && !updated.formula && !updated.format)) {
+        if (updated.value === '' && !updated.formula && !updated.format) {
           newData.delete(key);
         } else {
           newData.set(key, updated);
@@ -247,11 +247,12 @@ export function spreadsheetReducer(
         for (let r = normalized.startRow; r <= normalized.endRow; r++) {
           for (let c = normalized.startCol; c <= normalized.endCol; c++) {
             const key = keyOf(r, c);
-            const existing = newData.get(key) || {};
-            newData.set(key, {
+            const existing = newData.get(key) || { value: '' };
+            const updatedCell: CellData = {
               ...existing,
               format: { ...(existing.format || {}), ...format },
-            });
+            };
+            newData.set(key, updatedCell);
           }
         }
       });
@@ -356,11 +357,26 @@ export function spreadsheetReducer(
 
     case 'SET_VALIDATION': {
       const { row, col, validation } = action.payload;
+      const newValidation = new Map(state.validation || new Map());
       const key = keyOf(row, col);
-      const existing = state.data.get(key) || {};
-      const newData = new Map(state.data);
-      newData.set(key, { ...existing, validation } as any);
-      return { ...state, data: newData };
+      
+      if (validation === null) {
+        newValidation.delete(key);
+      } else {
+        newValidation.set(key, validation);
+      }
+      
+      return { ...state, validation: newValidation };
+    }
+
+    case 'UPDATE_SHEET_FORMATTING': {
+      return {
+        ...state,
+        sheetFormatting: {
+          ...state.sheetFormatting,
+          ...action.payload,
+        },
+      };
     }
 
     case 'BATCH': {

@@ -42,7 +42,7 @@ export const SpreadsheetTable: React.FC = () => {
     }));
   };
 
-  const handleContextMenu = (e: React.MouseEvent, row: number, col: number) => {
+  const handleContextMenu = (e: React.MouseEvent, _row: number, _col: number) => {
     e.preventDefault();
     setContextMenu({
       x: e.clientX,

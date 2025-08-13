@@ -35,7 +35,7 @@ export const FormulaBar: React.FC = () => {
       } else {
         setCell(active.row, active.col, { value: newValue });
       }
-      setState((prev) => ({ ...prev, formulaInput: '' }));
+      dispatch({ type: 'SET_FORMULA_INPUT', payload: '' });
     }
   };
 

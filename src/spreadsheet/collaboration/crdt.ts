@@ -58,7 +58,7 @@ export class SpreadsheetCRDT {
   }
 
   // Check if two operations are concurrent
-  private areConcurrent(a: VectorClock, b: VectorClock): boolean {
+  private _areConcurrent(a: VectorClock, b: VectorClock): boolean {
     return !this.happensBefore(a, b) && !this.happensBefore(b, a);
   }
 

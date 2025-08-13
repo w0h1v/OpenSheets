@@ -1,0 +1,74 @@
+.arrow {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 2px;
+  color: #5f6368;
+  transition: all 0.15s ease;
+  opacity: 0;
+  visibility: hidden;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+.arrow:hover {
+  background-color: #f1f3f4;
+  color: #1a73e8;
+}
+
+.arrow:active {
+  background-color: #e8eaed;
+}
+
+.arrow.open {
+  color: #1a73e8;
+  background-color: #f1f3f4;
+}
+
+.arrow.open svg {
+  transform: rotate(180deg);
+}
+
+/* Show arrow on cell hover */
+.cellWithDropdown:hover .arrow {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Always show arrow when dropdown is open */
+.arrow.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Ensure arrow is visible on focus */
+.cellWithDropdown:focus-within .arrow {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Animation for arrow rotation */
+.arrow svg {
+  transition: transform 0.15s ease;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .arrow {
+    border: 1px solid;
+  }
+  
+  .arrow:hover {
+    background-color: #000;
+    color: #fff;
+  }
+}

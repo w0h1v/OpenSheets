@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { ValidationRule } from '../types/actions';
+import { ValidationRule } from '../types/spreadsheet';
 import { useSpreadsheetEnhanced } from '../SpreadsheetContextEnhanced';
 import styles from './DataValidation.module.css';
 

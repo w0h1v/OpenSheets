@@ -12,7 +12,7 @@ import { downloadCSV, importFromCSVFile } from '../utils/csvUtils';
 import styles from './SpreadsheetTable.module.css';
 
 export const SpreadsheetTableOptimized: React.FC = () => {
-  const { state, dispatch, undo, redo, canUndo, canRedo } = useSpreadsheetEnhanced();
+  const { state, dispatch } = useSpreadsheetEnhanced();
   const parentRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -23,8 +23,6 @@ export const SpreadsheetTableOptimized: React.FC = () => {
     startSelection,
     updateSelection,
     endSelection,
-    isShiftPressed,
-    isCtrlPressed,
   } = useMultiSelection(state, dispatch);
 
   // Optimized virtualizers with dynamic sizing
@@ -236,7 +234,7 @@ export const SpreadsheetTableOptimized: React.FC = () => {
           fileInputRef.current?.click();
         } 
       },
-    ].filter(item => item.label !== '---' || true); // Keep separators
+    ].map(item => item.label === '---' ? { label: item.label, onClick: () => {} } : item);
   }, [contextMenu, state.selection.ranges, state.data, state.maxRows, state.maxCols, dispatch]);
 
   // Handle file import

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
-import { TableProps, SpreadsheetState, SparseMatrix, CellData, keyOf } from './types/spreadsheet';
+import { TableProps, SpreadsheetState, CellData, keyOf } from './types/spreadsheet';
 
 interface SpreadsheetContextValue {
   state: SpreadsheetState;
@@ -32,8 +32,11 @@ export const SpreadsheetProvider: React.FC<React.PropsWithChildren<TableProps>> 
   const setCell = (r: number, c: number, data: Partial<CellData>) => {
     setState((prev) => {
       const key = keyOf(r, c);
-      const existing = prev.data.get(key) ?? {};
-      const updated = { ...existing, ...data };
+      const existing = prev.data.get(key) ?? { value: '' };
+      const updated: CellData = { ...existing, ...data };
+      if (updated.value === undefined) {
+        updated.value = '';
+      }
       const newMap = new Map(prev.data);
       newMap.set(key, updated);
       return { ...prev, data: newMap };

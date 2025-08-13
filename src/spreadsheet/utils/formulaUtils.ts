@@ -46,7 +46,7 @@ export const updateFormulaReferences = (
   if (!formula.startsWith('=')) return formula;
 
   // Update cell references in the formula
-  return formula.replace(/(\$?)([A-Z]+)(\$?)(\d+)/g, (match, dollarCol, colLetters, dollarRow, rowNum) => {
+  return formula.replace(/(\$?)([A-Z]+)(\$?)(\d+)/g, (_match, dollarCol, colLetters, dollarRow, rowNum) => {
     const col = letterToColumn(colLetters);
     const row = parseInt(rowNum, 10) - 1;
     const isAbsCol = dollarCol === '$';
@@ -85,7 +85,7 @@ export const evaluateFormula = (
   let expr = formula.slice(1);
 
   // Handle cell references with absolute notation
-  expr = expr.replace(/(\$?)([A-Z]+)(\$?)(\d+)(?!:)/g, (match, dollarCol, colLetters, dollarRow, rowNum) => {
+  expr = expr.replace(/(\$?)([A-Z]+)(\$?)(\d+)(?!:)/g, (match, _dollarCol, _colLetters, _dollarRow, _rowNum) => {
     const [r, c] = parseCellRef(match);
     const value = getCellValue(r, c);
     return JSON.stringify(value ?? 0);

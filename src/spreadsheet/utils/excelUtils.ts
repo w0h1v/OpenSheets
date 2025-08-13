@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
-import { CellData, SparseMatrix, keyOf } from '../types/spreadsheet';
+import { CellData, SparseMatrix, keyOf, CellFormat } from '../types/spreadsheet';
+import { autoDetectFormat } from './formatUtils';
 
 export interface ExcelImportOptions {
   sheetIndex?: number;
@@ -7,6 +8,9 @@ export interface ExcelImportOptions {
   headerRow?: boolean;
   maxRows?: number;
   maxCols?: number;
+  includeFormatting?: boolean;
+  autoDetectFormats?: boolean;
+  preserveFormulas?: boolean;
 }
 
 export interface ExcelExportOptions {
@@ -15,6 +19,9 @@ export interface ExcelExportOptions {
   includeFormatting?: boolean;
   author?: string;
   title?: string;
+  description?: string;
+  formatAsTable?: boolean;
+  freezeHeaders?: boolean;
 }
 
 export async function importFromExcel(
@@ -77,7 +84,7 @@ function convertWorksheetToSparseMatrix(
       const cell = worksheet[cellAddress];
       
       if (cell) {
-        const cellData: CellData = {};
+        const cellData: CellData = { value: '' };
         
         // Handle value
         if (cell.v !== undefined) {
@@ -85,13 +92,18 @@ function convertWorksheetToSparseMatrix(
         }
         
         // Handle formula
-        if (cell.f) {
+        if (cell.f && options.preserveFormulas !== false) {
           cellData.formula = '=' + cell.f;
         }
         
-        // Handle formatting (if available)
-        if (cell.s) {
-          cellData.format = convertExcelFormat(cell.s);
+        // Handle formatting
+        if (options.includeFormatting && cell.s) {
+          cellData.format = convertExcelFormatToOpenSheets(cell.s);
+        } else if (options.autoDetectFormats !== false && cellData.value) {
+          // Auto-detect format from value
+          const detected = autoDetectFormat(cellData.value);
+          cellData.format = detected.format;
+          cellData.value = detected.value;
         }
         
         // Handle cell type
@@ -120,8 +132,8 @@ function convertWorksheetToSparseMatrix(
   return { data, rows: maxRows, cols: maxCols };
 }
 
-function convertExcelFormat(style: any): any {
-  const format: any = {};
+function convertExcelFormatToOpenSheets(style: any): CellFormat {
+  const format: CellFormat = {};
   
   if (style.font) {
     if (style.font.bold) format.bold = true;
@@ -149,8 +161,8 @@ function convertExcelFormat(style: any): any {
 
 export function exportToExcel(
   data: SparseMatrix<CellData>,
-  maxRows: number,
-  maxCols: number,
+  _maxRows: number,
+  _maxCols: number,
   filename: string = 'spreadsheet.xlsx',
   options: ExcelExportOptions = {}
 ): void {
@@ -232,7 +244,7 @@ export function exportToExcel(
   XLSX.writeFile(wb, filename);
 }
 
-function convertToExcelFormat(format: any): any {
+function convertToExcelFormat(format: CellFormat): any {
   const style: any = {};
   
   // Font styles
@@ -241,17 +253,20 @@ function convertToExcelFormat(format: any): any {
   if (format.italic) font.italic = true;
   if (format.underline) font.underline = true;
   if (format.strikethrough) font.strike = true;
+  if (format.fontFamily) font.name = format.fontFamily;
+  if (format.fontSize) font.sz = format.fontSize;
   if (format.color) {
     font.color = { rgb: format.color.replace('#', '').toUpperCase() };
   }
+  
   if (Object.keys(font).length > 0) {
     style.font = font;
   }
   
-  // Fill (background color)
+  // Fill/background color
   if (format.backgroundColor) {
     style.fill = {
-      fgColor: { rgb: format.backgroundColor.replace('#', '').toUpperCase() },
+      fgColor: { rgb: format.backgroundColor.replace('#', '').toUpperCase() }
     };
   }
   
@@ -263,8 +278,53 @@ function convertToExcelFormat(format: any): any {
   if (format.verticalAlign) {
     alignment.vertical = format.verticalAlign;
   }
+  if (format.wrapText) {
+    alignment.wrapText = true;
+  }
+  if (format.textRotation) {
+    alignment.textRotation = format.textRotation;
+  }
+  
   if (Object.keys(alignment).length > 0) {
     style.alignment = alignment;
+  }
+  
+  // Borders
+  if (format.borders) {
+    const borders: any = {};
+    if (format.borders.top) {
+      borders.top = {
+        style: format.borders.top.style || 'thin',
+        color: { rgb: (format.borders.top.color || '#000000').replace('#', '').toUpperCase() }
+      };
+    }
+    if (format.borders.right) {
+      borders.right = {
+        style: format.borders.right.style || 'thin',
+        color: { rgb: (format.borders.right.color || '#000000').replace('#', '').toUpperCase() }
+      };
+    }
+    if (format.borders.bottom) {
+      borders.bottom = {
+        style: format.borders.bottom.style || 'thin',
+        color: { rgb: (format.borders.bottom.color || '#000000').replace('#', '').toUpperCase() }
+      };
+    }
+    if (format.borders.left) {
+      borders.left = {
+        style: format.borders.left.style || 'thin',
+        color: { rgb: (format.borders.left.color || '#000000').replace('#', '').toUpperCase() }
+      };
+    }
+    
+    if (Object.keys(borders).length > 0) {
+      style.border = borders;
+    }
+  }
+  
+  // Number format
+  if (format.numberFormat && format.formatType !== 'text') {
+    style.numFmt = format.numberFormat;
   }
   
   return style;

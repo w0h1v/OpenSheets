@@ -99,8 +99,8 @@ function parseCSVLine(line: string, delimiter: string, quote: string, escape: st
 
 export function exportToCSV(
   data: SparseMatrix<CellData>,
-  maxRows: number,
-  maxCols: number,
+  _maxRows: number,
+  _maxCols: number,
   options: CSVOptions = {}
 ): string {
   const opts = { ...defaultOptions, ...options };

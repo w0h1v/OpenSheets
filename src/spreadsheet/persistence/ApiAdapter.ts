@@ -8,7 +8,7 @@ import {
   ConflictResolution,
   CellConflict,
 } from './types';
-import { SpreadsheetCRDT, CRDTOperation } from '../collaboration/crdt';
+import { SpreadsheetCRDT } from '../collaboration/crdt';
 import { WebSocketCollaborationService } from '../collaboration/websocketService';
 import { CellData } from '../types/spreadsheet';
 
@@ -52,6 +52,7 @@ export class ApiAdapter implements PersistenceAdapter {
       retryAttempts: 3,
       retryDelay: 1000,
       ...config,
+      apiKey: config.apiKey || '',
     };
 
     this.crdt = new SpreadsheetCRDT(config.userId);
@@ -570,7 +571,7 @@ export class ApiAdapter implements PersistenceAdapter {
     }
   }
 
-  private async saveToCache(id: string, state: PersistedState): Promise<void> {
+  private async _saveToCache(id: string, state: PersistedState): Promise<void> {
     try {
       localStorage.setItem(`opensheets_cache_${id}`, JSON.stringify(state));
     } catch {

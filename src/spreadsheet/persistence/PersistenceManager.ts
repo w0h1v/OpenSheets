@@ -1,6 +1,5 @@
 import {
   PersistenceAdapter,
-  PersistenceConfig,
   PersistedState,
   SpreadsheetMetadata,
   SyncStatus,
@@ -34,7 +33,7 @@ export class PersistenceManager {
   private apiAdapter?: ApiAdapter;
   private config: PersistenceManagerConfig;
   private autoSaveTimer?: NodeJS.Timeout;
-  private lastSaveTimestamp: number = 0;
+  private _lastSaveTimestamp: number = 0;
   private pendingSave: boolean = false;
   private saveQueue: (() => Promise<void>)[] = [];
 
@@ -281,7 +280,7 @@ export class PersistenceManager {
     try {
       const result = await this.adapter.save(this.config.spreadsheetId, persistedState);
       
-      this.lastSaveTimestamp = Date.now();
+      this._lastSaveTimestamp = Date.now();
       this.config.onSaveComplete?.(result);
       
       // Process any queued saves
