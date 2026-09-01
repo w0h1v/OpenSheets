@@ -91,7 +91,7 @@
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.10",
     "immer": "^10.2.0",
-    "react-hotkeys-hook": "^4.6.2"
+    "react-hotkeys-hook": "^5.3.3"
   },
   "peerDependencies": {
     "react": "^18.0.0",
