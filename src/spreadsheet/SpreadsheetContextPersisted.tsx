@@ -3,6 +3,10 @@ import { TableProps, SpreadsheetState, CellData, keyOf } from './types/spreadshe
 import { SpreadsheetAction } from './types/actions';
 import { spreadsheetReducer } from './reducers/spreadsheetReducer';
 import { useUndoRedo } from './hooks/useUndoRedo';
+import {
+  SpreadsheetContextInstance,
+} from './SpreadsheetContext';
+import { SpreadsheetEnhancedContext } from './SpreadsheetContextEnhanced';
 import { PersistenceManager, PersistenceMode } from './persistence/PersistenceManager';
 import { SyncStatus, SaveResult } from './persistence/types';
 
@@ -19,6 +23,7 @@ interface SpreadsheetContextValue {
   load: () => Promise<void>;
   saveVersion: (label?: string) => Promise<void>;
   loadVersion: (versionId: string) => Promise<void>;
+  listVersions: () => Promise<{ id: string; label?: string; timestamp: number }[]>;
   syncStatus: SyncStatus;
   persistenceMode: PersistenceMode;
 }
@@ -43,14 +48,16 @@ export const SpreadsheetContext = createContext<SpreadsheetContextValue | null>(
 
 // Enhanced reducer with persistence support
 const enhancedReducer = (state: SpreadsheetState, action: SpreadsheetAction): SpreadsheetState => {
-  // Log actions in development
-  if (process.env.NODE_ENV === 'development') {
-    console.log('Spreadsheet Action:', action.type, action);
-  }
-
   // Handle special restore state action
   if (action.type === 'RESTORE_STATE') {
     return action.payload;
+  }
+
+  // Apply a React-style setState updater against the accumulated state
+  // (used by the base-context bridge)
+  if ((action as any).type === 'APPLY_SET_STATE') {
+    const updater = (action as any).payload;
+    return typeof updater === 'function' ? updater(state) : updater;
   }
 
   // Handle load from persistence
@@ -100,6 +107,10 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
   }), [initialData, maxRows, maxCols, readOnly]);
 
   const [state, dispatch] = useReducer(enhancedReducer, initialState);
+  // Always-current state for async saves (a save triggered right after a
+  // dispatch must not persist the pre-dispatch snapshot)
+  const stateRef = useRef(state);
+  stateRef.current = state;
   
   // Sync status
   const [syncStatus, setSyncStatus] = React.useState<SyncStatus>({
@@ -113,6 +124,7 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
   const persistenceManager = useRef<PersistenceManager | null>(null);
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
   const hasUnsavedChanges = useRef(false);
+  const hasLoadedOnce = useRef(false);
   const lastSavedState = useRef<string>('');
 
   // Initialize persistence manager
@@ -129,8 +141,12 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
       onSaveComplete,
     });
 
-    // Load initial data
-    loadData();
+    // Load initial data (guard against StrictMode double-mount re-loading
+    // and clobbering in-memory edits)
+    if (!hasLoadedOnce.current) {
+      hasLoadedOnce.current = true;
+      loadData();
+    }
 
     return () => {
       persistenceManager.current?.destroy();
@@ -171,10 +187,10 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
 
     try {
       setSyncStatus(prev => ({ ...prev, syncing: true }));
-      const result = await persistenceManager.current.save(state);
+      const result = await persistenceManager.current.save(stateRef.current);
       
       if (result.success) {
-        lastSavedState.current = JSON.stringify(state.data);
+        lastSavedState.current = JSON.stringify(stateRef.current.data);
         hasUnsavedChanges.current = false;
       }
       
@@ -242,7 +258,7 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
     
     try {
       setSyncStatus(prev => ({ ...prev, syncing: true }));
-      await persistenceManager.current.saveVersion(state, label);
+      await persistenceManager.current.saveVersion(stateRef.current, label);
     } catch (error) {
       console.error('Failed to save version:', error);
     } finally {
@@ -267,6 +283,16 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
     }
   };
 
+  const listVersions = async () => {
+    if (!persistenceManager.current) return [];
+    try {
+      return await persistenceManager.current.listVersions();
+    } catch (error) {
+      console.error('Failed to list versions:', error);
+      return [];
+    }
+  };
+
   // Memoized getCell function
   const getCell = useCallback((r: number, c: number) => {
     return state.data.get(keyOf(r, c));
@@ -277,6 +303,18 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
     dispatch({ type: 'SET_CELL', payload: { row: r, col: c, data } });
     hasUnsavedChanges.current = true;
   }, [dispatch]);
+
+  // Bridge state for components that consume the base or enhanced contexts
+  // so the whole core component set works under this provider
+  const bridgedSetState = useCallback((action: React.SetStateAction<SpreadsheetState>) => {
+    dispatch({ type: 'APPLY_SET_STATE', payload: action } as unknown as SpreadsheetAction);
+  }, []);
+  const bridgeValue = useMemo(() => ({
+    state,
+    setState: bridgedSetState,
+    getCell,
+    setCell,
+  }), [state, bridgedSetState, getCell, setCell]);
 
   // Call onCellChange callback
   useEffect(() => {
@@ -324,13 +362,18 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
     load: loadData,
     saveVersion,
     loadVersion,
+    listVersions,
     syncStatus,
     persistenceMode,
-  }), [state, dispatch, getCell, setCell, undo, redo, canUndo, canRedo, syncStatus, persistenceMode]);
+  }), [state, dispatch, getCell, setCell, undo, redo, canUndo, canRedo, syncStatus, persistenceMode, listVersions]);
 
   return (
     <SpreadsheetContext.Provider value={contextValue}>
-      {children}
+      <SpreadsheetEnhancedContext.Provider value={contextValue as any}>
+        <SpreadsheetContextInstance.Provider value={bridgeValue}>
+          {children}
+        </SpreadsheetContextInstance.Provider>
+      </SpreadsheetEnhancedContext.Provider>
     </SpreadsheetContext.Provider>
   );
 };

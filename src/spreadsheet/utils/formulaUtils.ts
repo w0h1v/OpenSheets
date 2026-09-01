@@ -77,11 +77,33 @@ export const updateFormulaReferences = (
   });
 };
 
+const MAX_FORMULA_DEPTH = 32;
+
 export const evaluateFormula = (
   formula: string,
   getCellValue: (r: number, c: number) => any
+): any => evaluateFormulaDepth(formula, getCellValue, 0);
+
+// Resolves the value of a referenced cell. Accepts either a raw value or a
+// CellData object from context getCell(); formula cells are evaluated
+// recursively (with a depth cap that surfaces as #CYCLE!)
+const evaluateFormulaDepth = (
+  formula: string,
+  getCellValue: (r: number, c: number) => any,
+  depth: number
 ): any => {
   if (!formula.startsWith('=')) return formula;
+  if (depth > MAX_FORMULA_DEPTH) return '#CYCLE!';
+  const cellValueOf = (v: any): any => {
+    if (v === null || typeof v !== 'object' || Array.isArray(v) || !('value' in v)) {
+      return v;
+    }
+    const cell = v as { value?: any; formula?: string };
+    if (cell.formula && String(cell.formula).startsWith('=')) {
+      return evaluateFormulaDepth(cell.formula, getCellValue, depth + 1);
+    }
+    return cell.value;
+  };
   let expr = formula.slice(1);
 
   // Ranges must be replaced first so their cell refs are not each
@@ -90,7 +112,7 @@ export const evaluateFormula = (
     const [start, end] = match.split(':');
     const cells = cellsInRange(start, end);
     const values = cells
-      .map(([r, c]) => getCellValue(r, c))
+      .map(([r, c]) => cellValueOf(getCellValue(r, c)))
       .filter((v) => v !== undefined && v !== null);
     return JSON.stringify(values);
   });
@@ -98,7 +120,7 @@ export const evaluateFormula = (
   // Single cell references
   expr = expr.replace(/(\$?)([A-Z]+)(\$?)(\d+)/g, (match) => {
     const [r, c] = parseCellRef(match);
-    const value = getCellValue(r, c);
+    const value = cellValueOf(getCellValue(r, c));
     return JSON.stringify(value ?? 0);
   });
 

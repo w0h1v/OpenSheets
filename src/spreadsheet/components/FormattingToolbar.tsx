@@ -1,7 +1,8 @@
 import React, { useContext, useState } from 'react';
 import { SpreadsheetContext } from '../SpreadsheetContextPersisted';
 import { SpreadsheetEnhancedContext } from '../SpreadsheetContextEnhanced';
-import { keyOf, CellFormat } from '../types/spreadsheet';
+import { keyOf, CellFormat, CellData } from '../types/spreadsheet';
+import { normalizeRect } from '../utils/selectionUtils';
 import { getFormatOptions, autoDetectFormat } from '../utils/formatUtils';
 import styles from './FormattingToolbar.module.css';
 
@@ -18,7 +19,7 @@ export const FormattingToolbar: React.FC = () => {
     return <div>Loading toolbar...</div>;
   }
   
-  const { state, setCell } = context;
+  const { state, dispatch, setCell } = context;
   const active = state.selection.active;
   const formatOptions = getFormatOptions();
   
@@ -27,21 +28,29 @@ export const FormattingToolbar: React.FC = () => {
   
   const applyFormat = (format: Partial<CellFormat>) => {
     if (!active) return;
-    
-    // Apply to all selected cells if multiple selection
+
+    // Apply to all selected cells if multiple selection (single batched
+    // dispatch; ranges are normalized so drag-direction doesn't matter)
     if (state.selection.ranges.length > 0) {
+      const updates: Array<{ row: number; col: number; data: Partial<CellData> }> = [];
       state.selection.ranges.forEach(range => {
-        for (let row = range.startRow; row <= range.endRow; row++) {
-          for (let col = range.startCol; col <= range.endCol; col++) {
+        const rect = normalizeRect(range);
+        for (let row = rect.startRow; row <= rect.endRow; row++) {
+          for (let col = rect.startCol; col <= rect.endCol; col++) {
             const cellKey = keyOf(row, col);
             const existingCell = state.data.get(cellKey);
-            setCell(row, col, {
-              value: existingCell?.value || '',
-              format: { ...(existingCell?.format || {}), ...format },
+            updates.push({
+              row,
+              col,
+              data: {
+                value: existingCell?.value ?? '',
+                format: { ...(existingCell?.format || {}), ...format },
+              },
             });
           }
         }
       });
+      dispatch({ type: 'SET_CELLS', payload: { updates } });
     } else {
       setCell(active.row, active.col, {
         value: currentCell?.value || '',
