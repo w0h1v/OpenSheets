@@ -1,24 +1,30 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
+import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { WebSocketServer, WebSocket } from 'ws';
+import { createRelay, createBus, createAccountStore, DEFAULT_DATA_DIR } from './relayCore.mjs';
 
 /*
- * Standalone OpenSheets server: serves the built demo (examples/dist) and
- * the /collab WebSocket relay on one port. This is the deployment-shaped
- * counterpart of the dev-only vite plugin — run:
+ * Standalone OpenSheets server: serves the built demo (examples/dist), the
+ * account endpoints (/auth/*) and the /collab WebSocket relay on one port.
+ * This is the deployment-shaped counterpart of the dev-only Vite plugin;
+ * both mount the same relay core, so behaviour is identical. Run:
  *
  *   npm run build:examples && npm run serve
  *
- * Collaboration semantics are identical to the dev relay: every message is
- * forwarded to the other connected clients with the authenticated user
- * attached; join/leave presence is broadcast; nothing is persisted server-
- * side (each client persists its own sheet locally).
+ * Environment:
+ *   PORT                 listen port (default 8080)
+ *   REDIS_URL            when set, relay state (fan-out, snapshots, presence)
+ *                        lives in Redis so several instances can share one
+ *                        deployment behind a load balancer; unset = single
+ *                        instance, in-memory
+ *   OPENSHEETS_DATA_DIR  where accounts.json lives (default examples/data);
+ *                        with REDIS_URL accounts live in Redis instead
  */
 
 const PORT = Number(process.env.PORT || 8080);
 const DIST = join(fileURLToPath(new URL('.', import.meta.url)), 'dist');
+const DATA_DIR = process.env.OPENSHEETS_DATA_DIR || DEFAULT_DATA_DIR;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -31,15 +37,24 @@ const MIME = {
   '.woff2': 'font/woff2',
 };
 
+const bus = createBus();
+if (bus.kind === 'redis') console.log(`OpenSheets relay: connecting to Redis at ${process.env.REDIS_URL}`);
+await bus.init();
+const accounts = createAccountStore(bus, DATA_DIR);
+await accounts.init();
+const relay = createRelay({ bus, accounts });
+
 const server = createServer(async (req, res) => {
   try {
-    const url = new URL(req.url || '/', `http://${req.headers.host}`);
+    if (await relay.handleHttp(req, res)) return;
+
+    const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     let path = decodeURIComponent(url.pathname);
     if (path === '/') path = '/index.html';
 
-    // Resolve inside dist only (no traversal)
-    const file = normalize(join(DIST, path));
-    if (!file.startsWith(DIST)) {
+    // Resolve inside dist only (no traversal, and no sibling dirs sharing the prefix)
+    let file = normalize(join(DIST, path));
+    if (file !== DIST && !file.startsWith(DIST + sep)) {
       res.writeHead(403).end('Forbidden');
       return;
     }
@@ -49,106 +64,39 @@ const server = createServer(async (req, res) => {
       body = await readFile(file);
     } catch {
       // SPA fallback to index.html for unknown routes
-      body = await readFile(join(DIST, 'index.html'));
+      file = join(DIST, 'index.html');
+      try {
+        body = await readFile(file);
+      } catch {
+        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Demo not built yet. Run: npm run build:examples');
+        return;
+      }
     }
     res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream' });
     res.end(body);
-  } catch (err) {
+  } catch {
     res.writeHead(500).end('Internal server error');
   }
 });
 
-const wss = new WebSocketServer({ noServer: true });
-const clients = new Map();
-// Server-side sheet snapshots merged from relayed cell ops
-const snapshots = new Map();
-
-const broadcast = (msg, except) => {
-  const payload = JSON.stringify(msg);
-  for (const client of clients.keys()) {
-    if (client !== except && client.readyState === WebSocket.OPEN) client.send(payload);
-  }
-};
-
-wss.on('connection', (ws) => {
-  let user = null;
-
-  ws.on('message', (raw) => {
-    let msg;
-    try {
-      msg = JSON.parse(String(raw));
-    } catch {
-      return;
-    }
-
-    if (msg.type === 'hello') {
-      // Same user reconnecting (e.g. a refresh) replaces the old socket
-      for (const [client, u] of clients) {
-        if (u.id === msg.user.id && client !== ws && client.readyState === WebSocket.OPEN) {
-          client.close();
-          clients.delete(client);
-        }
-      }
-      user = { id: msg.user.id, name: msg.user.name, color: msg.user.color };
-      clients.set(ws, user);
-      ws.send(JSON.stringify({
-        type: 'roster',
-        users: Array.from(clients.values()).filter((u) => u.id !== user.id),
-      }));
-      broadcast({ type: 'join', user }, ws);
-      return;
-    }
-
-    if (!user) return;
-
-    if (msg.type === 'sync') {
-      const snap = snapshots.get(msg.sheetId);
-      ws.send(JSON.stringify({
-        type: 'snapshot',
-        sheetId: msg.sheetId,
-        data: snap ? Array.from(snap.entries()) : null,
-      }));
-      return;
-    }
-
-    if (msg.type === 'cells') {
-      const snap = snapshots.get(msg.sheetId) || new Map();
-      for (const u of msg.updates || []) {
-        const key = `${u.row}:${u.col}`;
-        if (u.data && (u.data.value === '' || u.data.value === undefined)) {
-          snap.delete(key);
-        } else {
-          snap.set(key, u.data);
-        }
-      }
-      snapshots.set(msg.sheetId, snap);
-    }
-
-    if (msg.type === 'bye') {
-      broadcast({ type: 'leave', user });
-      clients.delete(ws);
-      return;
-    }
-
-    broadcast({ ...msg, user });
-  });
-
-  ws.on('close', () => {
-    if (user) {
-      broadcast({ type: 'leave', user });
-      clients.delete(ws);
-    }
-  });
-});
-
-server.on('upgrade', (req, socket, head) => {
-  if (!req.url || !req.url.startsWith('/collab')) {
-    socket.destroy();
-    return;
-  }
-  wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
-});
+relay.attach(server);
 
 server.listen(PORT, () => {
-  console.log(`OpenSheets server: http://localhost:${PORT} (collab relay at /collab)`);
+  console.log(
+    `OpenSheets server: http://localhost:${PORT} (collab relay at /collab, bus: ${bus.kind}, instance ${relay.instance})`
+  );
 });
+
+// Drain presence so collaborators see this instance's users leave, then
+// release the bus (Redis connections) before exiting
+const shutdown = async (signal) => {
+  console.log(`\n${signal}: shutting down`);
+  const forceExit = setTimeout(() => process.exit(0), 2000);
+  forceExit.unref();
+  await relay.close();
+  await bus.close();
+  server.close(() => process.exit(0));
+};
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));

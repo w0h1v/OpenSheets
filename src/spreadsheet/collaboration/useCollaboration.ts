@@ -1,17 +1,23 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { SpreadsheetState, CellData } from '../types/spreadsheet';
 import {
-  setCollabUsers, pushCollabToast, COLLAB_PALETTE, CollabUser,
+  setCollabUsers, pushCollabToast, CollabUser,
 } from './presenceStore';
+import {
+  getIdentity, subscribeAuth, getAuthToken, getClientId, adoptServerIdentity, Identity,
+} from './authStore';
 import { setEditAuthor, editStampWins, beginRemoteApply, endRemoteApply } from '../utils/editContext';
 import { keyOf } from '../types/spreadsheet';
 
 /*
- * Live collaboration over the dev relay at /collab:
+ * Live collaboration over the relay at /collab:
  *  - outgoing: debounced diffs of state.data, plus selection presence
  *  - incoming: remote cell edits applied via dispatch, roster updates
- * The local identity persists in localStorage; the first-hop CRDT in
- * crdt.ts is used to stamp edits with user + timestamp.
+ * Identity comes from authStore (the signed-in account, else a per-tab
+ * guest); the relay confirms it in the roster reply and is authoritative.
+ * Each tab also has a clientId so several tabs of one account coexist:
+ * echo suppression is per tab, presence is per person. The first-hop CRDT
+ * in crdt.ts stamps edits with user + timestamp.
  */
 
 interface CollabHooks {
@@ -19,33 +25,13 @@ interface CollabHooks {
   dispatch: (action: any) => void;
   sheetId: string;
   enabled?: boolean;
-  /** Called for every relayed message from other users (e.g. sheet-list sync). */
+  /** Called for every relayed message from other clients (e.g. sheet-list sync). */
   onRemoteMessage?: (msg: any) => void;
 }
 
-const NAMES = ['Alice', 'Bob', 'Carol', 'Dave', 'Erin', 'Frank', 'Grace', 'Heidi'];
-
-// sessionStorage (not localStorage) so each browser tab is its own user —
-// opening a second tab demos real multi-user collaboration
-const loadIdentity = (): { id: string; name: string; color: string } => {
-  try {
-    const saved = sessionStorage.getItem('opensheets-collab-identity');
-    if (saved) return JSON.parse(saved);
-  } catch { /* ignore */ }
-  const identity = {
-    id: `u-${Math.random().toString(36).slice(2, 8)}`,
-    name: NAMES[Math.floor(Math.random() * NAMES.length)],
-    color: COLLAB_PALETTE[Math.floor(Math.random() * COLLAB_PALETTE.length)],
-  };
-  try {
-    sessionStorage.setItem('opensheets-collab-identity', JSON.stringify(identity));
-  } catch { /* ignore */ }
-  return identity;
-};
-
 export function useCollaboration({ getState, dispatch, sheetId, enabled = true, onRemoteMessage }: CollabHooks) {
   const wsRef = useRef<WebSocket | null>(null);
-  const identityRef = useRef(loadIdentity());
+  const identity: Identity = useSyncExternalStore(subscribeAuth, getIdentity);
   const lastSyncedRef = useRef<string>('');
   const pendingRef = useRef<unknown[]>([]);
   const diffTimerRef = useRef<number | null>(null);
@@ -58,12 +44,14 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
   dispatchRef.current = dispatch;
   onRemoteMessageRef.current = onRemoteMessage;
 
+  // Reconnects whenever the identity changes (sign in / out, in any tab)
   useEffect(() => {
     if (!enabled) return;
-    const identity = identityRef.current;
+    const clientId = getClientId();
+    let selfId = identity.id;
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
 
-const remoteUsers = new Map<string, CollabUser>();
+    const remoteUsers = new Map<string, CollabUser>();
     const publishUsers = () => setCollabUsers(Array.from(remoteUsers.values()));
     const syncSnapshot = () => {
       lastSyncedRef.current = JSON.stringify(getStateRef.current().data, (_k, v) =>
@@ -108,8 +96,9 @@ const remoteUsers = new Map<string, CollabUser>();
 
       socket.onopen = () => {
         reconnectAttempt = 0;
-        setEditAuthor(identity.id);
-        socket.send(JSON.stringify({ type: 'hello', user: identity }));
+        setEditAuthor(selfId);
+        // The token decides who we are; the user claim only shapes a guest
+        socket.send(JSON.stringify({ type: 'hello', clientId, token: getAuthToken(), user: identity }));
         // Ask the server for a snapshot; applied only if we have no local data
         socket.send(JSON.stringify({ type: 'sync', sheetId }));
         syncSnapshot();
@@ -122,90 +111,104 @@ const remoteUsers = new Map<string, CollabUser>();
       };
 
       socket.onmessage = (event) => {
-      let msg: any;
-      try {
-        msg = JSON.parse(event.data);
-      } catch {
-        return;
-      }
-
-      if (msg.type === 'snapshot' && msg.sheetId === sheetId && Array.isArray(msg.data)) {
-        // A fresh client (no local data and nothing loaded) catches up from
-        // the server; clients with data keep theirs (LWW stamps reconcile)
-        const local = getStateRef.current().data;
-        if (local.size === 0 && msg.data.length > 0) {
-          const updates = (msg.data as Array<[string, CellData]>).map(([key, cell]) => {
-            const [row, col] = key.split(':').map(Number);
-            return { row, col, data: cell };
-          });
-          beginRemoteApply();
-          dispatchRef.current({ type: 'SET_CELLS', payload: { updates } });
-          endRemoteApply();
-          setTimeout(syncSnapshot, 0);
+        let msg: any;
+        try {
+          msg = JSON.parse(event.data);
+        } catch {
+          return;
         }
-        return;
-      }
 
-      if (msg.type === 'roster') {
-        (msg.users as Array<{ id: string; name: string; color: string }>).forEach((u) => {
-          remoteUsers.set(u.id, { ...u, sheetId: undefined });
-        });
-        publishUsers();
-        return;
-      }
-
-      if (msg.type === 'join') {
-        remoteUsers.set(msg.user.id, { ...msg.user });
-        publishUsers();
-        pushCollabToast(`${msg.user.name} joined`, msg.user.color);
-        return;
-      }
-
-      if (msg.type === 'leave') {
-        remoteUsers.delete(msg.user.id);
-        publishUsers();
-        pushCollabToast(`${msg.user.name} left`, msg.user.color);
-        return;
-      }
-
-      if (msg.user?.id === identity.id) return; // own echo
-
-      try {
-        onRemoteMessageRef.current?.(msg);
-      } catch { /* listener errors must not break the socket */ }
-
-      if (msg.type === 'cells' && msg.sheetId === sheetId) {
-        const incoming: Array<{ row: number; col: number; data: Partial<CellData> }> = msg.updates;
-        if (Array.isArray(incoming) && incoming.length) {
-          // Convergent LWW: drop writes that lose to our local edit stamp
-          const current = getStateRef.current().data;
-          const updates = incoming.filter((u) => {
-            const local = current.get(keyOf(u.row, u.col));
-            return editStampWins(u.data.editMeta, local?.editMeta);
-          });
-          if (updates.length) {
-            beginRemoteApply();
-          dispatchRef.current({ type: 'SET_CELLS', payload: { updates } });
-          endRemoteApply();
+        if (msg.type === 'roster') {
+          if (msg.you) {
+            // The relay's answer is authoritative (it may have rejected our
+            // token or normalized a guest id); our edits are stamped with it
+            selfId = msg.you.id;
+            setEditAuthor(selfId);
+            adoptServerIdentity(msg.you);
           }
+          remoteUsers.clear();
+          (msg.users as Array<{ id: string; name: string; color: string }>).forEach((u) => {
+            if (u.id !== selfId) remoteUsers.set(u.id, { ...u, sheetId: undefined });
+          });
+          publishUsers();
+          return;
         }
-        const existing = remoteUsers.get(msg.user.id);
-        remoteUsers.set(msg.user.id, { ...msg.user, ...existing, editing: false, sheetId: msg.sheetId });
-        publishUsers();
-        // Don't echo their edits back
-        setTimeout(syncSnapshot, 0);
-        return;
-      }
 
-      if (msg.type === 'selection') {
-        remoteUsers.set(msg.user.id, {
-          ...msg.user,
-          sheetId: msg.sheetId,
-          selection: msg.sheetId === sheetId ? msg.selection : undefined,
-        });
-        publishUsers();
-      }
-    };
+        if (msg.type === 'snapshot' && msg.sheetId === sheetId && Array.isArray(msg.data)) {
+          // A fresh client (no local data and nothing loaded) catches up from
+          // the server; clients with data keep theirs (LWW stamps reconcile)
+          const local = getStateRef.current().data;
+          if (local.size === 0 && msg.data.length > 0) {
+            const updates = (msg.data as Array<[string, CellData]>).map(([key, cell]) => {
+              const [row, col] = key.split(':').map(Number);
+              return { row, col, data: cell };
+            });
+            beginRemoteApply();
+            dispatchRef.current({ type: 'SET_CELLS', payload: { updates } });
+            endRemoteApply();
+            setTimeout(syncSnapshot, 0);
+          }
+          return;
+        }
+
+        if (msg.type === 'join') {
+          if (msg.user.id === selfId) return;
+          remoteUsers.set(msg.user.id, { ...msg.user });
+          publishUsers();
+          pushCollabToast(`${msg.user.name} joined`, msg.user.color);
+          return;
+        }
+
+        if (msg.type === 'leave') {
+          if (msg.user.id === selfId) return;
+          remoteUsers.delete(msg.user.id);
+          publishUsers();
+          pushCollabToast(`${msg.user.name} left`, msg.user.color);
+          return;
+        }
+
+        if (msg.clientId === clientId) return; // own echo (the relay already skips us)
+        // Another tab of our own account is a peer for edits but not for presence
+        const ownAccount = msg.user?.id === selfId;
+
+        try {
+          onRemoteMessageRef.current?.(msg);
+        } catch { /* listener errors must not break the socket */ }
+
+        if (msg.type === 'cells' && msg.sheetId === sheetId) {
+          const incoming: Array<{ row: number; col: number; data: Partial<CellData> }> = msg.updates;
+          if (Array.isArray(incoming) && incoming.length) {
+            // Convergent LWW: drop writes that lose to our local edit stamp
+            const current = getStateRef.current().data;
+            const updates = incoming.filter((u) => {
+              const local = current.get(keyOf(u.row, u.col));
+              return editStampWins(u.data.editMeta, local?.editMeta);
+            });
+            if (updates.length) {
+              beginRemoteApply();
+              dispatchRef.current({ type: 'SET_CELLS', payload: { updates } });
+              endRemoteApply();
+            }
+          }
+          if (!ownAccount) {
+            const existing = remoteUsers.get(msg.user.id);
+            remoteUsers.set(msg.user.id, { ...msg.user, ...existing, editing: false, sheetId: msg.sheetId });
+            publishUsers();
+          }
+          // Don't echo their edits back
+          setTimeout(syncSnapshot, 0);
+          return;
+        }
+
+        if (msg.type === 'selection' && !ownAccount) {
+          remoteUsers.set(msg.user.id, {
+            ...msg.user,
+            sheetId: msg.sheetId,
+            selection: msg.sheetId === sheetId ? msg.selection : undefined,
+          });
+          publishUsers();
+        }
+      };
 
       socket.onclose = () => {
         if (!disposed) scheduleReconnect();
@@ -213,12 +216,9 @@ const remoteUsers = new Map<string, CollabUser>();
       socket.onerror = () => {
         /* onclose follows */
       };
-    window.addEventListener('beforeunload', onBeforeUnload);
-
-    // Poll local state for diffs (simple and robust vs intercepting dispatch)
-
     };
 
+    // Poll local state for diffs (simple and robust vs intercepting dispatch)
     const DIFF_DELAY = 150;
     const interval = window.setInterval(() => {
       const sock = wsRef.current;
@@ -272,12 +272,18 @@ const remoteUsers = new Map<string, CollabUser>();
       disposed = true;
       if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
       window.clearInterval(interval);
-      if (diffTimerRef.current !== null) window.clearTimeout(diffTimerRef.current);
+      if (diffTimerRef.current !== null) {
+        window.clearTimeout(diffTimerRef.current);
+        diffTimerRef.current = null;
+      }
       window.removeEventListener('beforeunload', onBeforeUnload);
-      wsRef.current?.close();
+      const live = wsRef.current;
+      if (live && live.readyState === WebSocket.OPEN) live.send(JSON.stringify({ type: 'bye' }));
+      live?.close();
+      wsRef.current = null;
       setCollabUsers([]);
     };
-  }, [enabled, sheetId]);
+  }, [enabled, sheetId, identity]);
 
   // Broadcast selection presence whenever it changes (fires on render of
   // the hosting component, which re-renders on every state change)
@@ -327,5 +333,5 @@ const remoteUsers = new Map<string, CollabUser>();
     }
   }, []);
 
-  return { identity: identityRef.current, connected: !!wsRef.current, send };
+  return { identity, connected: !!wsRef.current, send };
 }

@@ -21,6 +21,9 @@ import {
   subscribeCollab, getCollabUsers, getCollabToasts, CollabUser,
 } from '../src/spreadsheet/collaboration/presenceStore';
 import { keyOf } from '../src/spreadsheet/types/spreadsheet';
+import {
+  getIdentity, subscribeAuth, login, register, logout,
+} from '../src/spreadsheet/collaboration/authStore';
 import { downloadCSV } from '../src/spreadsheet/utils/csvUtils';
 import { exportToExcel } from '../src/spreadsheet/utils/excelUtils';
 import './chrome.css';
@@ -355,8 +358,11 @@ const TabPresence: React.FC<{ sheetId: string; activeSheet: string }> = ({ sheet
 
 const ProtectionHost: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const { state, dispatch } = useSpreadsheetPersisted();
-  if (!open) return null;
+  // Hooks run unconditionally: the early return used to sit above useState,
+  // which changed the hook count when the dialog opened
   const [description, setDescription] = useState('');
+  const identity = useSyncExternalStore(subscribeAuth, getIdentity);
+  if (!open) return null;
   const range = state.selection.ranges[0];
 
   return (
@@ -402,6 +408,7 @@ const ProtectionHost: React.FC<{ open: boolean; onClose: () => void }> = ({ open
               <div key={p.id} className="protectRow">
                 <span className="protectLabel">{label}</span>
                 <span className="protectDesc">{p.description || 'Protected range'}</span>
+                {p.owner === identity.id && <span className="protectOwner">yours</span>}
                 <button onClick={() => dispatch({ type: 'UNPROTECT_RANGE', payload: { id: p.id } })}>
                   Remove
                 </button>
@@ -487,6 +494,142 @@ const ShareDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           <button className="primary" onClick={copyLink}>{copied ? 'Copied!' : 'Copy link'}</button>
         </div>
         <input className="shareLink" readOnly value={link} onFocus={(e) => e.target.select()} />
+      </div>
+    </div>
+  );
+};
+
+/* ---------------- Account (sign in / create account) ---------------- */
+
+const AccountButton: React.FC<{ onClick: () => void }> = ({ onClick }) => {
+  const identity = useSyncExternalStore(subscribeAuth, getIdentity);
+  const title = identity.authenticated
+    ? `Signed in as ${identity.name}`
+    : `Collaborating as guest ${identity.name} — sign in`;
+  return (
+    <button className="accountButton" onClick={onClick} title={title} aria-label={title}>
+      <span className="avatar" style={{ background: identity.color }}>{identity.name[0].toUpperCase()}</span>
+      <span className="accountLabel">{identity.authenticated ? identity.name : 'Sign in'}</span>
+    </button>
+  );
+};
+
+const AccountDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const identity = useSyncExternalStore(subscribeAuth, getIdentity);
+  const [mode, setMode] = useState<'signin' | 'create'>('signin');
+  const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      if (mode === 'signin') await login(name, password);
+      else await register(name, password);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const signOut = async () => {
+    setBusy(true);
+    try {
+      await logout();
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="dialogBackdrop" onMouseDown={onClose}>
+      <div className="dialog" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="dialogHeader">
+          <h3>{identity.authenticated ? 'Your account' : mode === 'signin' ? 'Sign in' : 'Create account'}</h3>
+          <button onClick={onClose} title="Close">✕</button>
+        </div>
+        {identity.authenticated ? (
+          <>
+            <div className="accountCard">
+              <span className="avatar accountAvatar" style={{ background: identity.color }}>
+                {identity.name[0].toUpperCase()}
+              </span>
+              <div>
+                <div className="accountName">{identity.name}</div>
+                <div className="accountHint">Signed in on this browser</div>
+              </div>
+            </div>
+            <p className="dialogNote">
+              Your edits and protected ranges are attributed to this account in every tab and on
+              every device you sign in on.
+            </p>
+            <div className="shareRow">
+              <button className="primary" onClick={signOut} disabled={busy}>Sign out</button>
+            </div>
+          </>
+        ) : (
+          <form className="authForm" onSubmit={submit}>
+            <p className="dialogNote">
+              You are collaborating as guest <b>{identity.name}</b> in this tab. Sign in to keep one
+              identity across tabs and devices.
+            </p>
+            <div className="authTabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === 'signin'}
+                className={mode === 'signin' ? 'active' : ''}
+                onClick={() => { setMode('signin'); setError(null); }}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === 'create'}
+                className={mode === 'create' ? 'active' : ''}
+                onClick={() => { setMode('create'); setError(null); }}
+              >
+                Create account
+              </button>
+            </div>
+            <label className="authField">
+              Name
+              <input
+                autoFocus
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoComplete="username"
+                required
+                minLength={2}
+                maxLength={24}
+              />
+            </label>
+            <label className="authField">
+              Password
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                required
+                minLength={6}
+              />
+            </label>
+            {error && <div className="authError" role="alert">{error}</div>}
+            <div className="shareRow">
+              <button className="primary" type="submit" disabled={busy}>
+                {busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
@@ -814,12 +957,13 @@ const HeaderBar: React.FC<{
   compact: boolean;
   onToggleCompact: () => void;
   onShare: () => void;
+  onAccount: () => void;
   onShortcuts: () => void;
   onInsertChart: (range: { startRow: number; startCol: number; endRow: number; endCol: number }) => void;
   onFind: () => void;
   onConditionalFormatting: () => void;
   onProtect: () => void;
-}> = ({ theme, toggleTheme, showHistory, onToggleHistory, compact, onToggleCompact, onShare, onShortcuts, onInsertChart, onFind, onConditionalFormatting, onProtect }) => {
+}> = ({ theme, toggleTheme, showHistory, onToggleHistory, compact, onToggleCompact, onShare, onAccount, onShortcuts, onInsertChart, onFind, onConditionalFormatting, onProtect }) => {
   const { syncStatus, dirty } = useSpreadsheetPersisted();
   const savedLabel = syncStatus.syncing ? 'Saving…' : dirty ? 'Unsaved changes' : 'Saved';
 
@@ -848,6 +992,7 @@ const HeaderBar: React.FC<{
       </div>
       <div className="headerActions">
         <AvatarStack />
+        <AccountButton onClick={onAccount} />
         <button className="headerIconBtn" onClick={toggleTheme} title="Toggle dark mode">
           {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
         </button>
@@ -868,6 +1013,7 @@ const AppShell: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const [showHistory, setShowHistory] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [compact, setCompact] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
@@ -947,6 +1093,7 @@ const AppShell: React.FC = () => {
           compact={compact}
           onToggleCompact={() => setCompact(!compact)}
           onShare={() => setShareOpen(true)}
+          onAccount={() => setAccountOpen(true)}
           onShortcuts={() => setShortcutsOpen(true)}
           onInsertChart={(range) => setChart(range)}
           onFind={() => setFindOpen(true)}
@@ -1012,6 +1159,7 @@ const AppShell: React.FC = () => {
 
       <CollabToasts />
       {shareOpen && <ShareDialog onClose={() => setShareOpen(false)} />}
+      {accountOpen && <AccountDialog onClose={() => setAccountOpen(false)} />}
       {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
     </div>
   );
