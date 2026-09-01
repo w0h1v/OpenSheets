@@ -1,4 +1,4 @@
-import React, { useContext, useMemo, useState } from 'react';
+import React, { useContext } from 'react';
 import { SpreadsheetContext } from '../SpreadsheetContextPersisted';
 import { SpreadsheetEnhancedContext } from '../SpreadsheetContextEnhanced';
 import { keyOf, CellFormat, CellData } from '../types/spreadsheet';
@@ -10,7 +10,7 @@ import {
   WrapTextIcon, BordersIcon, FunctionsIcon, FilterIcon, ChevronDownIcon,
 } from './icons';
 import { ColorPickerPopover } from './ColorPickerPopover';
-import { ColumnFilter } from './ColumnFilter';
+import { setFilterPanelColumn } from '../utils/filterPanelStore';
 import styles from './FormattingToolbar.module.css';
 
 export const FormattingToolbar: React.FC = () => {
@@ -91,32 +91,7 @@ export const FormattingToolbar: React.FC = () => {
     applyFormat({ decimalPlaces: decimals });
   };
 
-  // --- Filter: open the column filter panel on the active column ---
-  const [filterCol, setFilterCol] = useState<number | null>(null);
-
-  const columnData = useMemo(() => {
-    if (filterCol === null) return [];
-    const counts = new Map<string, { value: any; count: number }>();
-    for (let r = 0; r < state.maxRows; r++) {
-      const v = state.data.get(keyOf(r, filterCol))?.value;
-      if (v === undefined || v === null || v === '') continue;
-      const k = String(v);
-      const entry = counts.get(k);
-      if (entry) entry.count += 1;
-      else counts.set(k, { value: v, count: 1 });
-    }
-    return Array.from(counts.values()).sort((a, b) =>
-      typeof a.value === 'number' && typeof b.value === 'number'
-        ? a.value - b.value
-        : String(a.value).localeCompare(String(b.value))
-    );
-  }, [filterCol, state.data, state.maxRows]);
-
   const filtersActive = (state.filters?.length ?? 0) > 0;
-
-  const setFilters = (filters: typeof state.filters) => {
-    dispatch({ type: 'SET_FILTERS', payload: { filters: filters ?? [] } });
-  };
 
   const insertFunction = () => {
     if (!active) return;
@@ -295,22 +270,11 @@ export const FormattingToolbar: React.FC = () => {
       <button
         className={`${styles.iconButton} ${filtersActive ? styles.active : ''}`}
         disabled={!active}
-        onClick={() => setFilterCol(active ? active.col : null)}
+        onClick={() => setFilterPanelColumn(active ? active.col : null)}
         title="Create a filter"
       >
         <FilterIcon />
       </button>
-
-      {filterCol !== null && (
-        <ColumnFilter
-          column={filterCol}
-          columnData={columnData}
-          existingFilters={state.filters ?? []}
-          onFilterChange={setFilters}
-          onClose={() => setFilterCol(null)}
-          position={{ x: 999999, y: 0 }}
-        />
-      )}
     </div>
   );
 };

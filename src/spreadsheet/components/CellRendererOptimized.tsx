@@ -121,6 +121,15 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
     return !fits;
   }, [displayValue.isNumeric, displayValue.text, state.colWidths, col]);
 
+  // Merged cells: covered cells render nothing; the origin spans the region
+  const coveringMerge = useMemo(() => {
+    const merges = state.merges;
+    if (!merges || !merges.length) return null;
+    return merges.find(
+      (m) => row >= m.startRow && row <= m.endRow && col >= m.startCol && col <= m.endCol
+    ) || null;
+  }, [state.merges, row, col]);
+
   const cellStyle = useMemo(() => {
     let baseFormat = cellData?.format || {};
     
@@ -171,6 +180,23 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
       borderLeft: format.borders?.left ? `${format.borders.left.width || 1}px ${format.borders.left.style || 'solid'} ${format.borders.left.color || '#000'}` : undefined,
     };
 
+    // Merged origin: expand the cell box across the region
+    if (coveringMerge && coveringMerge.startRow === row && coveringMerge.startCol === col) {
+      let spanW = 0;
+      for (let c = coveringMerge.startCol; c <= coveringMerge.endCol; c++) {
+        spanW += state.colWidths?.[c] || 96;
+      }
+      let spanH = 0;
+      for (let r = coveringMerge.startRow; r <= coveringMerge.endRow; r++) {
+        spanH += state.rowHeights?.[r] || 22;
+      }
+      style.width = spanW;
+      style.height = spanH;
+      style.flex = 'none';
+      style.boxSizing = 'border-box';
+      style.zIndex = 1;
+    }
+
     // Long text overflows into an empty right neighbor instead of clipping
     // (numbers never spill — they become #### via showsHashes)
     const hasContent = displayValue.text !== '' && !showsHashes;
@@ -190,7 +216,7 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
     }
 
     return style;
-  }, [cellData?.format, isSelected, isActive, displayValue.isNumeric, displayValue.text, getCell, row, col]);
+  }, [cellData?.format, isSelected, isActive, displayValue.isNumeric, displayValue.text, getCell, row, col, coveringMerge, state.colWidths, state.rowHeights]);
 
   // Get validation rule for this cell
   const validation = useMemo(() => {
@@ -304,6 +330,11 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
         aria-errormessage={validationError || undefined}
       />
     );
+  }
+
+  // Covered by a merge and not the origin: render nothing
+  if (coveringMerge && (coveringMerge.startRow !== row || coveringMerge.startCol !== col)) {
+    return null;
   }
 
   return (

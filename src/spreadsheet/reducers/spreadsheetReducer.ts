@@ -18,6 +18,29 @@ export function spreadsheetReducer(
     case 'SET_ROW_HEIGHTS':
       return { ...state, rowHeights: action.payload };
 
+    case 'TOGGLE_MERGE': {
+      const rect = normalizeRect(action.payload.range);
+      const merges = [...(state.merges || [])];
+      // Toggle: if the exact region (or any overlap of it) is merged, unmerge
+      const idx = merges.findIndex(
+        (m) => m.startRow === rect.startRow && m.startCol === rect.startCol
+          && m.endRow === rect.endRow && m.endCol === rect.endCol
+      );
+      if (idx !== -1) {
+        merges.splice(idx, 1);
+      } else {
+        // Remove any merges overlapping the region, then add it
+        const filtered = merges.filter(
+          (m) => m.endRow < rect.startRow || m.startRow > rect.endRow
+            || m.endCol < rect.startCol || m.startCol > rect.endCol
+        );
+        filtered.push(rect);
+        merges.length = 0;
+        merges.push(...filtered);
+      }
+      return { ...state, merges };
+    }
+
     case 'SET_FROZEN':
       return {
         ...state,

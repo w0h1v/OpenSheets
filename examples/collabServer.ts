@@ -13,6 +13,9 @@ export function collabServer(): Plugin {
     configureServer(server) {
       const wss = new WebSocketServer({ noServer: true });
       const clients = new Map<WebSocket, { id: string; name: string; color: string }>();
+      // Server-side sheet snapshots: merged from relayed cell ops so a
+      // joining client with empty local state can catch up
+      const snapshots = new Map<string, Map<string, any>>();
 
       server.httpServer?.on('upgrade', (req, socket, head) => {
         if (!req.url || !req.url.startsWith('/collab')) return;
@@ -54,6 +57,29 @@ export function collabServer(): Plugin {
           }
 
           if (!user) return;
+
+          if (msg.type === 'sync') {
+            const snap = snapshots.get(msg.sheetId);
+            send(ws, {
+              type: 'snapshot',
+              sheetId: msg.sheetId,
+              data: snap ? Array.from(snap.entries()) : null,
+            });
+            return;
+          }
+
+          if (msg.type === 'cells') {
+            const snap = snapshots.get(msg.sheetId) || new Map();
+            for (const u of msg.updates || []) {
+              const key = `${u.row}:${u.col}`;
+              if (u.data && (u.data.value === '' || u.data.value === undefined)) {
+                snap.delete(key);
+              } else {
+                snap.set(key, u.data);
+              }
+            }
+            snapshots.set(msg.sheetId, snap);
+          }
 
           if (msg.type === 'bye') {
             broadcast({ type: 'leave', user });

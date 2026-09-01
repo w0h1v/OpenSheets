@@ -60,6 +60,8 @@ const server = createServer(async (req, res) => {
 
 const wss = new WebSocketServer({ noServer: true });
 const clients = new Map();
+// Server-side sheet snapshots merged from relayed cell ops
+const snapshots = new Map();
 
 const broadcast = (msg, except) => {
   const payload = JSON.stringify(msg);
@@ -98,6 +100,29 @@ wss.on('connection', (ws) => {
     }
 
     if (!user) return;
+
+    if (msg.type === 'sync') {
+      const snap = snapshots.get(msg.sheetId);
+      ws.send(JSON.stringify({
+        type: 'snapshot',
+        sheetId: msg.sheetId,
+        data: snap ? Array.from(snap.entries()) : null,
+      }));
+      return;
+    }
+
+    if (msg.type === 'cells') {
+      const snap = snapshots.get(msg.sheetId) || new Map();
+      for (const u of msg.updates || []) {
+        const key = `${u.row}:${u.col}`;
+        if (u.data && (u.data.value === '' || u.data.value === undefined)) {
+          snap.delete(key);
+        } else {
+          snap.set(key, u.data);
+        }
+      }
+      snapshots.set(msg.sheetId, snap);
+    }
 
     if (msg.type === 'bye') {
       broadcast({ type: 'leave', user });

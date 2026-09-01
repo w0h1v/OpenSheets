@@ -1,4 +1,5 @@
 import { letterToColumn, columnToLetter } from './columnUtils';
+import { getSheetData } from './sheetRegistry';
 
 export const parseCellRef = (ref: string): [number, number] => {
   const match = ref.match(/(\$?)([A-Z]+)(\$?)(\d+)/);
@@ -104,7 +105,34 @@ const evaluateFormulaDepth = (
     }
     return cell.value;
   };
+  const valueFromSheet = (sheetName: string | null, row: number, col: number): any => {
+    if (!sheetName) return cellValueOf(getCellValue(row, col));
+    const data = getSheetData(sheetName);
+    return data ? cellValueOf(data.get(`${row}:${col}`)) : undefined;
+  };
   let expr = formula.slice(1);
+
+  // Sheet-qualified ranges first (Sheet1!A1:B2); quoted names allow spaces
+  expr = expr.replace(/(?:'[^']+'|[A-Za-z0-9_ ]+)!(\$?[A-Z]+\$?\d+):(\$?[A-Z]+\$?\d+)/g, (match) => {
+    const bang = match.lastIndexOf('!');
+    const sheetName = match.slice(0, bang).replace(/^'|'$/g, '');
+    const [start, end] = match.slice(bang + 1).split(':');
+    const cells = cellsInRange(start, end);
+    const values = cells
+      .map(([r, c]) => valueFromSheet(sheetName, r, c))
+      .filter((v) => v !== undefined && v !== null);
+    return JSON.stringify(values);
+  });
+
+  // Sheet-qualified single refs (Sheet1!A1)
+  expr = expr.replace(/(?:'[^']+'|[A-Za-z0-9_ ]+)!\$?[A-Z]+\$?\d+/g, (match) => {
+    const bang = match.lastIndexOf('!');
+    const sheetName = match.slice(0, bang).replace(/^'|'$/g, '');
+    const ref = match.slice(bang + 1);
+    const [r, c] = parseCellRef(ref);
+    const v = valueFromSheet(sheetName, r, c);
+    return JSON.stringify(v ?? 0);
+  });
 
   // Ranges must be replaced first so their cell refs are not each
   // substituted as single values (which would corrupt A1:A3)

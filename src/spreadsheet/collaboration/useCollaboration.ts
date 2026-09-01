@@ -76,6 +76,8 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true }
     ws.onopen = () => {
       setEditAuthor(identity.id);
       ws.send(JSON.stringify({ type: 'hello', user: identity }));
+      // Ask the server for a snapshot; applied only if we have no local data
+      ws.send(JSON.stringify({ type: 'sync', sheetId }));
       syncSnapshot();
     };
 
@@ -84,6 +86,21 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true }
       try {
         msg = JSON.parse(event.data);
       } catch {
+        return;
+      }
+
+      if (msg.type === 'snapshot' && msg.sheetId === sheetId && Array.isArray(msg.data)) {
+        // A fresh client (no local data and nothing loaded) catches up from
+        // the server; clients with data keep theirs (LWW stamps reconcile)
+        const local = getStateRef.current().data;
+        if (local.size === 0 && msg.data.length > 0) {
+          const updates = (msg.data as Array<[string, CellData]>).map(([key, cell]) => {
+            const [row, col] = key.split(':').map(Number);
+            return { row, col, data: cell };
+          });
+          dispatchRef.current({ type: 'SET_CELLS', payload: { updates } });
+          setTimeout(syncSnapshot, 0);
+        }
         return;
       }
 
