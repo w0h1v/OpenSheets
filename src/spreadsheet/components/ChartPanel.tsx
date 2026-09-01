@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { columnToLetter } from '../utils/columnUtils';
 import { evaluateFormula } from '../utils/formulaUtils';
 import { keyOf, CellData, SelectionRect } from '../types/spreadsheet';
@@ -11,13 +11,27 @@ export type ChartType = 'bar' | 'line' | 'pie';
  * provides labels, the remaining numeric columns/rows are series. Pure SVG,
  * no chart dependency.
  */
+export interface ChartPanelState {
+  type: ChartType;
+  pos: { x: number; y: number };
+}
+
 export const ChartPanel: React.FC<{
   range: SelectionRect;
   data: Map<string, CellData>;
   onClose: () => void;
-}> = ({ range, data, onClose }) => {
-  const [type, setType] = useState<ChartType>('bar');
-  const [pos, setPos] = useState({ x: 80, y: 120 });
+  initial?: ChartPanelState;
+  onStateChange?: (state: ChartPanelState) => void;
+}> = ({ range, data, onClose, initial, onStateChange }) => {
+  const [type, setType] = useState<ChartType>(initial?.type ?? 'bar');
+  const [pos, setPos] = useState(initial?.pos ?? { x: 80, y: 120 });
+  const reportRef = useRef(onStateChange);
+  reportRef.current = onStateChange;
+
+  const changeType = (t: ChartType) => {
+    setType(t);
+    reportRef.current?.({ type: t, pos });
+  };
 
   const { labels, series } = useMemo(() => {
     const startRow = Math.min(range.startRow, range.endRow);
@@ -76,10 +90,15 @@ export const ChartPanel: React.FC<{
     if ((e.target as HTMLElement).tagName === 'BUTTON') return;
     const startX = e.clientX - pos.x;
     const startY = e.clientY - pos.y;
-    const move = (ev: MouseEvent) => setPos({ x: ev.clientX - startX, y: ev.clientY - startY });
+    let latest = pos;
+    const move = (ev: MouseEvent) => {
+      latest = { x: ev.clientX - startX, y: ev.clientY - startY };
+      setPos(latest);
+    };
     const up = () => {
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', up);
+      reportRef.current?.({ type, pos: latest });
     };
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
@@ -213,7 +232,7 @@ export const ChartPanel: React.FC<{
         <span className={styles.title}>Chart</span>
         <div className={styles.typeSwitch}>
           {(['bar', 'line', 'pie'] as ChartType[]).map((t) => (
-            <button key={t} className={type === t ? styles.typeActive : ''} onClick={() => setType(t)}>
+            <button key={t} className={type === t ? styles.typeActive : ''} onClick={() => changeType(t)}>
               {t === 'bar' ? '▮▮' : t === 'line' ? '📈' : '◕'}
             </button>
           ))}

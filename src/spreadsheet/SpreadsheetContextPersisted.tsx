@@ -25,6 +25,7 @@ interface SpreadsheetContextValue {
   loadVersion: (versionId: string) => Promise<void>;
   listVersions: () => Promise<{ id: string; label?: string; timestamp: number }[]>;
   syncStatus: SyncStatus;
+  dirty: boolean;
   persistenceMode: PersistenceMode;
 }
 
@@ -113,7 +114,8 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
   const stateRef = useRef(state);
   stateRef.current = state;
   
-  // Sync status
+  // Sync status (dirty drives the header "Unsaved changes" label)
+  const [dirty, setDirty] = React.useState(false);
   const [syncStatus, setSyncStatus] = React.useState<SyncStatus>({
     connected: true,
     syncing: false,
@@ -171,6 +173,7 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
           data: loadedState.data,
           comments: loadedState.comments,
         }, (_k, v) => (v instanceof Map ? Array.from(v.entries()) : v));
+        setDirty(false);
         onLoadComplete?.(true);
       } else {
         onLoadComplete?.(false);
@@ -199,6 +202,7 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
           comments: stateRef.current.comments,
         }, (_k, v) => (v instanceof Map ? Array.from(v.entries()) : v));
         hasUnsavedChanges.current = false;
+        setDirty(false);
       }
       
       return result;
@@ -225,6 +229,7 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
     }, (_k, v) => (v instanceof Map ? Array.from(v.entries()) : v));
     if (currentStateStr !== lastSavedState.current) {
       hasUnsavedChanges.current = true;
+      setDirty(true);
     }
 
     // Clear existing timer
@@ -374,8 +379,9 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
     loadVersion,
     listVersions,
     syncStatus,
+    dirty,
     persistenceMode,
-  }), [state, dispatch, getCell, setCell, undo, redo, canUndo, canRedo, syncStatus, persistenceMode, listVersions]);
+  }), [state, dispatch, getCell, setCell, undo, redo, canUndo, canRedo, syncStatus, dirty, persistenceMode, listVersions]);
 
   return (
     <SpreadsheetContext.Provider value={contextValue}>

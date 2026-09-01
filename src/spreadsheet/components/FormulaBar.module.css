@@ -33,6 +33,30 @@
   flex: none;
 }
 
+.inputWrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/* Colored formula text sits behind an input whose own text is transparent;
+   the caret remains visible via caret-color */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 8px 0 0;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12.5px;
+  white-space: pre;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--text);
+}
+
 .input {
   flex: 1;
   border: none;
@@ -53,4 +77,10 @@
 
 .input::placeholder {
   color: var(--faint);
+}
+
+.inputFormula {
+  color: transparent;
+  caret-color: var(--ink);
+  background: transparent;
 }

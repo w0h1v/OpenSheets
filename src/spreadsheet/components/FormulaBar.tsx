@@ -1,4 +1,4 @@
-import React, { ChangeEvent, useEffect, useRef, useState } from 'react';
+import React, { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useSpreadsheetEnhanced } from '../SpreadsheetContextEnhanced';
 import { columnToLetter } from '../utils/columnUtils';
 import { normalizeRect } from '../utils/selectionUtils';
@@ -51,12 +51,8 @@ export const FormulaBar: React.FC = () => {
   useEffect(() => {
     if (active) {
       const cellData = getCell(active.row, active.col);
-      setLocalValue(
-        state.formulaInput || 
-        cellData?.formula || 
-        cellData?.value || 
-        ''
-      );
+      const raw = state.formulaInput || cellData?.formula || cellData?.value || '';
+      setLocalValue(String(raw));
     } else {
       setLocalValue('');
     }
@@ -149,19 +145,55 @@ export const FormulaBar: React.FC = () => {
     return active ? `${columnToLetter(active.col)}${active.row + 1}` : '';
   })();
 
+  // Colored segments mirroring the grid highlight palette, for the overlay
+  // behind the transparent-text input
+  const isFormula = localValue.startsWith('=');
+  const segments = useMemo(() => {
+    if (!isFormula) return [] as Array<{ text: string; color?: string }>;
+    const refs = refsInFormula(localValue);
+    const segs: Array<{ text: string; color?: string }> = [];
+    const colorOf = (i: number) => HIGHLIGHT_PALETTE[Math.min(i, HIGHLIGHT_PALETTE.length - 1)];
+    const re = /(\$?[A-Z]+\$?\d+):(\$?[A-Z]+\$?\d+)|(\$?[A-Z]+\$?\d+)/g;
+    let last = 0;
+    let refIdx = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(localValue)) !== null) {
+      const ref = m[0];
+      // match against parsed refs in order to reuse the same palette index
+      if (refIdx >= refs.length) refIdx = refs.length - 1;
+      if (m.index > last) segs.push({ text: localValue.slice(last, m.index) });
+      segs.push({ text: ref, color: colorOf(refIdx) });
+      refIdx++;
+      last = m.index + ref.length;
+    }
+    if (last < localValue.length) segs.push({ text: localValue.slice(last) });
+    return segs;
+  }, [localValue, isFormula]);
+
   return (
     <div className={styles.container}>
       <span className={styles.nameBox}>{nameRef}</span>
       <span className={styles.fx}>fx</span>
-      <input
-        className={styles.input}
-        type="text"
-        value={localValue}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-        placeholder={active ? 'Enter value or formula' : 'Select a cell'}
-        disabled={!active}
-      />
+      <div className={styles.inputWrap}>
+        {isFormula && (
+          <div className={styles.overlay} aria-hidden="true">
+            {segments.map((seg, i) => (
+              <span key={i} style={seg.color ? { color: seg.color, fontWeight: 600 } : undefined}>
+                {seg.text}
+              </span>
+            ))}
+          </div>
+        )}
+        <input
+          className={`${styles.input} ${isFormula ? styles.inputFormula : ''}`}
+          type="text"
+          value={localValue}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          placeholder={active ? 'Enter value or formula' : 'Select a cell'}
+          disabled={!active}
+        />
+      </div>
     </div>
   );
 };
