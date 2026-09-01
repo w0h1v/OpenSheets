@@ -15,6 +15,8 @@ import {
   getFormulaHighlights, subscribeFormulaHighlights,
 } from '../utils/formulaHighlightStore';
 import { getCollabUsers, subscribeCollab } from '../collaboration/presenceStore';
+import { getFilterPanelColumn, subscribeFilterPanel, setFilterPanelColumn } from '../utils/filterPanelStore';
+import { ColumnFilter } from './ColumnFilter';
 import { FilterIcon } from './icons';
 import styles from './SpreadsheetTable.module.css';
 
@@ -107,6 +109,26 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
   const formulaHighlights = useSyncExternalStore(subscribeFormulaHighlights, getFormulaHighlights);
   // Remote collaborator selections (published by the collab layer)
   const collabUsers = useSyncExternalStore(subscribeCollab, getCollabUsers);
+  // Which column's filter panel is open (published by toolbar/badges)
+  const filterPanelCol = useSyncExternalStore(subscribeFilterPanel, getFilterPanelColumn);
+
+  const filterColumnData = useMemo(() => {
+    if (filterPanelCol === null) return [];
+    const counts = new Map<string, { value: any; count: number }>();
+    for (let r = 0; r < state.maxRows; r++) {
+      const v = state.data.get(`${r}:${filterPanelCol}`)?.value;
+      if (v === undefined || v === null || v === '') continue;
+      const k = String(v);
+      const entry = counts.get(k);
+      if (entry) entry.count += 1;
+      else counts.set(k, { value: v, count: 1 });
+    }
+    return Array.from(counts.values()).sort((a, b) =>
+      typeof a.value === 'number' && typeof b.value === 'number'
+        ? a.value - b.value
+        : String(a.value).localeCompare(String(b.value))
+    );
+  }, [filterPanelCol, state.data, state.maxRows]);
 
   // Geometry of the first selection range, for the overlay + fill handle
   const selectionBox = useMemo(() => {
@@ -260,6 +282,14 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
         } 
       },
       { label: '---' },
+      {
+        label: 'Merge cells',
+        onClick: () => {
+          const sel = state.selection.ranges[0];
+          if (!sel) return;
+          dispatch({ type: 'TOGGLE_MERGE', payload: { range: sel } });
+        },
+      },
       {
         label: 'Insert comment…',
         onClick: () => {
@@ -676,9 +706,24 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
             >
               {columnToLetter(col.index)}
               {state.filters?.some((f) => f.column === col.index) && (
-                <span style={{ marginLeft: 3, color: 'var(--accent)', display: 'inline-flex' }} title="Filtered">
-                  <FilterIcon size={10} />
-                </span>
+                <button
+                  style={{
+                    marginLeft: 3,
+                    border: 'none',
+                    background: 'var(--toolbar-active-bg)',
+                    color: 'var(--accent)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    padding: '0 3px',
+                    fontSize: 9,
+                  }}
+                  onClick={(e) => { e.stopPropagation(); setFilterPanelColumn(col.index); }}
+                  title="Filtered — click to edit"
+                >
+                  <FilterIcon size={9} />
+                </button>
               )}
               <ResizeHandle type="column" index={col.index} onResize={handleColResize} initialSize={col.size} />
             </div>
@@ -921,6 +966,17 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
           y={contextMenu.y}
           actions={contextMenuActions}
           onClose={() => setContextMenu(null)}
+        />
+      )}
+
+      {filterPanelCol !== null && (
+        <ColumnFilter
+          column={filterPanelCol}
+          columnData={filterColumnData}
+          existingFilters={state.filters ?? []}
+          onFilterChange={(filters) => dispatch({ type: 'SET_FILTERS', payload: { filters } })}
+          onClose={() => setFilterPanelColumn(null)}
+          position={{ x: 999999, y: 0 }}
         />
       )}
 

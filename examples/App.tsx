@@ -16,6 +16,7 @@ import { FindReplaceBar } from '../src/spreadsheet/components/FindReplaceBar';
 import { ChartPanel } from '../src/spreadsheet/components/ChartPanel';
 import { ConditionalFormattingPanel } from '../src/spreadsheet/components/ConditionalFormatting';
 import { useCollaboration } from '../src/spreadsheet/collaboration/useCollaboration';
+import { registerSheetData, unregisterSheetData } from '../src/spreadsheet/utils/sheetRegistry';
 import {
   subscribeCollab, getCollabUsers, getCollabToasts, CollabUser,
 } from '../src/spreadsheet/collaboration/presenceStore';
@@ -235,11 +236,19 @@ const SelectionStats: React.FC = () => {
 
 /* ---------------- Collaboration ---------------- */
 
-// Applies/streams collaboration state; renders nothing
-const CollabLayer: React.FC<{ sheetId: string }> = ({ sheetId }) => {
+// Applies/streams collaboration state; also registers this sheet's data
+// under its name so cross-sheet formulas (=Sheet1!A1) can resolve it
+const CollabLayer: React.FC<{ sheetId: string; sheetName: string }> = ({ sheetId, sheetName }) => {
   const { state, dispatch } = useSpreadsheetPersisted();
   const stateRef = useRef(state);
   stateRef.current = state;
+  useEffect(() => {
+    registerSheetData(sheetName, state.data);
+    return () => unregisterSheetData(sheetName);
+  }, [sheetName]);
+  useEffect(() => {
+    registerSheetData(sheetName, state.data);
+  }, [sheetName, state.data]);
   useCollaboration({
     sheetId,
     getState: () => stateRef.current,
@@ -528,6 +537,11 @@ const MenuBar: React.FC<{
           left: { style: 'solid', width: 1, color: '#000' },
         },
       }),
+    },
+    {
+      label: 'Merge cells (selection)',
+      disabled: !range,
+      onClick: () => range && dispatch({ type: 'TOGGLE_MERGE', payload: { range } }),
     },
     { separator: true, label: '' },
     { label: 'Conditional formatting…', onClick: onConditionalFormatting },
@@ -819,7 +833,7 @@ const AppShell: React.FC = () => {
           {showHistory && <VersionHistory onClose={() => setShowHistory(false)} />}
         </div>
 
-        <CollabLayer sheetId={activeId} />
+        <CollabLayer sheetId={activeId} sheetName={(sheets.find((sh) => sh.id === activeId) || { name: activeId }).name} />
 
         <footer className="tabBar" role="tablist" aria-label="Sheets">
           <button className="addSheet" onClick={addSheet} title="Add sheet"><AddSheetIcon size={14} /></button>

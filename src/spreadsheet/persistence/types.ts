@@ -30,6 +30,8 @@ export interface PersistedState {
   comments?: Array<[string, import('../types/spreadsheet').CellComment]>;
   frozenRows?: number;
   frozenCols?: number;
+  merges?: Array<import('../types/spreadsheet').SelectionRect>;
+  filters?: Array<import('../types/spreadsheet').FilterRule>;
   metadata: SpreadsheetMetadata;
 }
 

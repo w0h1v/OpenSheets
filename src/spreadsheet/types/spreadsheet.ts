@@ -144,6 +144,8 @@ export interface SpreadsheetState {
   comments?: Map<string, CellComment>;
   frozenRows?: number;
   frozenCols?: number;
+  // Merged regions: origin cell (startRow/startCol) spans to (endRow/endCol)
+  merges?: SelectionRect[];
   rowHeights?: number[];
   colWidths?: number[];
   validation?: Map<string, ValidationRule>;

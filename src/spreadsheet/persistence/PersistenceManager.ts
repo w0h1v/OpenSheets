@@ -256,6 +256,8 @@ export class PersistenceManager {
       comments: state.comments ? Array.from(state.comments.entries()) : undefined,
       frozenRows: state.frozenRows,
       frozenCols: state.frozenCols,
+      merges: state.merges,
+      filters: state.filters,
       metadata,
     };
   }
@@ -317,6 +319,8 @@ export class PersistenceManager {
       comments: persisted.comments ? new Map(persisted.comments) : undefined,
       frozenRows: persisted.frozenRows,
       frozenCols: persisted.frozenCols,
+      merges: persisted.merges,
+      filters: persisted.filters,
     };
   }
 
@@ -345,6 +349,8 @@ export class PersistenceManager {
       comments: persisted.comments ? new Map(persisted.comments) : undefined,
       frozenRows: persisted.frozenRows,
       frozenCols: persisted.frozenCols,
+      merges: persisted.merges,
+      filters: persisted.filters,
     };
   }
 

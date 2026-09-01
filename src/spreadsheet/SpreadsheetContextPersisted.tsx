@@ -73,6 +73,8 @@ const enhancedReducer = (state: SpreadsheetState, action: SpreadsheetAction): Sp
       comments: loadedState.comments || state.comments,
       frozenRows: loadedState.frozenRows,
       frozenCols: loadedState.frozenCols,
+      merges: loadedState.merges,
+      filters: loadedState.filters,
     };
   }
 
