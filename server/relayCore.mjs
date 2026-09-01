@@ -2,14 +2,14 @@ import { randomBytes, pbkdf2, timingSafeEqual, createHash } from 'node:crypto';
 import { promisify } from 'node:util';
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { WebSocketServer, WebSocket } from 'ws';
 
 /*
- * Shared relay core: collaboration relay + account auth + a pluggable bus.
- * Both the standalone server (server.mjs) and the Vite dev plugin
- * (collabServer.ts) mount this, so the protocol has exactly one
- * implementation.
+ * Collaboration relay core, published as `opensheets/server`: relay +
+ * account auth + a pluggable bus. The demo's standalone server
+ * (examples/server.mjs) and Vite dev plugin (examples/collabServer.ts)
+ * both mount this, so the protocol has exactly one implementation.
+ * Peers: `ws` (always) and `redis` (only with a RedisBus).
  *
  * The bus decouples relay state from the process so several instances can
  * serve one deployment:
@@ -40,7 +40,8 @@ import { WebSocketServer, WebSocket } from 'ws';
  * attached by the server.
  */
 
-export const DEFAULT_DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), 'data');
+/** Default location of accounts.json: a `data` folder under the process cwd (the demo servers pass their own). */
+export const DEFAULT_DATA_DIR = join(process.cwd(), 'data');
 
 const PBKDF2_ITERATIONS = 60_000;
 const CHANNEL = 'collab';

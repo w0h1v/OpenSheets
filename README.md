@@ -7,7 +7,7 @@ A production-ready, Google Sheets-like spreadsheet component for React with adva
 ### Core Spreadsheet Functionality
 - **Virtual Scrolling**: Handles 1000+ rows/columns efficiently
 - **Cell Editing**: In-cell and formula bar editing with full keyboard support
-- **Advanced Formulas**: 400+ Excel-compatible functions via HyperFormula
+- **Formulas**: built-in evaluator for everyday spreadsheet functions, with an optional HyperFormula engine (400+ functions) via `opensheets/hyperformula`
 - **Multi-cell Selection**: Range selection with mouse and keyboard
 - **Copy/Paste**: Full clipboard support with formatting preservation
 - **Undo/Redo**: Complete action history with keyboard shortcuts
@@ -45,26 +45,33 @@ A production-ready, Google Sheets-like spreadsheet component for React with adva
 
 ## 📦 Installation
 
-## 📦 Installation
-
-> **Note:** OpenSheets is not yet published to npm. Until it is, consume it
-> directly from this repository:
-
 ```bash
 npm install opensheets
 ```
 
-Once published; until then install from GitHub:
-
-```bash
-npm install github:w0h1v/OpenSheets
-```
-
-Import the design tokens once (light/dark theming via CSS custom properties):
+React 18 is a peer dependency. Import the stylesheets once, anywhere in your
+app: the component styles and the design tokens (light/dark theming via CSS
+custom properties).
 
 ```tsx
+import 'opensheets/styles.css';
 import 'opensheets/styles/tokens.css';
 ```
+
+The package ships ESM and CommonJS builds with TypeScript types, and works
+with bundlers (Vite, webpack, esbuild) as well as from Node for server
+rendering and tests.
+
+### Optional features
+
+Features that need their own dependency live behind a subpath entry so the
+core never pulls them in. Install the peer only for the ones you use.
+
+| Subpath | What it adds | Install |
+| --- | --- | --- |
+| `opensheets/excel` | `.xlsx` import and export | `npm install https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz` (the SheetJS build; the npm registry copy is frozen at 0.18.5 with open advisories) |
+| `opensheets/hyperformula` | a formula engine backed by HyperFormula (400+ functions) | `npm install hyperformula`. HyperFormula is GPL-3.0-only with a commercial licence available; the core evaluates formulas without it, so opting in is your licensing decision |
+| `opensheets/server` | the collaboration relay and account endpoints | `npm install ws`, plus `redis` to run several instances |
 
 ## 🚀 Running the Demo App
 
@@ -90,13 +97,15 @@ Other useful scripts:
 | `npm run build:examples` | Build a production bundle of the demo |
 | `npm run demo` | Build the demo and serve it with the standalone server |
 | `npm run test:relay` | Test the collaboration relay (accounts, presence, Redis fan-out) |
+| `npm run test:package` | Pack the library and use it from a throwaway consumer project |
+| `npm run release:check` | Everything CI runs, in order |
 
 ### Collaboration server, accounts and scaling
 
 Both `npm run dev` and the standalone server (`npm run serve`, after
 `npm run build:examples`) mount the same relay core from
-`examples/relayCore.mjs`: a `/collab` WebSocket relay plus `/auth/*`
-account endpoints.
+`server/relayCore.mjs`, published as `opensheets/server`: a `/collab`
+WebSocket relay plus `/auth/*` account endpoints.
 
 **Identities.** Collaborators can sign in from the account button in the
 header (create an account with a name and password, or sign in). A signed-in
@@ -127,7 +136,31 @@ load-balancer checks.
 | `REDIS_URL` | When set, relay state lives in Redis and instances share it |
 | `OPENSHEETS_DATA_DIR` | Where `accounts.json` lives without Redis (default `examples/data`) |
 
+**Mounting the relay in your own server.** The same core is available to
+consumers; `examples/server.mjs` is a complete example.
+
+```js
+import { createServer } from 'node:http';
+import { createRelay, createBus, createAccountStore } from 'opensheets/server';
+
+const bus = createBus();               // MemoryBus, or RedisBus when REDIS_URL is set
+await bus.init();
+const accounts = createAccountStore(bus, './data');
+await accounts.init();
+const relay = createRelay({ bus, accounts });
+
+const server = createServer(async (req, res) => {
+  if (await relay.handleHttp(req, res)) return;   // /auth/*, /healthz
+  // ...serve your app
+});
+relay.attach(server);                  // WebSocket endpoint at /collab
+server.listen(8080);
+```
+
 ## 🔧 Quick Start
+
+The snippets below assume the two stylesheet imports from the installation
+section are somewhere in your app.
 
 ### Basic Usage (Memory Only)
 ```tsx
@@ -196,28 +229,38 @@ initialData.set(keyOf(1, 1), { formula: '=A2*2' });
 
 ### Real-time Collaboration
 
+The client side is one hook. Point it at the state of a provider and it
+relays cell edits and selection presence through the `/collab` WebSocket on
+the same origin, reconnects with backoff, and queues edits made offline.
+
 ```tsx
-import { WebSocketCollaborationService } from 'opensheets';
+import { useCollaboration, useSpreadsheetPersisted } from 'opensheets';
 
-const collabService = new WebSocketCollaborationService(
-  userId,
-  sessionId,
-  'wss://your-server.com/spreadsheet'
-);
-
-collabService.onCellUpdate = (row, col, data) => {
-  // Handle remote cell updates
-};
-
-collabService.onPresenceUpdate = (users) => {
-  // Show other users' cursors
-};
+function CollabLayer({ sheetId }: { sheetId: string }) {
+  const { state, dispatch } = useSpreadsheetPersisted();
+  const stateRef = React.useRef(state);
+  stateRef.current = state;
+  useCollaboration({ sheetId, getState: () => stateRef.current, dispatch });
+  return null;
+}
 ```
+
+Who is connected comes from the presence store (`subscribeCollab`,
+`getCollabUsers`), and identity from the auth store (`getIdentity`, `login`,
+`register`, `logout`). The server side is `opensheets/server`; see
+[Collaboration server, accounts and scaling](#collaboration-server-accounts-and-scaling).
+
+`WebSocketCollaborationService` and the CRDT classes are also exported for
+applications that bring their own protocol and server.
 
 ### Custom Formula Engine
 
+The grid evaluates formulas with its built-in evaluator. For the full
+HyperFormula function set, opt in through the subpath entry (GPL-3.0-only;
+see [Optional features](#optional-features)).
+
 ```tsx
-import { FormulaEngine } from 'opensheets';
+import { FormulaEngine } from 'opensheets/hyperformula';
 
 const engine = new FormulaEngine({
   dateFormats: ['DD/MM/YYYY'],
@@ -233,8 +276,10 @@ const result = engine.getCellValue(0, 0);
 
 ### Excel Import/Export
 
+Needs the optional `xlsx` peer dependency (see [Optional features](#optional-features)).
+
 ```tsx
-import { importFromExcel, exportToExcel } from 'opensheets';
+import { importFromExcel, exportToExcel } from 'opensheets/excel';
 
 // Import
 const file = event.target.files[0];
@@ -377,10 +422,8 @@ npm run test:coverage
 - **Command Pattern**: Undo/redo with state snapshots
 
 ### Formula Engine
-- **HyperFormula**: 400+ Excel-compatible functions
-- **Dependency Graph**: Automatic recalculation on changes
-- **Circular Reference Detection**: Prevents infinite loops
-- **Custom Functions**: Extensible function library
+- **Built-in evaluator**: cell references, ranges, cross-sheet references and the common functions, recalculated live
+- **Optional HyperFormula engine**: 400+ Excel-compatible functions behind `opensheets/hyperformula`
 
 ### Collaboration
 - **CRDT**: Conflict-free replicated data types
@@ -556,7 +599,6 @@ MIT © OpenSheets Team
 
 ## 📞 Support
 
-- **Documentation**: [https://opensheets.dev/docs](https://opensheets.dev/docs)
 - **Issues**: [GitHub Issues](https://github.com/w0h1v/OpenSheets/issues)
-- **Discord**: [Join our community](https://discord.gg/opensheets)
-- **Email**: support@opensheets.dev
+- **Security**: see [SECURITY.md](SECURITY.md) for private reporting
+- **Dependency and release policy**: [docs/SUPPLY-CHAIN.md](docs/SUPPLY-CHAIN.md)

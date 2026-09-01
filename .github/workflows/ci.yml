@@ -5,21 +5,41 @@ on:
     branches: [main]
   pull_request:
 
+# Read-only token for everything here; nothing in CI needs to write.
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18, 20, 22]
+        node-version: [20, 22]
+    services:
+      # Lets the relay suite exercise the two-instance Redis path
+      redis:
+        image: redis:7-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+        ports:
+          - 6379:6379
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # Actions are pinned to commit SHAs (tags are mutable); Dependabot bumps them.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
-      - run: npm ci
+      # Exact lockfile, no dependency install scripts (also enforced by .npmrc)
+      - run: npm ci --ignore-scripts
+      - run: npm audit --audit-level=high
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test -- --ci
+      - run: npm run test:relay
+        env:
+          REDIS_URL: redis://localhost:6379
       - run: npm run build
       - run: npm run build:examples
+      # Installs the packed tarball into a throwaway project and uses it like a consumer
+      - run: npm run test:package

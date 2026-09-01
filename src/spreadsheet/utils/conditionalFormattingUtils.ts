@@ -1,4 +1,4 @@
-import { ConditionalFormat, CellFormat, SparseMatrix, CellData } from '../types/spreadsheet';
+import { ConditionalFormat, CellFormat, SparseMatrix, CellData, keyOf } from '../types/spreadsheet';
 import { evaluateFormula } from './formulaUtils';
 
 /**
@@ -227,14 +227,17 @@ function evaluateSimpleFormula(
     return count > 1;
   }
 
-  // Default: try to parse as boolean expression
-  try {
-    // Very basic expression evaluation - in production, use a proper expression parser
-    if (formula.includes('>') || formula.includes('<') || formula.includes('=')) {
-      return eval(formula); // Note: Use proper expression parser in production
+  // Boolean expression: run it through the spreadsheet's own evaluator.
+  // Rule text can come from persisted or shared documents, so it is never
+  // handed to eval(); anything the evaluator rejects is simply "no match".
+  if (formula.includes('>') || formula.includes('<') || formula.includes('=')) {
+    try {
+      const result = evaluateFormula('=' + formula, (r, c) => _data.get(keyOf(r, c)));
+      if (typeof result === 'string' && result.startsWith('#')) return false;
+      return Boolean(result);
+    } catch {
+      return false;
     }
-  } catch {
-    // Ignore evaluation errors
   }
 
   return false;

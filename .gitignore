@@ -52,8 +52,7 @@ ehthumbs.db
 Thumbs.db
 desktop.ini
 
-# Package managers
-package-lock.json
+# Package managers (npm's lockfile IS committed — see docs/SUPPLY-CHAIN.md)
 yarn.lock
 pnpm-lock.yaml
 
