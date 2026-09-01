@@ -1,6 +1,7 @@
 import React, { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { useSpreadsheetEnhanced } from '../SpreadsheetContextEnhanced';
 import { columnToLetter } from '../utils/columnUtils';
+import { normalizeRect } from '../utils/selectionUtils';
 import styles from './FormulaBar.module.css';
 
 export const FormulaBar: React.FC = () => {
@@ -85,14 +86,22 @@ export const FormulaBar: React.FC = () => {
     }
   };
 
-  const cellRef = active 
-    ? `${columnToLetter(active.col)}${active.row + 1}`
-    : '';
+  // Name box shows a range reference when a multi-cell range is selected
+  const firstRange = state.selection.ranges[0];
+  const nameRef = (() => {
+    if (firstRange) {
+      const r = normalizeRect(firstRange);
+      const a = `${columnToLetter(r.startCol)}${r.startRow + 1}`;
+      const b = `${columnToLetter(r.endCol)}${r.endRow + 1}`;
+      return a === b ? a : `${a}:${b}`;
+    }
+    return active ? `${columnToLetter(active.col)}${active.row + 1}` : '';
+  })();
 
   return (
     <div className={styles.container}>
-      <span className={styles.cellRef}>{cellRef}</span>
-      <span className={styles.label}>fx</span>
+      <span className={styles.nameBox}>{nameRef}</span>
+      <span className={styles.fx}>fx</span>
       <input
         className={styles.input}
         type="text"

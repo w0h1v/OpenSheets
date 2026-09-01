@@ -1,36 +1,45 @@
+/* Spreadsheet grid ("Crisp" redesign) */
 .container {
   overflow: auto;
   position: relative;
   height: 100%;
-  border: 1px solid #ccc;
-  background: #fff;
+  border-top: 1px solid var(--border);
+  background: var(--cellbg);
+  font-variant-numeric: tabular-nums;
 }
 
 .cell {
-  border: 1px solid #e0e0e0;
   box-sizing: border-box;
-  padding: 0;
-  background: white;
+  padding: 0 6px;
+  background: var(--cellbg);
   cursor: cell;
   user-select: none;
   display: flex;
   align-items: center;
-  justify-content: center;
+  font-size: 12px;
+  color: var(--text);
+  border-right: 1px solid var(--gridline);
+  border-bottom: 1px solid var(--gridline);
 }
 
 .cell:hover {
-  background: #f8f9fa;
+  background: var(--hover);
 }
 
 .header {
-  background: #f1f3f4;
+  background: var(--grid-header-bg);
   font-weight: 500;
   text-align: center;
-  font-size: 12px;
-  color: #5f6368;
+  font-size: 11px;
+  color: var(--grid-header-text);
+  border-bottom: 1px solid var(--grid-header-underline);
+  border-right: 1px solid var(--grid-header-underline);
   cursor: default;
 }
 
-.header:hover {
-  background: #e8eaed;
+/* Headers covering the current selection get the accent tint */
+.headerTint {
+  background: var(--grid-header-tint);
+  color: var(--grid-header-tint-text);
+  font-weight: 700;
 }

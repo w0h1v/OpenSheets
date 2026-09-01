@@ -1,0 +1,390 @@
+/* Demo app chrome ("Crisp" redesign) — plain CSS over the token layer */
+
+.appShell {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  overflow: hidden;
+}
+
+/* ---------- Header (44px) ---------- */
+
+.appHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  height: 44px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  flex: none;
+}
+
+.logo {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.titleRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.saved {
+  font-size: 11px;
+  color: var(--faint);
+}
+
+.menuRow {
+  display: flex;
+  gap: 2px;
+}
+
+.menuItem {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  cursor: default;
+}
+
+.menuItem:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.headerActions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.headerIconBtn {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.headerIconBtn:hover,
+.headerIconBtn.active {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.shareButton {
+  height: 30px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.shareButton:hover {
+  background: var(--accent-hov);
+}
+
+/* ---------- Main area ---------- */
+
+.mainArea {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.gridArea {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+/* ---------- Sheet tab bar (34px) ---------- */
+
+.tabBar {
+  display: flex;
+  align-items: stretch;
+  height: 34px;
+  background: var(--tabbg);
+  border-top: 1px solid var(--border);
+  flex: none;
+}
+
+.addSheet {
+  width: 34px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.addSheet:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.tabs {
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  font-size: 12.5px;
+  color: var(--muted);
+  cursor: pointer;
+  border-left: 1px solid transparent;
+  border-right: 1px solid transparent;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.tab:hover {
+  color: var(--ink);
+}
+
+.tab.active {
+  background: var(--cellbg);
+  color: var(--accent);
+  font-weight: 600;
+  border-top: 2px solid var(--accent);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+.tabClose {
+  color: var(--faint);
+  padding: 0 2px;
+  border-radius: 3px;
+}
+
+.tabClose:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.stats {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 11.5px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+/* ---------- Version history panel ---------- */
+
+.versionPanel {
+  width: 230px;
+  border-left: 1px solid var(--border);
+  background: var(--panel);
+  padding: 12px;
+  overflow-y: auto;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.versionPanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.versionPanelHeader h4 {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.versionPanelHeader button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+.versionPanelHeader button:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.versionSave {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12.5px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.versionSave:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.versionSave:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.versionEmpty {
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.versionCard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.versionCard small {
+  color: var(--faint);
+}
+
+.versionCard button {
+  margin-top: 4px;
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.versionCard button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.versionCard button:disabled {
+  opacity: 0.5;
+}
+
+/* ---------- Dev drawer ---------- */
+
+.devDrawer {
+  position: fixed;
+  right: 12px;
+  bottom: 46px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.devToggle {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  box-shadow: var(--menu-shadow);
+  cursor: pointer;
+}
+
+.devBody {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--menu-shadow);
+}
+
+.devBody button {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.devBody button:hover {
+  background: var(--hover);
+}
+
+.devBody button.danger {
+  color: #dc2626;
+}
+
+.devBody button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.devMeta {
+  font-size: 11.5px;
+  color: var(--faint);
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+.devToast {
+  font-size: 11.5px;
+  color: var(--accent);
+  white-space: nowrap;
+}

@@ -101,8 +101,8 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
     editing: null,
     formulaInput: '',
     readOnly,
-    rowHeights: Array(maxRows).fill(28),
-    colWidths: Array(maxCols).fill(100),
+    rowHeights: Array(maxRows).fill(22),
+    colWidths: Array(maxCols).fill(96),
     validation: new Map(),
   }), [initialData, maxRows, maxCols, readOnly]);
 

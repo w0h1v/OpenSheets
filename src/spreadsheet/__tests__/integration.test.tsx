@@ -17,6 +17,7 @@ jest.mock('@tanstack/react-virtual', () => ({
         key: String(i),
       })),
     getTotalSize: () => 196,
+    measure: () => {},
   }),
 }));
 

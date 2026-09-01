@@ -35,7 +35,7 @@ export const SpreadsheetTableOptimized: React.FC = () => {
     count: state.maxRows,
     getScrollElement: () => parentRef.current,
     estimateSize: useCallback((index) => {
-      return state.rowHeights?.[index] || 28;
+      return state.rowHeights?.[index] || 22;
     }, [state.rowHeights]),
     overscan: 5,
   });
@@ -45,14 +45,24 @@ export const SpreadsheetTableOptimized: React.FC = () => {
     count: state.maxCols,
     getScrollElement: () => parentRef.current,
     estimateSize: useCallback((index) => {
-      return state.colWidths?.[index] || 100;
+      return state.colWidths?.[index] || 96;
     }, [state.colWidths]),
     overscan: 3,
   });
 
+  // The virtualizer caches estimated sizes; clear the cache when the size
+  // arrays change (e.g. restored from persistence) so cells, headers and
+  // the selection overlay stay in sync
+  useEffect(() => {
+    rowVirtualizer.measure();
+  }, [state.rowHeights, rowVirtualizer]);
+  useEffect(() => {
+    colVirtualizer.measure();
+  }, [state.colWidths, colVirtualizer]);
+
   // Pinned-layer geometry
-  const HEADER_H = 28;
-  const GUTTER_W = 48;
+  const HEADER_H = 22;
+  const GUTTER_W = 40;
   const [scrollOffset, setScrollOffset] = useState({ top: 0, left: 0 });
   const handleScroll = useCallback(() => {
     const el = parentRef.current;
@@ -69,12 +79,12 @@ export const SpreadsheetTableOptimized: React.FC = () => {
   const selectionBox = useMemo(() => {
     if (!state.selection.ranges.length) return null;
     const r = state.selection.ranges[0];
-    const top = HEADER_H + sumUpTo(state.rowHeights, Math.min(r.startRow, r.endRow), 28);
-    const height = sumUpTo(state.rowHeights, Math.max(r.startRow, r.endRow) + 1, 28)
-      - sumUpTo(state.rowHeights, Math.min(r.startRow, r.endRow), 28);
-    const left = GUTTER_W + sumUpTo(state.colWidths, Math.min(r.startCol, r.endCol), 100);
-    const width = sumUpTo(state.colWidths, Math.max(r.startCol, r.endCol) + 1, 100)
-      - sumUpTo(state.colWidths, Math.min(r.startCol, r.endCol), 100);
+    const top = HEADER_H + sumUpTo(state.rowHeights, Math.min(r.startRow, r.endRow), 22);
+    const height = sumUpTo(state.rowHeights, Math.max(r.startRow, r.endRow) + 1, 22)
+      - sumUpTo(state.rowHeights, Math.min(r.startRow, r.endRow), 22);
+    const left = GUTTER_W + sumUpTo(state.colWidths, Math.min(r.startCol, r.endCol), 96);
+    const width = sumUpTo(state.colWidths, Math.max(r.startCol, r.endCol) + 1, 96)
+      - sumUpTo(state.colWidths, Math.min(r.startCol, r.endCol), 96);
     return { top, left, height, width };
   }, [state.selection.ranges, state.rowHeights, state.colWidths]);
 
@@ -157,24 +167,26 @@ export const SpreadsheetTableOptimized: React.FC = () => {
     if (!contextMenu) return [];
     
     return [
-      { 
-        label: 'Cut', 
+      {
+        label: 'Cut',
+        shortcut: '⌘X',
         onClick: () => {
-          // Implement cut
           document.execCommand('cut');
-        } 
+        }
       },
-      { 
-        label: 'Copy', 
+      {
+        label: 'Copy',
+        shortcut: '⌘C',
         onClick: () => {
           document.execCommand('copy');
-        } 
+        }
       },
-      { 
-        label: 'Paste', 
+      {
+        label: 'Paste',
+        shortcut: '⌘V',
         onClick: () => {
           document.execCommand('paste');
-        } 
+        }
       },
       { label: '---' }, // Separator
       { 
@@ -215,8 +227,8 @@ export const SpreadsheetTableOptimized: React.FC = () => {
         } 
       },
       { label: '---' },
-      { 
-        label: 'Clear Contents', 
+      {
+        label: 'Clear Contents',
         onClick: () => {
           if (state.selection.ranges.length > 0) {
             dispatch({ type: 'CLEAR_RANGE', payload: { range: state.selection.ranges[0] } });
@@ -377,6 +389,16 @@ export const SpreadsheetTableOptimized: React.FC = () => {
   const colTotal = colVirtualizer.getTotalSize();
   const rowTotal = rowVirtualizer.getTotalSize();
 
+  const selectionCoversCol = (col: number) =>
+    state.selection.ranges.some(
+      (r) => col >= Math.min(r.startCol, r.endCol) && col <= Math.max(r.startCol, r.endCol)
+    );
+
+  const selectionCoversRow = (row: number) =>
+    state.selection.ranges.some(
+      (r) => row >= Math.min(r.startRow, r.endRow) && row <= Math.max(r.startRow, r.endRow)
+    );
+
   // Union of selection and in-progress fill drag, for the preview rectangle
   const fillBox = useMemo(() => {
     if (!fillDrag || !state.selection.ranges.length) return null;
@@ -385,10 +407,10 @@ export const SpreadsheetTableOptimized: React.FC = () => {
     const endRow = Math.max(sel.startRow, sel.endRow, fillDrag.endRow);
     const startCol = Math.min(sel.startCol, sel.endCol, fillDrag.endCol);
     const endCol = Math.max(sel.startCol, sel.endCol, fillDrag.endCol);
-    const top = HEADER_H + sumUpTo(state.rowHeights, startRow, 28);
-    const height = sumUpTo(state.rowHeights, endRow + 1, 28) - sumUpTo(state.rowHeights, startRow, 28);
-    const left = GUTTER_W + sumUpTo(state.colWidths, startCol, 100);
-    const width = sumUpTo(state.colWidths, endCol + 1, 100) - sumUpTo(state.colWidths, startCol, 100);
+    const top = HEADER_H + sumUpTo(state.rowHeights, startRow, 22);
+    const height = sumUpTo(state.rowHeights, endRow + 1, 22) - sumUpTo(state.rowHeights, startRow, 22);
+    const left = GUTTER_W + sumUpTo(state.colWidths, startCol, 96);
+    const width = sumUpTo(state.colWidths, endCol + 1, 96) - sumUpTo(state.colWidths, startCol, 96);
     return { top, left, height, width };
   }, [fillDrag, state.selection.ranges, state.rowHeights, state.colWidths]);
 
@@ -425,8 +447,8 @@ export const SpreadsheetTableOptimized: React.FC = () => {
                 left: selectionBox.left,
                 width: selectionBox.width,
                 height: selectionBox.height,
-                border: '1px solid #1a73e8',
-                backgroundColor: 'rgba(26, 115, 232, 0.08)',
+                border: '1px solid var(--accent)',
+                backgroundColor: 'var(--grid-range-fill)',
                 pointerEvents: 'none',
                 boxSizing: 'border-box',
               }}
@@ -442,7 +464,7 @@ export const SpreadsheetTableOptimized: React.FC = () => {
                 left: fillBox.left,
                 width: fillBox.width,
                 height: fillBox.height,
-                border: '1px dashed #1a73e8',
+                border: '1px dashed var(--accent)',
                 pointerEvents: 'none',
                 boxSizing: 'border-box',
               }}
@@ -518,7 +540,9 @@ export const SpreadsheetTableOptimized: React.FC = () => {
           {colVirtualizer.getVirtualItems().map((col) => (
             <div
               key={col.index}
-              className={`${styles.cell} ${styles.header}`}
+              className={`${styles.cell} ${styles.header} ${
+                selectionCoversCol(col.index) ? styles.headerTint : ''
+              }`}
               style={{
                 position: 'absolute',
                 left: GUTTER_W + col.start,
@@ -560,7 +584,9 @@ export const SpreadsheetTableOptimized: React.FC = () => {
           {rowVirtualizer.getVirtualItems().map((row) => (
             <div
               key={row.index}
-              className={`${styles.cell} ${styles.header}`}
+              className={`${styles.cell} ${styles.header} ${
+                selectionCoversRow(row.index) ? styles.headerTint : ''
+              }`}
               style={{
                 position: 'absolute',
                 top: HEADER_H + row.start,
@@ -597,12 +623,12 @@ export const SpreadsheetTableOptimized: React.FC = () => {
         <div
           style={{
             position: 'absolute',
-            top: selectionBox.top + selectionBox.height - 4,
-            left: selectionBox.left + selectionBox.width - 4,
-            width: 7,
-            height: 7,
-            backgroundColor: '#1a73e8',
-            border: '1px solid #fff',
+            top: selectionBox.top + selectionBox.height - 3,
+            left: selectionBox.left + selectionBox.width - 3,
+            width: 6,
+            height: 6,
+            backgroundColor: 'var(--accent)',
+            border: '1px solid var(--cellbg)',
             cursor: 'crosshair',
             zIndex: 5,
           }}
