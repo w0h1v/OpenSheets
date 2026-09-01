@@ -1,12 +1,18 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   SpreadsheetProviderPersisted,
-  PersistenceStatus,
   useSpreadsheetPersisted,
   SpreadsheetTableOptimized,
   FormulaBar,
   FormattingToolbar,
 } from '../src/spreadsheet/indexEnhanced';
+import '../src/spreadsheet/styles/tokens.css';
+import { useTheme } from '../src/spreadsheet/hooks/useTheme';
+import {
+  GridGlyphIcon, SunIcon, MoonIcon, HistoryIcon, AddSheetIcon,
+} from '../src/spreadsheet/components/icons';
+import { keyOf } from '../src/spreadsheet/types/spreadsheet';
+import './chrome.css';
 
 interface VersionEntry {
   id: string;
@@ -14,8 +20,9 @@ interface VersionEntry {
   timestamp: number;
 }
 
-// Version history panel wired to the real persistence layer
-const VersionHistory: React.FC<{ onRestored?: () => void }> = ({ onRestored }) => {
+/* ---------------- Version history (right panel) ---------------- */
+
+const VersionHistory: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { saveVersion, loadVersion, listVersions } = useSpreadsheetPersisted();
   const [versions, setVersions] = useState<VersionEntry[]>([]);
   const [busy, setBusy] = useState(false);
@@ -46,60 +53,37 @@ const VersionHistory: React.FC<{ onRestored?: () => void }> = ({ onRestored }) =
     setBusy(true);
     try {
       await loadVersion(id);
-      onRestored?.();
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div style={{
-      width: '220px',
-      borderLeft: '1px solid #e0e0e0',
-      padding: '12px',
-      background: '#f8f9fa',
-      overflowY: 'auto',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-        <h4 style={{ margin: 0 }}>Version History</h4>
-        <button onClick={refresh} title="Refresh" style={{ fontSize: '12px' }}>↻</button>
+    <aside className="versionPanel">
+      <div className="versionPanelHeader">
+        <h4>Version history</h4>
+        <button onClick={onClose} title="Close">✕</button>
       </div>
-      <button onClick={handleSave} disabled={busy} style={{ width: '100%', marginBottom: '12px' }}>
-        Save Current Version
+      <button className="versionSave" onClick={handleSave} disabled={busy}>
+        Save current version
       </button>
-      {versions.length === 0 && (
-        <div style={{ fontSize: '12px', color: '#5f6368' }}>No saved versions yet</div>
-      )}
+      {versions.length === 0 && <div className="versionEmpty">No saved versions yet</div>}
       {versions.map((v) => (
-        <div key={v.id} style={{
-          marginBottom: '10px',
-          padding: '8px',
-          background: 'white',
-          border: '1px solid #e0e0e0',
-          borderRadius: '4px',
-        }}>
-          <div style={{ fontWeight: 500 }}>{v.label || 'Unnamed version'}</div>
-          <small style={{ color: '#5f6368' }}>
-            {new Date(v.timestamp).toLocaleString()}
-          </small>
-          <div>
-            <button
-              onClick={() => handleRestore(v.id)}
-              disabled={busy}
-              style={{ marginTop: '4px', fontSize: '12px' }}
-            >
-              Restore
-            </button>
-          </div>
+        <div key={v.id} className="versionCard">
+          <div className="versionLabel">{v.label || 'Unnamed version'}</div>
+          <small>{new Date(v.timestamp).toLocaleString()}</small>
+          <button onClick={() => handleRestore(v.id)} disabled={busy}>Restore</button>
         </div>
       ))}
-    </div>
+    </aside>
   );
 };
 
-// Test Controls Component
-const TestControls: React.FC = () => {
+/* ---------------- Dev drawer (test controls) ---------------- */
+
+const DevDrawer: React.FC = () => {
   const { state, dispatch, save } = useSpreadsheetPersisted();
+  const [open, setOpen] = useState(false);
   const [message, setMessage] = useState('');
 
   const showMessage = (msg: string) => {
@@ -107,94 +91,69 @@ const TestControls: React.FC = () => {
     setTimeout(() => setMessage(''), 3000);
   };
 
-  // Loaders dispatch CLEAR_ALL first, so each dataset fully replaces
-  // whatever is currently on the sheet
+  // Loaders replace the sheet (CLEAR_ALL first)
   const loadBasicData = () => {
     dispatch({ type: 'CLEAR_ALL' });
-
-    dispatch({ type: 'SET_CELL', payload: { row: 0, col: 0, data: { value: 'Product', format: { bold: true, background: '#f0f0f0' } } } });
-    dispatch({ type: 'SET_CELL', payload: { row: 0, col: 1, data: { value: 'Price', format: { bold: true, background: '#f0f0f0' } } } });
-    dispatch({ type: 'SET_CELL', payload: { row: 0, col: 2, data: { value: 'Quantity', format: { bold: true, background: '#f0f0f0' } } } });
-    dispatch({ type: 'SET_CELL', payload: { row: 0, col: 3, data: { value: 'Total', format: { bold: true, background: '#f0f0f0' } } } });
-
+    dispatch({ type: 'SET_CELL', payload: { row: 0, col: 0, data: { value: 'Product', format: { bold: true } } } });
+    dispatch({ type: 'SET_CELL', payload: { row: 0, col: 1, data: { value: 'Price', format: { bold: true } } } });
+    dispatch({ type: 'SET_CELL', payload: { row: 0, col: 2, data: { value: 'Quantity', format: { bold: true } } } });
+    dispatch({ type: 'SET_CELL', payload: { row: 0, col: 3, data: { value: 'Total', format: { bold: true } } } });
     dispatch({ type: 'SET_CELL', payload: { row: 1, col: 0, data: { value: 'Laptop' } } });
     dispatch({ type: 'SET_CELL', payload: { row: 1, col: 1, data: { value: 999.99 } } });
     dispatch({ type: 'SET_CELL', payload: { row: 1, col: 2, data: { value: 5 } } });
     dispatch({ type: 'SET_CELL', payload: { row: 1, col: 3, data: { formula: '=B2*C2' } } });
-
     dispatch({ type: 'SET_CELL', payload: { row: 2, col: 0, data: { value: 'Mouse' } } });
     dispatch({ type: 'SET_CELL', payload: { row: 2, col: 1, data: { value: 29.99 } } });
     dispatch({ type: 'SET_CELL', payload: { row: 2, col: 2, data: { value: 10 } } });
     dispatch({ type: 'SET_CELL', payload: { row: 2, col: 3, data: { formula: '=B3*C3' } } });
-
     dispatch({ type: 'SET_CELL', payload: { row: 3, col: 0, data: { value: 'Keyboard' } } });
     dispatch({ type: 'SET_CELL', payload: { row: 3, col: 1, data: { value: 79.99 } } });
     dispatch({ type: 'SET_CELL', payload: { row: 3, col: 2, data: { value: 7 } } });
     dispatch({ type: 'SET_CELL', payload: { row: 3, col: 3, data: { formula: '=B4*C4' } } });
-
     dispatch({ type: 'SET_CELL', payload: { row: 5, col: 0, data: { value: 'TOTAL:', format: { bold: true } } } });
-    dispatch({ type: 'SET_CELL', payload: { row: 5, col: 3, data: { formula: '=SUM(D2:D4)', format: { bold: true, color: '#1a73e8' } } } });
-
+    dispatch({ type: 'SET_CELL', payload: { row: 5, col: 3, data: { formula: '=SUM(D2:D4)', format: { bold: true } } } });
     showMessage('Loaded basic data');
   };
 
   const loadFormulaData = () => {
     dispatch({ type: 'CLEAR_ALL' });
-
     dispatch({ type: 'SET_CELL', payload: { row: 0, col: 0, data: { value: 'Formula Examples', format: { bold: true, fontSize: 16 } } } });
-
     for (let i = 0; i < 10; i++) {
       dispatch({ type: 'SET_CELL', payload: { row: i + 2, col: 0, data: { value: Math.floor(Math.random() * 100) } } });
       dispatch({ type: 'SET_CELL', payload: { row: i + 2, col: 1, data: { value: Math.floor(Math.random() * 100) } } });
     }
-
     dispatch({ type: 'SET_CELL', payload: { row: 2, col: 3, data: { value: 'SUM A:', format: { bold: true } } } });
     dispatch({ type: 'SET_CELL', payload: { row: 2, col: 4, data: { formula: '=SUM(A3:A12)' } } });
-
     dispatch({ type: 'SET_CELL', payload: { row: 3, col: 3, data: { value: 'AVG B:', format: { bold: true } } } });
     dispatch({ type: 'SET_CELL', payload: { row: 3, col: 4, data: { formula: '=AVERAGE(B3:B12)' } } });
-
     dispatch({ type: 'SET_CELL', payload: { row: 4, col: 3, data: { value: 'MAX:', format: { bold: true } } } });
     dispatch({ type: 'SET_CELL', payload: { row: 4, col: 4, data: { formula: '=MAX(A3:B12)' } } });
-
     dispatch({ type: 'SET_CELL', payload: { row: 5, col: 3, data: { value: 'MIN:', format: { bold: true } } } });
     dispatch({ type: 'SET_CELL', payload: { row: 5, col: 4, data: { formula: '=MIN(A3:B12)' } } });
-
+    dispatch({ type: 'SET_CELL', payload: { row: 7, col: 3, data: { value: 'Today:', format: { bold: true } } } });
+    dispatch({ type: 'SET_CELL', payload: { row: 7, col: 4, data: { formula: '=TODAY()' } } });
     showMessage('Loaded formula examples');
   };
 
   const loadLargeData = () => {
     dispatch({ type: 'CLEAR_ALL' });
-
     for (let row = 0; row < 100; row++) {
       for (let col = 0; col < 13; col++) {
         if (row === 0) {
-          dispatch({ type: 'SET_CELL', payload: {
-            row, col,
-            data: { value: `Col ${col + 1}`, format: { bold: true, background: '#e8eaed' } },
-          }});
+          dispatch({ type: 'SET_CELL', payload: { row, col, data: { value: `Col ${col + 1}`, format: { bold: true } } } });
         } else if (col === 0) {
-          dispatch({ type: 'SET_CELL', payload: {
-            row, col,
-            data: { value: `Row ${row}`, format: { bold: true, background: '#e8eaed' } },
-          }});
+          dispatch({ type: 'SET_CELL', payload: { row, col, data: { value: `Row ${row}`, format: { bold: true } } } });
         } else {
-          dispatch({ type: 'SET_CELL', payload: {
-            row, col,
-            data: { value: row * 100 + col },
-          }});
+          dispatch({ type: 'SET_CELL', payload: { row, col, data: { value: row * 100 + col } } });
         }
       }
     }
-
     showMessage('Loaded 100x13 grid');
   };
 
   const clearAll = async () => {
-    if (!confirm('Clear all data? This cannot be undone (except via undo).')) return;
+    if (!confirm('Clear all data?')) return;
     dispatch({ type: 'CLEAR_ALL' });
-    // Wait a frame so the reducer result has rendered before saving,
-    // otherwise the pre-clear snapshot would be persisted
     await new Promise((r) => setTimeout(r, 50));
     await save();
     showMessage('Cleared all data');
@@ -202,55 +161,32 @@ const TestControls: React.FC = () => {
 
   const saveNow = async () => {
     const result = await save();
-    showMessage(result.success ? 'Saved successfully' : 'Save failed');
+    showMessage(result.success ? 'Saved' : 'Save failed');
   };
 
   return (
-    <div style={{
-      background: 'white',
-      padding: '8px 20px',
-      borderBottom: '1px solid #e0e0e0',
-      display: 'flex',
-      gap: '20px',
-      alignItems: 'center',
-      flexWrap: 'wrap'
-    }}>
-      <div style={{ display: 'flex', gap: '8px' }}>
-        <button onClick={loadBasicData}>Load Basic</button>
-        <button onClick={loadFormulaData}>Load Formulas</button>
-        <button onClick={loadLargeData}>Load Large</button>
-        <button onClick={clearAll} style={{ background: '#ea4335', color: 'white' }}>Clear</button>
-      </div>
-
-      <div style={{ display: 'flex', gap: '8px' }}>
-        <button onClick={saveNow} style={{ background: '#34a853', color: 'white' }}>Save Now</button>
-      </div>
-
-      {message && (
-        <div style={{
-          padding: '6px 12px',
-          background: '#323232',
-          color: 'white',
-          borderRadius: '4px',
-          fontSize: '13px'
-        }}>
-          {message}
+    <div className="devDrawer">
+      <button className="devToggle" onClick={() => setOpen(!open)} title="Dev/test controls">
+        Dev {open ? '▾' : '▸'}
+      </button>
+      {open && (
+        <div className="devBody">
+          <button onClick={loadBasicData}>Load Basic</button>
+          <button onClick={loadFormulaData}>Load Formulas</button>
+          <button onClick={loadLargeData}>Load Large</button>
+          <button className="danger" onClick={clearAll}>Clear</button>
+          <button className="primary" onClick={saveNow}>Save Now</button>
+          <span className="devMeta">Cells: {state.data.size}</span>
+          {message && <span className="devToast">{message}</span>}
         </div>
       )}
-
-      <div style={{ marginLeft: 'auto', fontSize: '13px', color: '#5f6368' }}>
-        Cells: {state.data.size} |
-        Selected: {state.selection.active ?
-          `${String.fromCharCode(65 + state.selection.active.col)}${state.selection.active.row + 1}` :
-          'None'}
-      </div>
     </div>
   );
 };
 
-// Sheet tab bar: each tab is its own persisted spreadsheet
-const SHEET_LIST_KEY = 'opensheets_demo_sheet_list';
+/* ---------------- Sheet tabs + selection stats ---------------- */
 
+const SHEET_LIST_KEY = 'opensheets_demo_sheet_list';
 interface SheetMeta { id: string; name: string }
 
 const loadSheetList = (): SheetMeta[] => {
@@ -261,8 +197,79 @@ const loadSheetList = (): SheetMeta[] => {
   return [{ id: 'test-spreadsheet', name: 'Sheet1' }];
 };
 
-// Main App Component
-const TestApp: React.FC = () => {
+const SelectionStats: React.FC = () => {
+  const { state } = useSpreadsheetPersisted();
+  const range = state.selection.ranges[0];
+  if (!range) return <span />;
+
+  const startRow = Math.min(range.startRow, range.endRow);
+  const endRow = Math.max(range.startRow, range.endRow);
+  const startCol = Math.min(range.startCol, range.endCol);
+  const endCol = Math.max(range.startCol, range.endCol);
+  const nums: number[] = [];
+  for (let r = startRow; r <= endRow; r++) {
+    for (let c = startCol; c <= endCol; c++) {
+      const v = state.data.get(keyOf(r, c))?.value;
+      if (typeof v === 'number') nums.push(v);
+    }
+  }
+  if (!nums.length) return <span />;
+  const sum = nums.reduce((a, b) => a + b, 0);
+  const avg = sum / nums.length;
+  return (
+    <span>
+      Sum {Math.round(sum * 100) / 100} · Avg {Math.round(avg * 100) / 100} · Count {nums.length}
+    </span>
+  );
+};
+
+/* ---------------- App shell ---------------- */
+
+// Header lives inside the provider so it can read sync status; theme and
+// history visibility are owned by the shell and passed down
+const HeaderBar: React.FC<{
+  theme: 'light' | 'dark';
+  toggleTheme: () => void;
+  showHistory: boolean;
+  onToggleHistory: () => void;
+}> = ({ theme, toggleTheme, showHistory, onToggleHistory }) => {
+  const { syncStatus } = useSpreadsheetPersisted();
+  const savedLabel = syncStatus.syncing ? 'Saving…' : 'Saved';
+
+  return (
+    <header className="appHeader">
+      <div className="logo"><GridGlyphIcon /></div>
+      <div className="titleBlock">
+        <div className="titleRow">
+          <span className="title">Untitled spreadsheet</span>
+          <span className="saved">{savedLabel}</span>
+        </div>
+        <nav className="menuRow">
+          {['File', 'Edit', 'View', 'Insert', 'Format', 'Data', 'Help'].map((m) => (
+            <button key={m} className="menuItem" title={`${m} (menus coming soon)`}>{m}</button>
+          ))}
+        </nav>
+      </div>
+      <div className="headerActions">
+        <button className="headerIconBtn" onClick={toggleTheme} title="Toggle dark mode">
+          {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+        </button>
+        <button
+          className={`headerIconBtn ${showHistory ? 'active' : ''}`}
+          onClick={onToggleHistory}
+          title="Version history"
+        >
+          <HistoryIcon />
+        </button>
+        <button className="shareButton" title="Share (coming soon)">Share</button>
+      </div>
+    </header>
+  );
+};
+
+const AppShell: React.FC = () => {
+  const { theme, toggleTheme } = useTheme();
+  const [showHistory, setShowHistory] = useState(false);
   const [sheets, setSheets] = useState<SheetMeta[]>(loadSheetList);
   const [activeId, setActiveId] = useState(() => loadSheetList()[0].id);
 
@@ -274,8 +281,7 @@ const TestApp: React.FC = () => {
   };
 
   const addSheet = () => {
-    const n = sheets.length + 1;
-    const sheet = { id: `sheet-${Date.now()}`, name: `Sheet${n}` };
+    const sheet = { id: `sheet-${Date.now()}`, name: `Sheet${sheets.length + 1}` };
     persistSheets([...sheets, sheet]);
     setActiveId(sheet.id);
   };
@@ -297,15 +303,7 @@ const TestApp: React.FC = () => {
   };
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <div style={{
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        color: 'white',
-        padding: '10px 20px'
-      }}>
-        <h1 style={{ fontSize: '20px', margin: 0 }}>OpenSheets Demo</h1>
-      </div>
-
+    <div className="appShell">
       {/* key remounts the provider so each sheet loads its own persisted state */}
       <SpreadsheetProviderPersisted
         key={activeId}
@@ -316,67 +314,55 @@ const TestApp: React.FC = () => {
         maxRows={1000}
         maxCols={100}
       >
-        <TestControls />
-        <PersistenceStatus />
+        <HeaderBar
+          theme={theme}
+          toggleTheme={toggleTheme}
+          showHistory={showHistory}
+          onToggleHistory={() => setShowHistory(!showHistory)}
+        />
         <FormattingToolbar />
         <FormulaBar />
 
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="mainArea">
+          <div className="gridArea">
             <SpreadsheetTableOptimized />
           </div>
-          <VersionHistory />
+          {showHistory && <VersionHistory onClose={() => setShowHistory(false)} />}
         </div>
 
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '2px',
-          padding: '4px 8px',
-          background: '#f8f9fa',
-          borderTop: '1px solid #e0e0e0',
-        }}>
-          {sheets.map((sh) => (
-            <div
-              key={sh.id}
-              onDoubleClick={() => renameSheet(sh.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '4px 12px',
-                cursor: 'pointer',
-                borderRadius: '4px 4px 0 0',
-                background: sh.id === activeId ? 'white' : 'transparent',
-                border: '1px solid',
-                borderColor: sh.id === activeId ? '#e0e0e0' : 'transparent',
-                borderBottom: 'none',
-                fontWeight: sh.id === activeId ? 500 : 400,
-                fontSize: '13px',
-                userSelect: 'none',
-              }}
-              onClick={() => setActiveId(sh.id)}
-              title="Double-click to rename"
-            >
-              {sh.name}
-              {sheets.length > 1 && (
-                <span
-                  onClick={(e) => { e.stopPropagation(); removeSheet(sh.id); }}
-                  style={{ color: '#5f6368', padding: '0 2px' }}
-                  title="Delete sheet"
-                >
-                  ×
-                </span>
-              )}
-            </div>
-          ))}
-          <button onClick={addSheet} style={{ margin: '0 8px' }} title="Add sheet">+</button>
-        </div>
+        <footer className="tabBar">
+          <button className="addSheet" onClick={addSheet} title="Add sheet"><AddSheetIcon size={14} /></button>
+          <div className="tabs">
+            {sheets.map((sh) => (
+              <div
+                key={sh.id}
+                className={`tab ${sh.id === activeId ? 'active' : ''}`}
+                onClick={() => setActiveId(sh.id)}
+                onDoubleClick={() => renameSheet(sh.id)}
+                title="Double-click to rename"
+              >
+                {sh.name}
+                {sheets.length > 1 && (
+                  <span
+                    className="tabClose"
+                    onClick={(e) => { e.stopPropagation(); removeSheet(sh.id); }}
+                    title="Delete sheet"
+                  >
+                    ×
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="stats"><SelectionStats /></div>
+        </footer>
+
+        <DevDrawer />
       </SpreadsheetProviderPersisted>
     </div>
   );
 };
 
 export default function App() {
-  return <TestApp />;
+  return <AppShell />;
 }

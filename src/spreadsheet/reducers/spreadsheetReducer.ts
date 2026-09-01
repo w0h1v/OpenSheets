@@ -228,14 +228,14 @@ export function spreadsheetReducer(
 
     case 'SET_ROW_HEIGHT': {
       const { row, height } = action.payload;
-      const newHeights = [...(state.rowHeights || Array(state.maxRows).fill(28))];
+      const newHeights = [...(state.rowHeights || Array(state.maxRows).fill(22))];
       newHeights[row] = height;
       return { ...state, rowHeights: newHeights };
     }
 
     case 'SET_COLUMN_WIDTH': {
       const { col, width } = action.payload;
-      const newWidths = [...(state.colWidths || Array(state.maxCols).fill(100))];
+      const newWidths = [...(state.colWidths || Array(state.maxCols).fill(96))];
       newWidths[col] = width;
       return { ...state, colWidths: newWidths };
     }

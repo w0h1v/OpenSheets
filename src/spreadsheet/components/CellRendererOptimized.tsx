@@ -138,10 +138,10 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
       fontStyle: format.italic ? 'italic' : undefined,
       textDecoration: `${format.underline ? 'underline ' : ''}${format.strikethrough ? 'line-through' : ''}`.trim() || undefined,
       
-      // Colors
+      // Colors (numbers render in near-black, like Sheets/Excel)
       backgroundColor: format.backgroundColor,
-      color: format.color,
-      
+      color: format.color ?? (displayValue.isNumeric ? 'var(--grid-number-ink)' : undefined),
+
       // Alignment (numbers right-align by default, like Sheets/Excel)
       textAlign: format.textAlign ?? (displayValue.isNumeric ? 'right' : undefined),
       verticalAlign: format.verticalAlign,
@@ -172,9 +172,9 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
       style.backgroundColor = format.backgroundColor || 'rgba(26, 115, 232, 0.05)';
     }
     if (isActive) {
-      style.outline = '2px solid #1a73e8';
-      style.outlineOffset = '-1px';
-      style.zIndex = 1;
+      style.outline = '2px solid var(--accent)';
+      style.outlineOffset = '-2px';
+      style.zIndex = 2;
     }
 
     return style;

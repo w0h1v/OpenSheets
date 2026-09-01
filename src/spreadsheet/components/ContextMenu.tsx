@@ -5,7 +5,7 @@ interface Props {
   x: number;
   y: number;
   onClose: () => void;
-  actions: { label: string; onClick?: () => void; separator?: boolean }[];
+  actions: { label: string; onClick?: () => void; separator?: boolean; shortcut?: string }[];
 }
 
 export const ContextMenu: React.FC<Props> = ({ x, y, onClose, actions }) => {
@@ -27,7 +27,8 @@ export const ContextMenu: React.FC<Props> = ({ x, y, onClose, actions }) => {
               onClose();
             }}
           >
-            {a.label}
+            <span className={styles.itemLabel}>{a.label}</span>
+            {a.shortcut && <span className={styles.shortcut}>{a.shortcut}</span>}
           </button>
         )
       )}

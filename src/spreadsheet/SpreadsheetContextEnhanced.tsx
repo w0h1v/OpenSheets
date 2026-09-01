@@ -57,8 +57,8 @@ export const SpreadsheetProviderEnhanced: React.FC<React.PropsWithChildren<Table
     editing: null,
     formulaInput: '',
     readOnly,
-    rowHeights: Array(maxRows).fill(28),
-    colWidths: Array(maxCols).fill(100),
+    rowHeights: Array(maxRows).fill(22),
+    colWidths: Array(maxCols).fill(96),
     validation: new Map(),
   }), [initialData, maxRows, maxCols, readOnly]);
 

@@ -54,6 +54,15 @@ export const useKeyboardShortcuts = () => {
           }
           handled = true;
           break;
+        case 'F2':
+          // F2 enters edit mode on the active cell, like Sheets/Excel
+          setState((prev) => ({
+            ...prev,
+            editing: { row: active.row, col: active.col },
+            formulaInput: '',
+          }));
+          handled = true;
+          break;
         case 'Enter':
           // Enter opens the editor on the active cell (Shift+Enter moves up)
           if (e.shiftKey) {
