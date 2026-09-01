@@ -129,6 +129,7 @@ export interface SpreadsheetState {
   editing: { row: number; col: number } | null;
   formulaInput: string;
   readOnly?: boolean;
+  filters?: FilterRule[];
   rowHeights?: number[];
   colWidths?: number[];
   validation?: Map<string, ValidationRule>;

@@ -10,6 +10,8 @@ import { ContextMenu } from './ContextMenu';
 import { ResizeHandle } from './ResizeHandle';
 import { DataValidation } from './DataValidation';
 import { downloadCSV, importFromCSVFile } from '../utils/csvUtils';
+import { applyFilters } from '../utils/filterUtils';
+import { FilterIcon } from './icons';
 import styles from './SpreadsheetTable.module.css';
 
 export const SpreadsheetTableOptimized: React.FC = () => {
@@ -29,14 +31,29 @@ export const SpreadsheetTableOptimized: React.FC = () => {
   useKeyboardShortcuts();
   useClipboard();
 
+  // Rows hidden by active filters collapse to zero height; effective row
+  // heights feed the virtualizer and all overlay math so they stay in sync
+  const hiddenRows = useMemo(
+    () => (state.filters?.length ? applyFilters(state.data, state.filters, state.maxRows, state.maxCols) : new Set<number>()),
+    [state.filters, state.data, state.maxRows, state.maxCols]
+  );
+
+  const effectiveRowHeights = useMemo(() => {
+    if (!hiddenRows.size) return state.rowHeights;
+    return (state.rowHeights || []).map((h, i) => (hiddenRows.has(i) ? 0 : h));
+  }, [state.rowHeights, hiddenRows]);
+
+  const rowHeightAt = useCallback(
+    (index: number) => (hiddenRows.has(index) ? 0 : state.rowHeights?.[index] || 22),
+    [state.rowHeights, hiddenRows]
+  );
+
   // Virtualizers cover the body only; the header row and row-number gutter
   // render in separate pinned layers so they stay visible while scrolling
   const rowVirtualizer = useVirtualizer({
     count: state.maxRows,
     getScrollElement: () => parentRef.current,
-    estimateSize: useCallback((index) => {
-      return state.rowHeights?.[index] || 22;
-    }, [state.rowHeights]),
+    estimateSize: rowHeightAt,
     overscan: 5,
   });
 
@@ -55,7 +72,7 @@ export const SpreadsheetTableOptimized: React.FC = () => {
   // the selection overlay stay in sync
   useEffect(() => {
     rowVirtualizer.measure();
-  }, [state.rowHeights, rowVirtualizer]);
+  }, [state.rowHeights, hiddenRows, rowVirtualizer]);
   useEffect(() => {
     colVirtualizer.measure();
   }, [state.colWidths, colVirtualizer]);
@@ -79,14 +96,14 @@ export const SpreadsheetTableOptimized: React.FC = () => {
   const selectionBox = useMemo(() => {
     if (!state.selection.ranges.length) return null;
     const r = state.selection.ranges[0];
-    const top = HEADER_H + sumUpTo(state.rowHeights, Math.min(r.startRow, r.endRow), 22);
-    const height = sumUpTo(state.rowHeights, Math.max(r.startRow, r.endRow) + 1, 22)
-      - sumUpTo(state.rowHeights, Math.min(r.startRow, r.endRow), 22);
+    const top = HEADER_H + sumUpTo(effectiveRowHeights, Math.min(r.startRow, r.endRow), 22);
+    const height = sumUpTo(effectiveRowHeights, Math.max(r.startRow, r.endRow) + 1, 22)
+      - sumUpTo(effectiveRowHeights, Math.min(r.startRow, r.endRow), 22);
     const left = GUTTER_W + sumUpTo(state.colWidths, Math.min(r.startCol, r.endCol), 96);
     const width = sumUpTo(state.colWidths, Math.max(r.startCol, r.endCol) + 1, 96)
       - sumUpTo(state.colWidths, Math.min(r.startCol, r.endCol), 96);
     return { top, left, height, width };
-  }, [state.selection.ranges, state.rowHeights, state.colWidths]);
+  }, [state.selection.ranges, effectiveRowHeights, state.colWidths]);
 
   // Fill handle drag state
   const [fillDrag, setFillDrag] = useState<{ endRow: number; endCol: number } | null>(null);
@@ -407,12 +424,12 @@ export const SpreadsheetTableOptimized: React.FC = () => {
     const endRow = Math.max(sel.startRow, sel.endRow, fillDrag.endRow);
     const startCol = Math.min(sel.startCol, sel.endCol, fillDrag.endCol);
     const endCol = Math.max(sel.startCol, sel.endCol, fillDrag.endCol);
-    const top = HEADER_H + sumUpTo(state.rowHeights, startRow, 22);
-    const height = sumUpTo(state.rowHeights, endRow + 1, 22) - sumUpTo(state.rowHeights, startRow, 22);
+    const top = HEADER_H + sumUpTo(effectiveRowHeights, startRow, 22);
+    const height = sumUpTo(effectiveRowHeights, endRow + 1, 22) - sumUpTo(effectiveRowHeights, startRow, 22);
     const left = GUTTER_W + sumUpTo(state.colWidths, startCol, 96);
     const width = sumUpTo(state.colWidths, endCol + 1, 96) - sumUpTo(state.colWidths, startCol, 96);
     return { top, left, height, width };
-  }, [fillDrag, state.selection.ranges, state.rowHeights, state.colWidths]);
+  }, [fillDrag, state.selection.ranges, effectiveRowHeights, state.colWidths]);
 
   return (
     <div
@@ -471,8 +488,8 @@ export const SpreadsheetTableOptimized: React.FC = () => {
             />
           )}
 
-          {/* Body rows */}
-          {rowVirtualizer.getVirtualItems().map((row) => (
+          {/* Body rows (filter-hidden rows are skipped entirely) */}
+          {rowVirtualizer.getVirtualItems().filter((row) => rowHeightAt(row.index) > 0).map((row) => (
             <div
               key={row.key}
               role="row"
@@ -554,6 +571,11 @@ export const SpreadsheetTableOptimized: React.FC = () => {
               aria-colindex={col.index + 1}
             >
               {columnToLetter(col.index)}
+              {state.filters?.some((f) => f.column === col.index) && (
+                <span style={{ marginLeft: 3, color: 'var(--accent)', display: 'inline-flex' }} title="Filtered">
+                  <FilterIcon size={10} />
+                </span>
+              )}
               <ResizeHandle type="column" index={col.index} onResize={handleColResize} initialSize={col.size} />
             </div>
           ))}
@@ -581,7 +603,7 @@ export const SpreadsheetTableOptimized: React.FC = () => {
           }}
         >
           <div style={{ height: HEADER_H }} />
-          {rowVirtualizer.getVirtualItems().map((row) => (
+          {rowVirtualizer.getVirtualItems().filter((row) => rowHeightAt(row.index) > 0).map((row) => (
             <div
               key={row.index}
               className={`${styles.cell} ${styles.header} ${

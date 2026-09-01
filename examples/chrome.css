@@ -388,3 +388,128 @@
   color: var(--accent);
   white-space: nowrap;
 }
+
+/* ---------- Dialogs (Share, Shortcuts) ---------- */
+
+.dialogBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+}
+
+.dialog {
+  width: min(480px, calc(100vw - 48px));
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--menu-shadow);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dialogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dialogHeader h3 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.dialogHeader button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+.dialogHeader button:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.dialogNote {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.shareRow {
+  display: flex;
+  gap: 8px;
+}
+
+.shareRow select {
+  flex: 1;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  padding: 0 8px;
+}
+
+.shareRow button,
+.dialog button.primary {
+  height: 32px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.shareRow button:hover,
+.dialog button.primary:hover {
+  background: var(--accent-hov);
+}
+
+.shareLink {
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--faint);
+  font-size: 12.5px;
+  padding: 0 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.shortcutGrid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 6px;
+  column-gap: 24px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.shortcutAction {
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.shortcutKeys {
+  font-size: 12px;
+  color: var(--faint);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
