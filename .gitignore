@@ -124,4 +124,7 @@ logs/
 storybook-static/
 
 # Screenshots (keep these in version control for documentation)
-# /screenshots/
+# /screenshots/dist/
+examples/dist/
+coverage/
+node_modules/

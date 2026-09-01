@@ -5,6 +5,7 @@ import { isCellInSelection } from '../utils/selectionUtils';
 import { formatCellValue } from '../utils/formatUtils';
 import { evaluateConditionalFormat, combineConditionalFormats } from '../utils/conditionalFormattingUtils';
 import { CellDropdown } from './CellDropdown';
+import { columnToLetter } from '../utils/columnUtils';
 import { DropdownArrow } from './DropdownArrow';
 import styles from './CellRenderer.module.css';
 
@@ -244,7 +245,7 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
         value={tempValue}
         onChange={(e) => setTempValue(e.target.value)}
         onKeyDown={handleKeyDown}
-        aria-label={`Cell ${col}${row + 1} editor`}
+        aria-label={`Cell ${columnToLetter(col)}${row + 1} editor`}
         aria-invalid={!!validationError}
         aria-errormessage={validationError || undefined}
       />
@@ -260,7 +261,7 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
         onClick={handleCellClick}
         style={cellStyle}
         role="gridcell"
-        aria-label={`Cell ${col}${row + 1}: ${displayValue}`}
+        aria-label={`Cell ${columnToLetter(col)}${row + 1}: ${displayValue || 'empty'}`}
         aria-selected={isSelected}
         aria-current={isActive ? 'true' : undefined}
         tabIndex={isActive ? 0 : -1}

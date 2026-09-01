@@ -131,15 +131,6 @@ export const ColumnFilter: React.FC<ColumnFilterProps> = ({
     onClose();
   };
 
-  const _getFilterTypeIcon = (type: string) => {
-    switch (type) {
-      case 'text': return '📝';
-      case 'number': return '🔢';
-      case 'date': return '📅';
-      case 'boolean': return '✓';
-      default: return '🔍';
-    }
-  };
 
   return (
     <div 

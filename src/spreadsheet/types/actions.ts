@@ -24,7 +24,9 @@ export type SpreadsheetAction =
   | { type: 'RESTORE_STATE'; payload: SpreadsheetState }
   | { type: 'UNDO' }
   | { type: 'REDO' }
-  | { type: 'BATCH'; payload: SpreadsheetAction[] };
+  | { type: 'BATCH'; payload: SpreadsheetAction[] }
+  // Bridge action: applies a React-style setState updater against current state
+  | { type: 'APPLY_SET_STATE'; payload: SpreadsheetState | ((prev: SpreadsheetState) => SpreadsheetState) };
 
 
 export interface Command {

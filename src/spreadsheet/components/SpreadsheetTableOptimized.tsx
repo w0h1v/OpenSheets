@@ -3,6 +3,8 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { columnToLetter } from '../utils/columnUtils';
 import { useSpreadsheetEnhanced } from '../SpreadsheetContextEnhanced';
 import { useMultiSelection } from '../hooks/useMultiSelection';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { useClipboard } from '../hooks/useClipboard';
 import { SelectionOverlay } from './SelectionOverlay';
 import { CellRendererOptimized } from './CellRendererOptimized';
 import { ContextMenu } from './ContextMenu';
@@ -24,6 +26,9 @@ export const SpreadsheetTableOptimized: React.FC = () => {
     updateSelection,
     endSelection,
   } = useMultiSelection(state, dispatch);
+
+  useKeyboardShortcuts();
+  useClipboard();
 
   // Optimized virtualizers with dynamic sizing
   const rowVirtualizer = useVirtualizer({
@@ -358,13 +363,17 @@ export const SpreadsheetTableOptimized: React.FC = () => {
                     onMouseDown={(e) =>
                       !isHeaderRow && !isHeaderCol && handleMouseDown(row.index - 1, col.index - 1, e)
                     }
+                    onClick={(e) =>
+                      !isHeaderRow && !isHeaderCol &&
+                      handleMouseDown(row.index - 1, col.index - 1, e)
+                    }
                     onMouseEnter={() =>
                       !isHeaderRow && !isHeaderCol && handleMouseEnter(row.index - 1, col.index - 1)
                     }
                     onContextMenu={(e) =>
                       !isHeaderRow && !isHeaderCol && handleContextMenu(e, row.index - 1, col.index - 1)
                     }
-                    role={isHeaderRow || isHeaderCol ? 'columnheader' : 'gridcell'}
+                    role={isHeaderRow || isHeaderCol ? 'columnheader' : 'presentation'}
                     aria-colindex={col.index + 1}
                   >
                     {isHeaderRow && isHeaderCol ? (

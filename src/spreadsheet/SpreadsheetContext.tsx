@@ -8,7 +8,11 @@ interface SpreadsheetContextValue {
   setCell: (r: number, c: number, data: Partial<CellData>) => void;
 }
 
-const SpreadsheetContext = createContext<SpreadsheetContextValue | null>(null);
+// Exported so the enhanced provider can bridge this context for components
+// rendered inside a SpreadsheetProviderEnhanced tree.
+export const SpreadsheetContextInstance = createContext<SpreadsheetContextValue | null>(null);
+export type { SpreadsheetContextValue };
+const SpreadsheetContext = SpreadsheetContextInstance;
 
 export const SpreadsheetProvider: React.FC<React.PropsWithChildren<TableProps>> = ({
   initialData,

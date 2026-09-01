@@ -3,15 +3,27 @@ import { useSpreadsheet } from '../SpreadsheetContext';
 import { singleCellSelection } from '../utils/selectionUtils';
 
 export const useKeyboardShortcuts = () => {
-  const { state, setState } = useSpreadsheet();
+  const { state, setState, setCell } = useSpreadsheet();
   const active = state.selection.active;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!active) return;
+
+      // Don't hijack keystrokes typed into an input (e.g. the formula bar
+      // or the in-cell editor)
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
       
       // Don't handle navigation if we're editing
       if (state.editing) return;
+
+      // Shift/Ctrl+Arrow selection extension and data-edge jumps are handled
+      // by the multi-selection keyboard handler; skip here to avoid conflicts.
+      const isArrow = e.key.startsWith('Arrow');
+      if (isArrow && (e.shiftKey || e.ctrlKey || e.metaKey)) return;
 
       let handled = false;
       let newRow = active.row;
@@ -43,18 +55,23 @@ export const useKeyboardShortcuts = () => {
           handled = true;
           break;
         case 'Enter':
+          // Enter opens the editor on the active cell (Shift+Enter moves up)
           if (e.shiftKey) {
             newRow = Math.max(0, active.row - 1);
+            handled = true;
           } else {
-            newRow = Math.min(state.maxRows - 1, active.row + 1);
+            setState((prev) => ({
+              ...prev,
+              editing: { row: active.row, col: active.col },
+              formulaInput: '',
+            }));
+            handled = true;
           }
-          handled = true;
           break;
         case 'Delete':
         case 'Backspace':
           if (!state.editing && !state.readOnly) {
             // Clear cell content
-            const { setCell } = useSpreadsheet();
             setCell(active.row, active.col, { value: '', formula: undefined });
             handled = true;
           }
@@ -81,5 +98,5 @@ export const useKeyboardShortcuts = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [active, state.editing, state.readOnly, state.maxRows, state.maxCols, setState]);
+  }, [active, state.editing, state.readOnly, state.maxRows, state.maxCols, setState, setCell]);
 };

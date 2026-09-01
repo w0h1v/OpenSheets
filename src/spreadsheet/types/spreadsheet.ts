@@ -104,7 +104,7 @@ export interface SheetFormatting {
 export interface FilterRule {
   column: number;
   type: 'text' | 'number' | 'date' | 'boolean' | 'custom';
-  condition: 'equals' | 'notEquals' | 'contains' | 'notContains' | 'startsWith' | 'endsWith' | 
+  condition: 'equals' | 'notEquals' | 'contains' | 'notContains' | 'startsWith' | 'endsWith' |
            'greaterThan' | 'lessThan' | 'greaterEqual' | 'lessEqual' | 'between' | 'notBetween' |
            'isEmpty' | 'isNotEmpty' | 'isTrue' | 'isFalse';
   value?: any;

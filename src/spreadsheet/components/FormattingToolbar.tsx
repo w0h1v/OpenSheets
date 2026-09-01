@@ -1,6 +1,6 @@
 import React, { useContext, useState } from 'react';
 import { SpreadsheetContext } from '../SpreadsheetContextPersisted';
-import { useSpreadsheetEnhanced } from '../SpreadsheetContextEnhanced';
+import { SpreadsheetEnhancedContext } from '../SpreadsheetContextEnhanced';
 import { keyOf, CellFormat } from '../types/spreadsheet';
 import { getFormatOptions, autoDetectFormat } from '../utils/formatUtils';
 import styles from './FormattingToolbar.module.css';
@@ -11,7 +11,7 @@ export const FormattingToolbar: React.FC = () => {
   
   // Try persisted context first, fall back to enhanced
   const persistedContext = useContext(SpreadsheetContext);
-  const enhancedContext = persistedContext ? null : useSpreadsheetEnhanced();
+  const enhancedContext = useContext(SpreadsheetEnhancedContext);
   const context = persistedContext || enhancedContext;
   
   if (!context) {

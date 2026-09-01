@@ -270,7 +270,6 @@ function applyCustomNumberFormat(num: number, formatStr: string): string {
 
   // Replace # and 0 patterns
   const parts = formatStr.split('.');
-  const _integerPart = parts[0] || '';
   const decimalPart = parts[1] || '';
 
   let result = '';

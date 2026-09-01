@@ -45,13 +45,37 @@ A production-ready, Google Sheets-like spreadsheet component for React with adva
 
 ## 📦 Installation
 
+## 📦 Installation
+
+> **Note:** OpenSheets is not yet published to npm. Until it is, consume it
+> directly from this repository:
+
 ```bash
-npm install opensheets
-# or
-yarn add opensheets
-# or
-pnpm add opensheets
+npm install github:w0h1v/OpenSheets
 ```
+
+## 🚀 Running the Demo App
+
+The repo includes a Vite demo app in `examples/` that exercises the full
+component suite:
+
+```bash
+git clone https://github.com/w0h1v/OpenSheets.git
+cd OpenSheets
+npm install
+npm run dev        # starts the demo at http://localhost:8000
+```
+
+Other useful scripts:
+
+| Script | What it does |
+| --- | --- |
+| `npm run dev` | Run the examples app with hot reload |
+| `npm test` | Run the test suite (Jest + Testing Library) |
+| `npm run typecheck` | Type-check the source |
+| `npm run lint` | Lint the source (ESLint) |
+| `npm run build` | Compile the library to `dist/` |
+| `npm run build:examples` | Build a production bundle of the demo |
 
 ## 🔧 Quick Start
 
@@ -483,6 +507,6 @@ MIT © OpenSheets Team
 ## 📞 Support
 
 - **Documentation**: [https://opensheets.dev/docs](https://opensheets.dev/docs)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/opensheets/issues)
+- **Issues**: [GitHub Issues](https://github.com/w0h1v/OpenSheets/issues)
 - **Discord**: [Join our community](https://discord.gg/opensheets)
 - **Email**: support@opensheets.dev

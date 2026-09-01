@@ -33,7 +33,6 @@ export class PersistenceManager {
   private apiAdapter?: ApiAdapter;
   private config: PersistenceManagerConfig;
   private autoSaveTimer?: NodeJS.Timeout;
-  private _lastSaveTimestamp: number = 0;
   private pendingSave: boolean = false;
   private saveQueue: (() => Promise<void>)[] = [];
 
@@ -88,6 +87,7 @@ export class PersistenceManager {
 
   private createHybridAdapter(): PersistenceAdapter {
     // Hybrid adapter saves to both local and API
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
     
     return {
@@ -160,7 +160,7 @@ export class PersistenceManager {
           try {
             const version = await self.apiAdapter.loadVersion(id, versionId);
             if (version) return version;
-          } catch {}
+          } catch { /* fall back to local version */ }
         }
         
         return self.localAdapter!.loadVersion(id, versionId);
@@ -179,7 +179,7 @@ export class PersistenceManager {
               versionMap.set(v.id, v);
             });
             return Array.from(versionMap.values()).sort((a, b) => b.timestamp - a.timestamp);
-          } catch {}
+          } catch { /* fall back to local version */ }
         }
         
         return localVersions;
@@ -202,7 +202,7 @@ export class PersistenceManager {
           try {
             const metadata = await self.apiAdapter.getMetadata(id);
             if (metadata) return metadata;
-          } catch {}
+          } catch { /* fall back to local version */ }
         }
         
         return self.localAdapter!.getMetadata(id);
@@ -233,7 +233,7 @@ export class PersistenceManager {
         };
       },
 
-      onSyncStatusChange: self.config.onSyncStatusChange,
+      onSyncStatusChange: this.config.onSyncStatusChange,
     };
   }
 
@@ -279,9 +279,7 @@ export class PersistenceManager {
     
     try {
       const result = await this.adapter.save(this.config.spreadsheetId, persistedState);
-      
-      this._lastSaveTimestamp = Date.now();
-      this.config.onSaveComplete?.(result);
+            this.config.onSaveComplete?.(result);
       
       // Process any queued saves
       while (this.saveQueue.length > 0) {

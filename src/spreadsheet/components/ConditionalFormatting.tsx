@@ -1,6 +1,6 @@
 import React, { useState, useContext } from 'react';
 import { SpreadsheetContext } from '../SpreadsheetContextPersisted';
-import { useSpreadsheetEnhanced } from '../SpreadsheetContextEnhanced';
+import { SpreadsheetEnhancedContext } from '../SpreadsheetContextEnhanced';
 import { ConditionalFormat, SelectionRect } from '../types/spreadsheet';
 import styles from './ConditionalFormatting.module.css';
 
@@ -28,7 +28,7 @@ export const ConditionalFormattingPanel: React.FC<ConditionalFormattingProps> = 
 
   // Try persisted context first, fall back to enhanced
   const persistedContext = useContext(SpreadsheetContext);
-  const enhancedContext = persistedContext ? null : useSpreadsheetEnhanced();
+  const enhancedContext = useContext(SpreadsheetEnhancedContext);
   const context = persistedContext || enhancedContext;
 
   if (!context || !isVisible) {

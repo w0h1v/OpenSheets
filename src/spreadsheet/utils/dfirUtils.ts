@@ -15,7 +15,7 @@ export const IOC_PATTERNS = {
   // Network patterns
   ipv4: /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/,
   ipv6: /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/,
-  domain: /^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$/,
+  domain: /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/,
   url: /^https?:\/\/[^\s$.?#].[^\s]*$/i,
   email: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
   
@@ -108,20 +108,6 @@ export function isSuspiciousProcess(processName: string): boolean {
 export function parseTimestamp(value: any): Date | null {
   if (!value) return null;
   
-  // Handle various timestamp formats common in DFIR
-  const _formats = [
-    // ISO formats
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/,
-    // Windows FILETIME (as string)
-    /^\d{17,18}$/,
-    // Unix timestamp (seconds)
-    /^\d{10}$/,
-    // Unix timestamp (milliseconds)  
-    /^\d{13}$/,
-    // Common log formats
-    /^\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}:\d{2}/,
-  ];
-
   const str = String(value);
   
   // Try direct Date parsing first
