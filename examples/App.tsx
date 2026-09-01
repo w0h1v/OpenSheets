@@ -565,19 +565,65 @@ const MenuBar: React.FC<{
   );
 };
 
-/* ---------------- Chart host (needs provider data) ---------------- */
+/* ---------------- Chart host (persisted per sheet) ---------------- */
+
+interface ChartRecord {
+  id: string;
+  range: { startRow: number; startCol: number; endRow: number; endCol: number };
+  type?: 'bar' | 'line' | 'pie';
+  pos?: { x: number; y: number };
+}
+
+const chartsKey = (sheetId: string) => `opensheets_charts_${sheetId}`;
+
+const loadCharts = (sheetId: string): ChartRecord[] => {
+  try {
+    return JSON.parse(localStorage.getItem(chartsKey(sheetId)) || '[]');
+  } catch {
+    return [];
+  }
+};
 
 const ChartHost: React.FC<{
-  range: { startRow: number; startCol: number; endRow: number; endCol: number } | null;
-  onClose: () => void;
-}> = ({ range, onClose }) => {
+  sheetId: string;
+  pending: { startRow: number; startCol: number; endRow: number; endCol: number } | null;
+  onConsumed: () => void;
+}> = ({ sheetId, pending, onConsumed }) => {
   const { state } = useSpreadsheetPersisted();
-  if (!range) return null;
+  const [charts, setCharts] = useState<ChartRecord[]>(() => loadCharts(sheetId));
+
+  const persist = (next: ChartRecord[]) => {
+    setCharts(next);
+    try {
+      localStorage.setItem(chartsKey(sheetId), JSON.stringify(next));
+    } catch { /* quota */ }
+  };
+
+  // A new chart arrives from Insert > Chart from selection
+  useEffect(() => {
+    if (!pending) return;
+    const n = charts.length;
+    persist([...charts, {
+      id: `c-${Date.now()}`,
+      range: pending,
+      pos: { x: 80 + (n % 4) * 30, y: 100 + (n % 4) * 30 },
+    }]);
+    onConsumed();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending]);
+
   return (
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 40 }}>
-      <div style={{ pointerEvents: 'auto', position: 'absolute', inset: 0 }}>
-        <ChartPanel range={range} data={state.data} onClose={onClose} />
-      </div>
+      {charts.map((c) => (
+        <ChartPanel
+          key={c.id}
+          range={c.range}
+          data={state.data}
+          initial={c.type || c.pos ? { type: c.type ?? 'bar', pos: c.pos ?? { x: 80, y: 120 } } : undefined}
+          onStateChange={(st) => persist(charts.map((x) => (x.id === c.id ? { ...x, type: st.type, pos: st.pos } : x)))}
+          onClose={() => persist(charts.filter((x) => x.id !== c.id))}
+        />
+      ))}
     </div>
   );
 };
@@ -611,8 +657,8 @@ const HeaderBar: React.FC<{
   onInsertChart: (range: { startRow: number; startCol: number; endRow: number; endCol: number }) => void;
   onFind: () => void;
 }> = ({ theme, toggleTheme, showHistory, onToggleHistory, compact, onToggleCompact, onShare, onShortcuts, onInsertChart, onFind }) => {
-  const { syncStatus } = useSpreadsheetPersisted();
-  const savedLabel = syncStatus.syncing ? 'Saving…' : 'Saved';
+  const { syncStatus, dirty } = useSpreadsheetPersisted();
+  const savedLabel = syncStatus.syncing ? 'Saving…' : dirty ? 'Unsaved changes' : 'Saved';
 
   return (
     <header className="appHeader">
@@ -770,7 +816,7 @@ const AppShell: React.FC = () => {
           <div className="stats"><SelectionStats /></div>
         </footer>
 
-        <ChartHost range={chart} onClose={() => setChart(null)} />
+        <ChartHost sheetId={activeId} pending={chart} onConsumed={() => setChart(null)} />
         <DensityController compact={compact} />
         <DevDrawer />
       </SpreadsheetProviderPersisted>

@@ -188,6 +188,19 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
 
   // Per-cell comment indicator
   const cellComment = state.comments?.get(`${row}:${col}`);
+  const addReply = (text: string) => {
+    if (!cellComment) return;
+    setState((prev) => {
+      const comments = new Map(prev.comments || []);
+      const existing = comments.get(`${row}:${col}`);
+      if (!existing) return prev;
+      comments.set(`${row}:${col}`, {
+        ...existing,
+        replies: [...(existing.replies || []), { author: 'You', text, timestamp: Date.now() }],
+      });
+      return { ...prev, comments };
+    });
+  };
   const setCellComment = (patch: { resolved?: boolean } | null) => {
     if (!cellComment && patch === null) return;
     if (!cellComment) return;
@@ -303,6 +316,7 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
         {cellComment && (
           <CommentIndicator
             comment={cellComment}
+            onReply={addReply}
             onResolve={() => setCellComment({ resolved: !cellComment.resolved })}
             onDelete={() => setCellComment(null)}
           />
