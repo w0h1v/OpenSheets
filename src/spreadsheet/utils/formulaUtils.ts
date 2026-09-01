@@ -84,29 +84,55 @@ export const evaluateFormula = (
   if (!formula.startsWith('=')) return formula;
   let expr = formula.slice(1);
 
-  // Handle cell references with absolute notation
-  expr = expr.replace(/(\$?)([A-Z]+)(\$?)(\d+)(?!:)/g, (match, _dollarCol, _colLetters, _dollarRow, _rowNum) => {
+  // Ranges must be replaced first so their cell refs are not each
+  // substituted as single values (which would corrupt A1:A3)
+  expr = expr.replace(/(\$?[A-Z]+\$?\d+):(\$?[A-Z]+\$?\d+)/g, (match) => {
+    const [start, end] = match.split(':');
+    const cells = cellsInRange(start, end);
+    const values = cells
+      .map(([r, c]) => getCellValue(r, c))
+      .filter((v) => v !== undefined && v !== null);
+    return JSON.stringify(values);
+  });
+
+  // Single cell references
+  expr = expr.replace(/(\$?)([A-Z]+)(\$?)(\d+)/g, (match) => {
     const [r, c] = parseCellRef(match);
     const value = getCellValue(r, c);
     return JSON.stringify(value ?? 0);
   });
 
-  // Handle ranges
-  expr = expr.replace(/(\$?)([A-Z]+)(\$?)(\d+):(\$?)([A-Z]+)(\$?)(\d+)/g, (match) => {
-    const [start, end] = match.split(':');
-    const cells = cellsInRange(start, end);
-    const values = cells.map(([r, c]) => getCellValue(r, c)).filter(v => v !== undefined && v !== null);
-    return JSON.stringify(values);
-  });
+  // Split function arguments on top-level commas only, so JSON arrays
+  // produced by range substitution (e.g. [10,20,30]) stay intact
+  const splitArgs = (args: string): string[] => {
+    const parts: string[] = [];
+    let depth = 0;
+    let inString = false;
+    let current = '';
+    for (const ch of args) {
+      if (ch === '"') inString = !inString;
+      if (!inString && (ch === '[' || ch === '(')) depth++;
+      if (!inString && (ch === ']' || ch === ')')) depth--;
+      if (ch === ',' && depth === 0 && !inString) {
+        parts.push(current);
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+    if (current.trim() !== '') parts.push(current);
+    return parts;
+  };
 
-  // Handle functions
-  expr = expr.replace(/(SUM|AVERAGE|COUNT|MIN|MAX|IF|CONCAT|LEN|ROUND|ABS)\(([^)]+)\)/gi, (match, fnName, args) => {
-    const parts = args.split(',').map((p: string) => p.trim());
-    let values: any[] = [];
-    
-    for (const part of parts) {
+  // Handle functions (args contain no nested parentheses at this point;
+  // ranges have already become JSON arrays)
+  expr = expr.replace(/(SUM|AVERAGE|COUNT|MIN|MAX|IF|CONCAT|LEN|ROUND|ABS)\(([^()]*)\)/gi, (match, fnName, args) => {
+    const values: any[] = [];
+
+    for (const part of splitArgs(args)) {
+      const trimmed = part.trim();
       try {
-        const parsed = JSON.parse(part);
+        const parsed = JSON.parse(trimmed);
         if (Array.isArray(parsed)) {
           values.push(...parsed);
         } else {
@@ -114,26 +140,28 @@ export const evaluateFormula = (
         }
       } catch {
         // If not JSON, treat as literal value
-        values.push(part);
+        values.push(trimmed);
       }
     }
 
+    const flat = values.flat();
     switch (fnName.toUpperCase()) {
       case 'SUM':
-        return String(values.flat().reduce((a, b) => Number(a) + Number(b), 0));
-      case 'AVERAGE':
-        const nums = values.flat().map(Number).filter(n => !isNaN(n));
+        return String(flat.reduce((a, b) => Number(a) + Number(b), 0));
+      case 'AVERAGE': {
+        const nums = flat.map(Number).filter((n) => !isNaN(n));
         return String(nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0);
+      }
       case 'COUNT':
-        return String(values.flat().filter(v => v !== null && v !== undefined && v !== '').length);
+        return String(flat.filter((v) => v !== null && v !== undefined && v !== '').length);
       case 'MIN':
-        return String(Math.min(...values.flat().map(Number).filter(n => !isNaN(n))));
+        return String(Math.min(...flat.map(Number).filter((n) => !isNaN(n))));
       case 'MAX':
-        return String(Math.max(...values.flat().map(Number).filter(n => !isNaN(n))));
+        return String(Math.max(...flat.map(Number).filter((n) => !isNaN(n))));
       case 'IF':
-        return values[0] ? values[1] : values[2];
+        return String(values[0] ? values[1] : values[2]);
       case 'CONCAT':
-        return String(values.flat().join(''));
+        return String(flat.join(''));
       case 'LEN':
         return String(String(values[0]).length);
       case 'ROUND':
@@ -147,7 +175,11 @@ export const evaluateFormula = (
 
   try {
     // eslint-disable-next-line no-new-func
-    return Function(`"use strict"; return (${expr})`)();
+    const result = Function(`"use strict"; return (${expr})`)();
+    if (typeof result === 'number' && !isFinite(result)) {
+      return '#ERROR';
+    }
+    return result;
   } catch {
     return `#ERROR`;
   }

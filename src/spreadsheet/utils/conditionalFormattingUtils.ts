@@ -81,10 +81,11 @@ function evaluateTextContainsCondition(value: any, rule: ConditionalFormat): boo
   const ruleText = String(rule.value1 || '').toLowerCase();
 
   switch (rule.condition) {
-    case 'contains':
+    case 'contains': {
       // Support multiple values separated by commas
       const searchTerms = ruleText.split(',').map(term => term.trim());
       return searchTerms.some(term => textValue.includes(term));
+    }
     
     case 'notContains':
       return !textValue.includes(ruleText);
@@ -98,10 +99,11 @@ function evaluateTextContainsCondition(value: any, rule: ConditionalFormat): boo
     case 'startsWith':
       return textValue.startsWith(ruleText);
     
-    case 'endsWith':
+    case 'endsWith': {
       // Support multiple extensions separated by commas
       const extensions = ruleText.split(',').map(ext => ext.trim());
       return extensions.some(ext => textValue.endsWith(ext));
+    }
     
     default:
       return false;
@@ -128,9 +130,10 @@ function evaluateDateCondition(value: any, rule: ConditionalFormat): boolean {
     case 'equal':
       return dateValue.getTime() === ruleDate.getTime();
     
-    case 'between':
+    case 'between': {
       const ruleDate2 = parseRuleDate(rule.value2);
       return ruleDate2 ? (dateValue >= ruleDate && dateValue <= ruleDate2) : false;
+    }
     
     default:
       return false;

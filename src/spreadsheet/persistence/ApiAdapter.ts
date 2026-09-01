@@ -460,7 +460,7 @@ export class ApiAdapter implements PersistenceAdapter {
 
       // Apply conflict resolution strategy
       switch (this.config.conflictStrategy) {
-        case 'last-write-wins':
+        case 'last-write-wins': {
           // Use CRDT timestamps to determine winner
           const localOp = this.crdt.getOperationsSince({}).find(
             op => `${op.cell.row}:${op.cell.col}` === conflict.cell
@@ -472,6 +472,7 @@ export class ApiAdapter implements PersistenceAdapter {
             cellConflict.resolution = conflict.serverValue;
           }
           break;
+        }
 
         case 'merge':
           // Attempt to merge values
@@ -571,13 +572,6 @@ export class ApiAdapter implements PersistenceAdapter {
     }
   }
 
-  private async _saveToCache(id: string, state: PersistedState): Promise<void> {
-    try {
-      localStorage.setItem(`opensheets_cache_${id}`, JSON.stringify(state));
-    } catch {
-      // Ignore cache errors
-    }
-  }
 
   private async clearCache(id: string): Promise<void> {
     localStorage.removeItem(`opensheets_cache_${id}`);

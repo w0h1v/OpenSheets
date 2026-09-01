@@ -165,12 +165,14 @@ describe('Formula Utils', () => {
     it('should not update absolute references', () => {
       expect(updateFormulaReferences('=$A$1+A2', 'insertRow', 0, 1))
         .toBe('=$A$1+A3');
+      // Only the absolutized coordinate is pinned; $A2 has a relative row, so it shifts
       expect(updateFormulaReferences('=$A$1+$A2', 'insertRow', 0, 1))
-        .toBe('=$A$1+$A2');
+        .toBe('=$A$1+$A3');
     });
 
     it('should return #REF! for deleted cell references', () => {
-      expect(updateFormulaReferences('=A2', 'deleteRow', 2, 1))
+      // A2 is 0-based row 1, so deleting row index 1 removes it
+      expect(updateFormulaReferences('=A2', 'deleteRow', 1, 1))
         .toBe('=#REF!');
       expect(updateFormulaReferences('=B1', 'deleteColumn', 1, 1))
         .toBe('=#REF!');

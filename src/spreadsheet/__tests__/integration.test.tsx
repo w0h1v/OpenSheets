@@ -9,12 +9,14 @@ import { keyOf } from '../types/spreadsheet';
 // Mock virtual scroller
 jest.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: () => ({
-    getVirtualItems: () => [
-      { index: 0, start: 0, size: 28, key: '0' },
-      { index: 1, start: 28, size: 28, key: '1' },
-      { index: 2, start: 56, size: 28, key: '2' },
-    ],
-    getTotalSize: () => 84,
+    getVirtualItems: () =>
+      [1, 2, 3, 4, 5, 6, 7].map((i) => ({
+        index: i,
+        start: (i - 1) * 28,
+        size: 28,
+        key: String(i),
+      })),
+    getTotalSize: () => 196,
   }),
 }));
 

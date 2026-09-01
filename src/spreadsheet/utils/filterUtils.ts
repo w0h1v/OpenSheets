@@ -57,8 +57,8 @@ export function evaluateFilterRule(value: any, rule: FilterRule): boolean {
       return !isEmpty;
   }
 
-  // If value is empty and condition isn't isEmpty/isNotEmpty, it fails most conditions
-  if (isEmpty && rule.condition !== 'isEmpty' && rule.condition !== 'isNotEmpty') {
+  // If value is empty, it fails most conditions (isEmpty/isNotEmpty already returned above)
+  if (isEmpty) {
     return rule.condition === 'notEquals' || rule.condition === 'notContains';
   }
 

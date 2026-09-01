@@ -1,6 +1,6 @@
 import React, { useContext, useState } from 'react';
 import { SpreadsheetContext } from '../SpreadsheetContextPersisted';
-import { useSpreadsheetEnhanced } from '../SpreadsheetContextEnhanced';
+import { SpreadsheetEnhancedContext } from '../SpreadsheetContextEnhanced';
 import { SheetFormatting } from '../types/spreadsheet';
 import styles from './SheetFormatting.module.css';
 
@@ -13,7 +13,7 @@ export const SheetFormattingPanel: React.FC<SheetFormattingProps> = ({ className
   
   // Try persisted context first, fall back to enhanced
   const persistedContext = useContext(SpreadsheetContext);
-  const enhancedContext = persistedContext ? null : useSpreadsheetEnhanced();
+  const enhancedContext = useContext(SpreadsheetEnhancedContext);
   const context = persistedContext || enhancedContext;
   
   if (!context) {
@@ -278,7 +278,7 @@ export const SheetFormattingPanel: React.FC<SheetFormattingProps> = ({ className
 // Hook for applying sheet formatting to the table
 export const useSheetFormatting = () => {
   const persistedContext = useContext(SpreadsheetContext);
-  const enhancedContext = persistedContext ? null : useSpreadsheetEnhanced();
+  const enhancedContext = useContext(SpreadsheetEnhancedContext);
   const context = persistedContext || enhancedContext;
 
   if (!context) {

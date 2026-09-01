@@ -45,3 +45,21 @@ global.localStorage = localStorageMock as any;
 
 // Mock WebSocket
 global.WebSocket = jest.fn() as any;
+// Polyfill DataTransfer/ClipboardEvent for jsdom (used by clipboard code and tests)
+if (typeof (global as any).DataTransfer === 'undefined') {
+  (global as any).DataTransfer = class DataTransfer {
+    private data = new Map<string, string>();
+    setData(type: string, value: string) { this.data.set(type, value); }
+    getData(type: string) { return this.data.get(type) ?? ''; }
+    clearData(type?: string) { if (type) this.data.delete(type); else this.data.clear(); }
+  };
+}
+if (typeof (global as any).ClipboardEvent === 'undefined') {
+  (global as any).ClipboardEvent = class ClipboardEvent extends Event {
+    clipboardData: any;
+    constructor(type: string, init: any = {}) {
+      super(type, init);
+      this.clipboardData = init.clipboardData ?? new DataTransfer();
+    }
+  };
+}

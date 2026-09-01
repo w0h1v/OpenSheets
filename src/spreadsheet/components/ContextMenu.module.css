@@ -30,3 +30,8 @@
 .item:active {
   background: #e8eaed;
 }
+.separator {
+  height: 1px;
+  margin: 4px 8px;
+  background: #e0e0e0;
+}

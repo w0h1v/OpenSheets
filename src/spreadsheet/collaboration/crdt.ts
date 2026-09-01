@@ -39,29 +39,6 @@ export class SpreadsheetCRDT {
     return { ...this.vectorClock };
   }
 
-  // Check if operation a happens before operation b
-  private happensBefore(a: VectorClock, b: VectorClock): boolean {
-    let allLessOrEqual = true;
-    let atLeastOneLess = false;
-
-    for (const userId in a) {
-      if ((a[userId] || 0) > (b[userId] || 0)) {
-        allLessOrEqual = false;
-        break;
-      }
-      if ((a[userId] || 0) < (b[userId] || 0)) {
-        atLeastOneLess = true;
-      }
-    }
-
-    return allLessOrEqual && atLeastOneLess;
-  }
-
-  // Check if two operations are concurrent
-  private _areConcurrent(a: VectorClock, b: VectorClock): boolean {
-    return !this.happensBefore(a, b) && !this.happensBefore(b, a);
-  }
-
   // Set a cell value
   setCell(row: number, col: number, data: CellData): CRDTOperation {
     const operation: CRDTOperation = {

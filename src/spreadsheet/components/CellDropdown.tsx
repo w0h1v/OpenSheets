@@ -23,6 +23,9 @@ export const CellDropdown: React.FC<CellDropdownProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [selectedValues, setSelectedValues] = useState<string[]>(
+    currentValue ? currentValue.split(',').map((v) => v.trim()).filter(Boolean) : []
+  );
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -107,15 +110,19 @@ export const CellDropdown: React.FC<CellDropdownProps> = ({
 
   const handleSelect = (value: string) => {
     if (validation.multiSelect) {
-      // Handle multi-select (comma-separated values)
-      const currentValues = currentValue ? currentValue.split(',').map(v => v.trim()) : [];
+      // Handle multi-select (comma-separated values); track selections
+      // locally so multiple picks accumulate within one open session
+      const currentValues = selectedValues;
       if (currentValues.includes(value)) {
         // Remove if already selected
         const newValues = currentValues.filter(v => v !== value);
+        setSelectedValues(newValues);
         onSelect(newValues.join(', '));
       } else {
         // Add to selection
-        onSelect([...currentValues, value].join(', '));
+        const newValues = [...currentValues, value];
+        setSelectedValues(newValues);
+        onSelect(newValues.join(', '));
       }
     } else {
       onSelect(value);
@@ -198,7 +205,7 @@ export const CellDropdown: React.FC<CellDropdownProps> = ({
                 className={styles.customOption}
                 onClick={() => handleSelect(searchTerm)}
               >
-                Use "{searchTerm}"
+                Use &quot;{searchTerm}&quot;
               </button>
             )}
           </div>
@@ -239,7 +246,7 @@ export const CellDropdown: React.FC<CellDropdownProps> = ({
             onMouseEnter={() => setSelectedIndex(options.length)}
           >
             <span className={styles.addIcon}>+</span>
-            <span className={styles.optionText}>Add "{searchTerm}"</span>
+            <span className={styles.optionText}>Add &quot;{searchTerm}&quot;</span>
           </div>
         )}
       </div>

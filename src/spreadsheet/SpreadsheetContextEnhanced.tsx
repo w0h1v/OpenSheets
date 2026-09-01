@@ -3,6 +3,7 @@ import { TableProps, SpreadsheetState, CellData, keyOf } from './types/spreadshe
 import { SpreadsheetAction } from './types/actions';
 import { spreadsheetReducer } from './reducers/spreadsheetReducer';
 import { useUndoRedo } from './hooks/useUndoRedo';
+import { SpreadsheetContextInstance } from './SpreadsheetContext';
 
 interface SpreadsheetContextValue {
   state: SpreadsheetState;
@@ -16,6 +17,9 @@ interface SpreadsheetContextValue {
 }
 
 const SpreadsheetContext = createContext<SpreadsheetContextValue | null>(null);
+// Exported so components that try the persisted context first can read this
+// one unconditionally (calling hooks conditionally violates the rules of hooks)
+export const SpreadsheetEnhancedContext = SpreadsheetContext;
 
 // Create enhanced reducer with middleware support
 const enhancedReducer = (state: SpreadsheetState, action: SpreadsheetAction): SpreadsheetState => {
@@ -27,6 +31,14 @@ const enhancedReducer = (state: SpreadsheetState, action: SpreadsheetAction): Sp
   // Handle special restore state action for undo/redo
   if ((action as any).type === 'RESTORE_STATE') {
     return (action as any).payload;
+  }
+
+  // Apply a React-style setState updater against the accumulated state so
+  // functional updates composed with other actions in the same batch are
+  // not lost.
+  if ((action as any).type === 'APPLY_SET_STATE') {
+    const updater = (action as any).payload;
+    return typeof updater === 'function' ? updater(state) : updater;
   }
 
   return spreadsheetReducer(state, action);
@@ -56,6 +68,14 @@ export const SpreadsheetProviderEnhanced: React.FC<React.PropsWithChildren<Table
   }), [initialData, maxRows, maxCols, readOnly]);
 
   const [state, dispatch] = useReducer(enhancedReducer, initialState);
+
+  // Bridge state for components that consume the base SpreadsheetContext
+  // (CellRenderer, SelectionOverlay, etc.) so both context flavors work in
+  // the same tree. The updater is applied inside the reducer so it sees the
+  // accumulated state, including actions dispatched earlier in the same batch.
+  const bridgedSetState = useCallback((action: React.SetStateAction<SpreadsheetState>) => {
+    dispatch({ type: 'APPLY_SET_STATE', payload: action } as unknown as SpreadsheetAction);
+  }, []);
 
   // Undo/Redo support
   const { undo, redo, canUndo, canRedo } = useUndoRedo(state, dispatch);
@@ -150,9 +170,18 @@ export const SpreadsheetProviderEnhanced: React.FC<React.PropsWithChildren<Table
     canRedo,
   }), [state, dispatch, getCell, setCell, undo, redo, canUndo, canRedo]);
 
+  const bridgeValue = useMemo(() => ({
+    state,
+    setState: bridgedSetState,
+    getCell,
+    setCell,
+  }), [state, bridgedSetState, getCell, setCell]);
+
   return (
     <SpreadsheetContext.Provider value={contextValue}>
-      {children}
+      <SpreadsheetContextInstance.Provider value={bridgeValue}>
+        {children}
+      </SpreadsheetContextInstance.Provider>
     </SpreadsheetContext.Provider>
   );
 };
