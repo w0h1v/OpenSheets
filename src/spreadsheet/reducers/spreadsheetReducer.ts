@@ -8,6 +8,9 @@ export function spreadsheetReducer(
   action: SpreadsheetAction
 ): SpreadsheetState {
   switch (action.type) {
+    case 'CLEAR_ALL':
+      return { ...state, data: new Map() };
+
     case 'SET_CELL': {
       const { row, col, data } = action.payload;
       const key = keyOf(row, col);

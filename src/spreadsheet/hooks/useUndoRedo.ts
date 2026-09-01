@@ -8,6 +8,11 @@ interface UndoRedoState {
   future: SpreadsheetState[];
 }
 
+// JSON.stringify renders a Map as "{}", which would make any two states
+// with Maps look identical; serialize Maps as entry arrays instead
+const serializeState = (s: SpreadsheetState): string =>
+  JSON.stringify(s, (_k, v) => (v instanceof Map ? Array.from(v.entries()) : v));
+
 export function useUndoRedo(
   state: SpreadsheetState,
   dispatch: React.Dispatch<SpreadsheetAction>,
@@ -18,6 +23,7 @@ export function useUndoRedo(
     present: state,
     future: [],
   });
+  const restoring = useRef(false);
 
   const canUndo = history.current.past.length > 0;
   const canRedo = history.current.future.length > 0;
@@ -26,7 +32,7 @@ export function useUndoRedo(
     const { past, present } = history.current;
     
     // Don't save if state hasn't changed
-    if (JSON.stringify(present) === JSON.stringify(newState)) {
+    if (serializeState(present) === serializeState(newState)) {
       return;
     }
 
@@ -89,11 +95,17 @@ export function useUndoRedo(
     };
   }, [state]);
 
-  // Update present state when state changes
+  // Update present state when state changes. States produced by undo/redo
+  // themselves just move the history cursor; they must not be recorded as
+  // new history entries.
   useEffect(() => {
-    if (history.current.present !== state) {
-      saveState(state);
+    if (history.current.present === state) return;
+    if (restoring.current) {
+      restoring.current = false;
+      history.current.present = state;
+      return;
     }
+    saveState(state);
   }, [state, saveState]);
 
   // Keyboard shortcuts
@@ -104,6 +116,7 @@ export function useUndoRedo(
         const previousState = undo();
         if (previousState) {
           // Dispatch a special action to restore state
+          restoring.current = true;
           dispatch({ type: 'RESTORE_STATE', payload: previousState });
         }
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
@@ -111,6 +124,7 @@ export function useUndoRedo(
         const nextState = redo();
         if (nextState) {
           // Dispatch a special action to restore state
+          restoring.current = true;
           dispatch({ type: 'RESTORE_STATE', payload: nextState });
         }
       }

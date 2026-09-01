@@ -23,11 +23,6 @@ export const SpreadsheetEnhancedContext = SpreadsheetContext;
 
 // Create enhanced reducer with middleware support
 const enhancedReducer = (state: SpreadsheetState, action: SpreadsheetAction): SpreadsheetState => {
-  // Log actions in development
-  if (process.env.NODE_ENV === 'development') {
-    console.log('Spreadsheet Action:', action.type, action);
-  }
-
   // Handle special restore state action for undo/redo
   if ((action as any).type === 'RESTORE_STATE') {
     return (action as any).payload;
