@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRelay, createBus, createAccountStore, DEFAULT_DATA_DIR } from './relayCore.mjs';
+import { createRelay, createBus, createAccountStore } from '../server/relayCore.mjs';
 
 /*
  * Standalone OpenSheets server: serves the built demo (examples/dist), the
@@ -23,8 +23,9 @@ import { createRelay, createBus, createAccountStore, DEFAULT_DATA_DIR } from './
  */
 
 const PORT = Number(process.env.PORT || 8080);
-const DIST = join(fileURLToPath(new URL('.', import.meta.url)), 'dist');
-const DATA_DIR = process.env.OPENSHEETS_DATA_DIR || DEFAULT_DATA_DIR;
+const HERE = fileURLToPath(new URL('.', import.meta.url));
+const DIST = join(HERE, 'dist');
+const DATA_DIR = process.env.OPENSHEETS_DATA_DIR || join(HERE, 'data');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',

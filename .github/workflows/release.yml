@@ -1,0 +1,39 @@
+name: Release
+
+# Publishing happens only here, from a GitHub release whose tag matches
+# package.json, with npm provenance attached. No long-lived npm token is
+# used: npm's trusted publishing verifies this workflow's OIDC identity
+# (repository w0h1v/OpenSheets, workflow release.yml, environment
+# npm-publish). See docs/SUPPLY-CHAIN.md for the one-time setup.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      # Trusted publishing needs npm >= 11.5; the runner's bundled npm is older
+      - run: npm install -g npm@12.0.2
+      - run: npm ci --ignore-scripts
+      - name: Tag must match package.json
+        run: |
+          expected="v$(node -p "require('./package.json').version")"
+          test "$expected" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME != $expected"; exit 1; }
+      # Full gate (typecheck, lint, unit + relay tests, build, packed-tarball smoke test).
+      # .npmrc ignores lifecycle scripts, so prepublishOnly does not run on its own.
+      - run: npm run release:check
+      - run: npm publish --provenance --access public

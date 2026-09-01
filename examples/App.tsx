@@ -5,7 +5,7 @@ import {
   SpreadsheetTableOptimized,
   FormulaBar,
   FormattingToolbar,
-} from '../src/spreadsheet/indexEnhanced';
+} from '../src';
 import '../src/spreadsheet/styles/tokens.css';
 import { useTheme } from '../src/spreadsheet/hooks/useTheme';
 import {

@@ -2,67 +2,6 @@
   "name": "opensheets",
   "version": "2.1.0",
   "description": "Production-ready Google Sheets-like spreadsheet component for React",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "scripts": {
-    "build": "tsc && node scripts/copy-css.mjs",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "lint": "eslint src --ext .ts,.tsx",
-    "typecheck": "tsc --noEmit",
-    "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build",
-    "dev": "vite serve examples",
-    "dev:examples": "vite serve examples",
-    "build:examples": "vite build examples",
-    "preview": "vite preview examples",
-    "serve": "node examples/server.mjs",
-    "demo": "npm run build:examples && npm run serve",
-    "prepublishOnly": "npm run typecheck && npm test && npm run build",
-    "test:relay": "node --test examples/relayCore.test.mjs"
-  },
-  "dependencies": {
-    "@tanstack/react-virtual": "^3.13.12",
-    "hyperformula": "^2.7.1",
-    "immer": "^10.0.3",
-    "react-hotkeys-hook": "^4.4.1",
-    "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
-    "@storybook/addon-essentials": "^7.6.0",
-    "@storybook/react": "^7.6.0",
-    "@storybook/react-vite": "^7.6.0",
-    "@testing-library/jest-dom": "^6.1.5",
-    "@testing-library/react": "^14.1.2",
-    "@testing-library/user-event": "^14.5.1",
-    "@types/jest": "^29.5.10",
-    "@types/node": "^20.10.0",
-    "@types/react": "^18.2.42",
-    "@types/react-dom": "^18.2.17",
-    "@types/ws": "^8.18.1",
-    "@typescript-eslint/eslint-plugin": "^6.13.1",
-    "@typescript-eslint/parser": "^6.13.1",
-    "@vitejs/plugin-react": "^4.7.0",
-    "eslint": "^8.55.0",
-    "eslint-plugin-react": "^7.33.2",
-    "eslint-plugin-react-hooks": "^4.6.0",
-    "identity-obj-proxy": "^3.0.0",
-    "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "redis": "^6.2.1",
-    "storybook": "^7.6.0",
-    "ts-jest": "^29.1.1",
-    "typescript": "^5.3.2",
-    "vite": "^5.4.21",
-    "ws": "^8.21.3"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/w0h1v/OpenSheets.git"
-  },
   "keywords": [
     "spreadsheet",
     "excel",
@@ -78,29 +17,134 @@
     "collaborative-editing",
     "crdt"
   ],
-  "author": "OpenSheets Team",
   "license": "MIT",
+  "author": "OpenSheets Team",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/w0h1v/OpenSheets.git"
+  },
   "bugs": {
     "url": "https://github.com/w0h1v/OpenSheets/issues"
   },
   "homepage": "https://github.com/w0h1v/OpenSheets#readme",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./excel": {
+      "types": "./dist/types/excel.d.ts",
+      "import": "./dist/excel.mjs",
+      "require": "./dist/excel.cjs"
+    },
+    "./hyperformula": {
+      "types": "./dist/types/hyperformula.d.ts",
+      "import": "./dist/hyperformula.mjs",
+      "require": "./dist/hyperformula.cjs"
+    },
+    "./server": {
+      "types": "./server/relayCore.d.mts",
+      "import": "./server/relayCore.mjs"
+    },
+    "./styles.css": "./dist/index.css",
+    "./styles/tokens.css": "./dist/tokens.css",
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist",
+    "server/relayCore.mjs",
+    "server/relayCore.d.mts",
     "README.md",
     "LICENSE"
   ],
-  "peerDependencies": {
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0"
-  },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
-    "./styles/tokens.css": "./dist/spreadsheet/styles/tokens.css"
-  },
   "sideEffects": [
     "**/*.css"
-  ]
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:relay": "node --test server/relayCore.test.mjs",
+    "test:package": "node scripts/smoke-package.mjs",
+    "lint": "eslint src --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit",
+    "dev": "vite serve examples",
+    "dev:examples": "vite serve examples",
+    "build:examples": "vite build examples",
+    "preview": "vite preview examples",
+    "serve": "node examples/server.mjs",
+    "demo": "npm run build:examples && npm run serve",
+    "release:check": "npm run typecheck && npm run lint && npm test -- --ci && npm run test:relay && npm run build && npm run test:package",
+    "prepublishOnly": "npm run release:check"
+  },
+  "dependencies": {
+    "@tanstack/react-virtual": "^3.14.10",
+    "immer": "^10.2.0",
+    "react-hotkeys-hook": "^4.6.2"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "hyperformula": ">=2.7.1",
+    "xlsx": ">=0.18.5",
+    "ws": "^8.0.0",
+    "redis": "^5.0.0 || ^6.0.0"
+  },
+  "peerDependenciesMeta": {
+    "hyperformula": {
+      "optional": true
+    },
+    "xlsx": {
+      "optional": true
+    },
+    "ws": {
+      "optional": true
+    },
+    "redis": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "14.3.1",
+    "@testing-library/user-event": "14.6.6",
+    "@types/jest": "29.5.14",
+    "@types/node": "20.19.43",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "@types/ws": "8.18.1",
+    "@typescript-eslint/eslint-plugin": "6.21.0",
+    "@typescript-eslint/parser": "6.21.0",
+    "@vitejs/plugin-react": "5.2.0",
+    "esbuild": "0.28.2",
+    "eslint": "8.57.1",
+    "eslint-plugin-react": "7.37.5",
+    "eslint-plugin-react-hooks": "4.6.2",
+    "hyperformula": "2.7.1",
+    "identity-obj-proxy": "3.0.0",
+    "jest": "29.7.0",
+    "jest-environment-jsdom": "29.7.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "redis": "6.2.1",
+    "ts-jest": "29.4.12",
+    "typescript": "5.9.3",
+    "vite": "7.3.6",
+    "ws": "8.21.3",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "overrides": {
+    "esbuild": "0.28.2"
+  }
 }

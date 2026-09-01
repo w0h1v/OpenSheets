@@ -8,7 +8,7 @@ import {
   PersistenceStatus,
   useSpreadsheetPersisted,
   keyOf
-} from '../src/spreadsheet/indexEnhanced';
+} from '../src';
 import { CellData } from '../src/spreadsheet/types/spreadsheet';
 import { exportToCSV, importFromCSV } from '../src/spreadsheet/utils/csvUtils';
 import { exportToExcel, importFromExcel } from '../src/spreadsheet/utils/excelUtils';

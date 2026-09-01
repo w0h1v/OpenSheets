@@ -6,7 +6,7 @@ import {
   FormattingToolbar,
   PersistenceStatus,
   useSpreadsheetPersisted,
-} from '../src/spreadsheet/indexEnhanced';
+} from '../src';
 
 /**
  * Example 1: Local Storage Only (Simplest)

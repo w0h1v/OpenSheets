@@ -1,0 +1,23 @@
+# Dependency updates arrive as reviewable pull requests, never silently.
+# The cooldown keeps freshly published versions out for a week: most
+# malicious releases are detected and unpublished within days, so waiting
+# is the cheapest protection there is.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      dev-tooling:
+        dependency-type: development
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7

@@ -10,7 +10,7 @@ import WebSocket from 'ws';
 import { createRelay, createAccountStore, MemoryBus, RedisBus, AccountStore } from './relayCore.mjs';
 
 /*
- * Relay core tests: run with `npm run test:relay` (node:test, no extra
+ * Relay core tests (opensheets/server): run with `npm run test:relay` (node:test, no extra
  * tooling). The Redis suite runs only when a Redis answers on REDIS_URL
  * (default redis://localhost:6379) and is skipped otherwise.
  */
