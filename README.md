@@ -88,6 +88,44 @@ Other useful scripts:
 | `npm run lint` | Lint the source (ESLint) |
 | `npm run build` | Compile the library to `dist/` |
 | `npm run build:examples` | Build a production bundle of the demo |
+| `npm run demo` | Build the demo and serve it with the standalone server |
+| `npm run test:relay` | Test the collaboration relay (accounts, presence, Redis fan-out) |
+
+### Collaboration server, accounts and scaling
+
+Both `npm run dev` and the standalone server (`npm run serve`, after
+`npm run build:examples`) mount the same relay core from
+`examples/relayCore.mjs`: a `/collab` WebSocket relay plus `/auth/*`
+account endpoints.
+
+**Identities.** Collaborators can sign in from the account button in the
+header (create an account with a name and password, or sign in). A signed-in
+identity is per *person*: it is shared by every tab of that browser, restored
+on reload, and used for presence, edit stamps and protected-range ownership.
+Without an account each tab collaborates as a guest with a random name.
+Passwords are stored pbkdf2-hashed and session tokens are stored hashed, in
+`examples/data/accounts.json` (git-ignored) or, with Redis, in Redis.
+
+**Running more than one instance.** The relay keeps its state (fan-out,
+per-sheet snapshots, presence, accounts) in a pluggable bus. By default that
+is in-memory, which is right for a single instance. To run several instances
+behind a load balancer, point them all at one Redis:
+
+```bash
+npm install redis                    # optional dependency, only needed with REDIS_URL
+REDIS_URL=redis://localhost:6379 PORT=8081 npm run serve
+REDIS_URL=redis://localhost:6379 PORT=8082 npm run serve
+```
+
+Any instance can serve any client; edits, presence and accounts are shared.
+Each instance exposes `GET /healthz` (`{ ok, instance, bus, clients }`) for
+load-balancer checks.
+
+| Variable | Meaning |
+| --- | --- |
+| `PORT` | Standalone server port (default `8080`) |
+| `REDIS_URL` | When set, relay state lives in Redis and instances share it |
+| `OPENSHEETS_DATA_DIR` | Where `accounts.json` lives without Redis (default `examples/data`) |
 
 ## 🔧 Quick Start
 

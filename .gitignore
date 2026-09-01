@@ -128,3 +128,6 @@ storybook-static/
 examples/dist/
 coverage/
 node_modules/
+
+# Demo relay accounts (local state, never commit)
+examples/data/

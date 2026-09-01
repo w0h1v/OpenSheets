@@ -90,7 +90,6 @@ function rangeProtectedForOthers(
     (p) =>
       p.owner !== author
       && !(range.endRow < p.range.startRow || range.startRow > p.range.endRow
-        || range.endCol < p.range.startCol || range.startRow > p.range.endCol
         || range.endCol < p.range.startCol || range.startCol > p.range.endCol)
   );
 }
