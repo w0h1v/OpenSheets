@@ -1,0 +1,127 @@
+.panel {
+  position: absolute;
+  z-index: 40;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--menu-shadow);
+  padding: 8px 10px 10px;
+  cursor: grab;
+  user-select: none;
+}
+
+.panel:active {
+  cursor: grabbing;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.typeSwitch {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.typeSwitch button {
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+
+.typeSwitch button:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.typeActive {
+  background: var(--toolbar-active-bg) !important;
+  color: var(--accent) !important;
+}
+
+.close {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+.close:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.svg {
+  display: block;
+  pointer-events: none;
+}
+
+.bg {
+  fill: var(--cellbg);
+}
+
+.grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.tick {
+  fill: var(--faint);
+  font-size: 9px;
+  font-family: inherit;
+}
+
+.emptyText {
+  fill: var(--faint);
+  font-size: 12px;
+}
+
+.line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.pieLabel {
+  fill: var(--accent-contrast);
+  font-size: 8px;
+  pointer-events: none;
+}
+
+.legend {
+  display: flex;
+  gap: 12px;
+  padding: 6px 2px 0;
+  flex-wrap: wrap;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.legendSwatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}

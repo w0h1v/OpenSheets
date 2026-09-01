@@ -27,6 +27,7 @@ export interface PersistedState {
   rowHeights: number[];
   colWidths: number[];
   validation?: Array<[string, any]>;
+  comments?: Array<[string, import('../types/spreadsheet').CellComment]>;
   metadata: SpreadsheetMetadata;
 }
 

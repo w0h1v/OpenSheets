@@ -6,6 +6,7 @@ import { formatCellValue } from '../utils/formatUtils';
 import { evaluateConditionalFormat, combineConditionalFormats } from '../utils/conditionalFormattingUtils';
 import { CellDropdown } from './CellDropdown';
 import { columnToLetter } from '../utils/columnUtils';
+import { CommentIndicator } from './CommentIndicator';
 import { DropdownArrow } from './DropdownArrow';
 import styles from './CellRenderer.module.css';
 
@@ -185,6 +186,26 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
     return state.validation?.get(`${row}:${col}`) || null;
   }, [state.validation, row, col]);
 
+  // Per-cell comment indicator
+  const cellComment = state.comments?.get(`${row}:${col}`);
+  const setCellComment = (patch: { resolved?: boolean } | null) => {
+    if (!cellComment && patch === null) return;
+    if (!cellComment) return;
+    if (patch === null) {
+      setState((prev) => {
+        const comments = new Map(prev.comments || []);
+        comments.delete(`${row}:${col}`);
+        return { ...prev, comments };
+      });
+    } else if (patch.resolved !== undefined) {
+      setState((prev) => {
+        const comments = new Map(prev.comments || []);
+        comments.set(`${row}:${col}`, { ...cellComment, resolved: patch.resolved });
+        return { ...prev, comments };
+      });
+    }
+  };
+
   // Check if cell has dropdown (list validation)
   const hasDropdown = useMemo(() => {
     return validation?.type === 'list' && validation.list && validation.list.length > 0;
@@ -279,6 +300,13 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
         aria-expanded={hasDropdown ? showDropdown : undefined}
       >
         {displayValue.text}
+        {cellComment && (
+          <CommentIndicator
+            comment={cellComment}
+            onResolve={() => setCellComment({ resolved: !cellComment.resolved })}
+            onDelete={() => setCellComment(null)}
+          />
+        )}
         {hasDropdown && validation?.showDropdownArrow !== false && (
           <DropdownArrow 
             onClick={handleDropdownClick}

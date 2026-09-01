@@ -121,6 +121,14 @@ export interface FilterState {
   sortDirection?: 'asc' | 'desc';
 }
 
+export interface CellComment {
+  author: string;
+  text: string;
+  timestamp: number;
+  resolved?: boolean;
+  replies?: Array<{ author: string; text: string; timestamp: number }>;
+}
+
 export interface SpreadsheetState {
   data: SparseMatrix<CellData>;
   maxRows: number;
@@ -130,6 +138,7 @@ export interface SpreadsheetState {
   formulaInput: string;
   readOnly?: boolean;
   filters?: FilterRule[];
+  comments?: Map<string, CellComment>;
   rowHeights?: number[];
   colWidths?: number[];
   validation?: Map<string, ValidationRule>;

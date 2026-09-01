@@ -69,6 +69,7 @@ const enhancedReducer = (state: SpreadsheetState, action: SpreadsheetAction): Sp
       rowHeights: loadedState.rowHeights || state.rowHeights,
       colWidths: loadedState.colWidths || state.colWidths,
       validation: loadedState.validation || state.validation,
+      comments: loadedState.comments || state.comments,
     };
   }
 
@@ -166,7 +167,10 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
       
       if (loadedState) {
         dispatch({ type: 'LOAD_STATE', payload: loadedState });
-        lastSavedState.current = JSON.stringify(loadedState.data);
+        lastSavedState.current = JSON.stringify({
+          data: loadedState.data,
+          comments: loadedState.comments,
+        }, (_k, v) => (v instanceof Map ? Array.from(v.entries()) : v));
         onLoadComplete?.(true);
       } else {
         onLoadComplete?.(false);
@@ -190,7 +194,10 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
       const result = await persistenceManager.current.save(stateRef.current);
       
       if (result.success) {
-        lastSavedState.current = JSON.stringify(stateRef.current.data);
+        lastSavedState.current = JSON.stringify({
+          data: stateRef.current.data,
+          comments: stateRef.current.comments,
+        }, (_k, v) => (v instanceof Map ? Array.from(v.entries()) : v));
         hasUnsavedChanges.current = false;
       }
       
@@ -211,8 +218,11 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
   useEffect(() => {
     if (!autoSave) return;
 
-    // Check if state has changed
-    const currentStateStr = JSON.stringify(state.data);
+    // Check if state has changed (data or comments)
+    const currentStateStr = JSON.stringify({
+      data: state.data,
+      comments: state.comments,
+    }, (_k, v) => (v instanceof Map ? Array.from(v.entries()) : v));
     if (currentStateStr !== lastSavedState.current) {
       hasUnsavedChanges.current = true;
     }
@@ -234,7 +244,7 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
         clearTimeout(autoSaveTimer.current);
       }
     };
-  }, [state.data, state.editing, autoSave, autoSaveInterval]);
+  }, [state.data, state.comments, state.editing, autoSave, autoSaveInterval]);
 
   // Save on window unload
   useEffect(() => {

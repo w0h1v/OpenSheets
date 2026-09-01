@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import {
   SpreadsheetProviderPersisted,
   useSpreadsheetPersisted,
@@ -12,6 +12,12 @@ import {
   GridGlyphIcon, SunIcon, MoonIcon, HistoryIcon, AddSheetIcon,
 } from '../src/spreadsheet/components/icons';
 import { DropdownMenu, MenuEntry } from '../src/spreadsheet/components/Menu';
+import { FindReplaceBar } from '../src/spreadsheet/components/FindReplaceBar';
+import { ChartPanel } from '../src/spreadsheet/components/ChartPanel';
+import { useCollaboration } from '../src/spreadsheet/collaboration/useCollaboration';
+import {
+  subscribeCollab, getCollabUsers, getCollabToasts, CollabUser,
+} from '../src/spreadsheet/collaboration/presenceStore';
 import { keyOf } from '../src/spreadsheet/types/spreadsheet';
 import { downloadCSV } from '../src/spreadsheet/utils/csvUtils';
 import { exportToExcel } from '../src/spreadsheet/utils/excelUtils';
@@ -226,6 +232,65 @@ const SelectionStats: React.FC = () => {
   );
 };
 
+/* ---------------- Collaboration ---------------- */
+
+// Applies/streams collaboration state; renders nothing
+const CollabLayer: React.FC<{ sheetId: string }> = ({ sheetId }) => {
+  const { state, dispatch } = useSpreadsheetPersisted();
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  useCollaboration({
+    sheetId,
+    getState: () => stateRef.current,
+    dispatch,
+  });
+  return null;
+};
+
+const AvatarStack: React.FC = () => {
+  const users = useSyncExternalStore(subscribeCollab, getCollabUsers);
+  if (!users.length) return null;
+  return (
+    <div className="avatarStack" title={users.map((u) => u.name).join(', ')}>
+      {users.slice(0, 4).map((u: CollabUser) => (
+        <span key={u.id} className="avatar" style={{ background: u.color }} title={u.name}>
+          {u.name[0].toUpperCase()}
+        </span>
+      ))}
+      {users.length > 4 && <span className="avatar avatarMore">+{users.length - 4}</span>}
+    </div>
+  );
+};
+
+const CollabToasts: React.FC = () => {
+  const toasts = useSyncExternalStore(subscribeCollab, getCollabToasts);
+  if (!toasts.length) return null;
+  return (
+    <div className="toastStack">
+      {toasts.map((t) => (
+        <div key={t.id} className="toast" style={{ borderColor: t.color }}>
+          <span className="toastDot" style={{ background: t.color }} />
+          {t.text}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// Sheet tab presence hint: shows who else is editing this sheet
+const TabPresence: React.FC<{ sheetId: string; activeSheet: string }> = ({ sheetId, activeSheet }) => {
+  const users = useSyncExternalStore(subscribeCollab, getCollabUsers);
+  const here = users.filter((u) => u.sheetId === sheetId && sheetId !== activeSheet);
+  if (!here.length) return null;
+  return (
+    <span className="tabPresence" title={`${here.map((u) => u.name).join(', ')} editing`}>
+      {here.map((u) => (
+        <span key={u.id} className="tabPresenceDot" style={{ background: u.color }} />
+      ))}
+    </span>
+  );
+};
+
 /* ---------------- Menu bar + dialogs ---------------- */
 
 const ShortcutsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => (
@@ -315,7 +380,9 @@ const MenuBar: React.FC<{
   onToggleCompact: () => void;
   onShare: () => void;
   onShortcuts: () => void;
-}> = ({ theme, toggleTheme, onToggleHistory, historyOpen, compact, onToggleCompact, onShare, onShortcuts }) => {
+  onInsertChart: (range: { startRow: number; startCol: number; endRow: number; endCol: number }) => void;
+  onFind: () => void;
+}> = ({ theme, toggleTheme, onToggleHistory, historyOpen, compact, onToggleCompact, onShare, onShortcuts, onInsertChart, onFind }) => {
   const { state, dispatch, save, saveVersion, undo, redo, canUndo, canRedo } = useSpreadsheetPersisted();
   const csvInputRef = useRef<HTMLInputElement>(null);
   const active = state.selection.active;
@@ -359,6 +426,12 @@ const MenuBar: React.FC<{
     { label: 'Paste', shortcut: '⌘V', onClick: () => document.execCommand('paste') },
     { separator: true, label: '' },
     {
+      label: 'Find and replace',
+      shortcut: '⌘F',
+      onClick: onFind,
+    },
+    { separator: true, label: '' },
+    {
       label: 'Delete selection',
       disabled: !range,
       onClick: () => range && dispatch({ type: 'CLEAR_RANGE', payload: { range } }),
@@ -384,6 +457,28 @@ const MenuBar: React.FC<{
         if (!active) return;
         dispatch({ type: 'SET_FORMULA_INPUT', payload: '=' });
         document.querySelector<HTMLInputElement>('input[placeholder*="Enter value or formula"]')?.focus();
+      },
+    },
+    { separator: true, label: '' },
+    {
+      label: 'Chart from selection…',
+      disabled: !range,
+      onClick: () => range && onInsertChart(range),
+    },
+    {
+      label: 'Comment on cell…',
+      disabled: !active,
+      onClick: () => {
+        if (!active) return;
+        const text = prompt('Comment:');
+        if (!text) return;
+        dispatch({
+          type: 'SET_COMMENT',
+          payload: {
+            key: `${active.row}:${active.col}`,
+            comment: { author: 'You', text, timestamp: Date.now() },
+          },
+        });
       },
     },
   ];
@@ -470,6 +565,23 @@ const MenuBar: React.FC<{
   );
 };
 
+/* ---------------- Chart host (needs provider data) ---------------- */
+
+const ChartHost: React.FC<{
+  range: { startRow: number; startCol: number; endRow: number; endCol: number } | null;
+  onClose: () => void;
+}> = ({ range, onClose }) => {
+  const { state } = useSpreadsheetPersisted();
+  if (!range) return null;
+  return (
+    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 40 }}>
+      <div style={{ pointerEvents: 'auto', position: 'absolute', inset: 0 }}>
+        <ChartPanel range={range} data={state.data} onClose={onClose} />
+      </div>
+    </div>
+  );
+};
+
 /* ---------------- Density (View > Compact density) ---------------- */
 
 const DensityController: React.FC<{ compact: boolean }> = ({ compact }) => {
@@ -496,7 +608,9 @@ const HeaderBar: React.FC<{
   onToggleCompact: () => void;
   onShare: () => void;
   onShortcuts: () => void;
-}> = ({ theme, toggleTheme, showHistory, onToggleHistory, compact, onToggleCompact, onShare, onShortcuts }) => {
+  onInsertChart: (range: { startRow: number; startCol: number; endRow: number; endCol: number }) => void;
+  onFind: () => void;
+}> = ({ theme, toggleTheme, showHistory, onToggleHistory, compact, onToggleCompact, onShare, onShortcuts, onInsertChart, onFind }) => {
   const { syncStatus } = useSpreadsheetPersisted();
   const savedLabel = syncStatus.syncing ? 'Saving…' : 'Saved';
 
@@ -517,9 +631,12 @@ const HeaderBar: React.FC<{
           onToggleCompact={onToggleCompact}
           onShare={onShare}
           onShortcuts={onShortcuts}
+          onInsertChart={onInsertChart}
+          onFind={onFind}
         />
       </div>
       <div className="headerActions">
+        <AvatarStack />
         <button className="headerIconBtn" onClick={toggleTheme} title="Toggle dark mode">
           {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
         </button>
@@ -542,6 +659,20 @@ const AppShell: React.FC = () => {
   const [shareOpen, setShareOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [compact, setCompact] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
+  const [chart, setChart] = useState<{ startRow: number; startCol: number; endRow: number; endCol: number } | null>(null);
+
+  // ⌘F / ⌘H open find & replace
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'h')) {
+        e.preventDefault();
+        setFindOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const [sheets, setSheets] = useState<SheetMeta[]>(loadSheetList);
   const [activeId, setActiveId] = useState(() => loadSheetList()[0].id);
 
@@ -595,16 +726,21 @@ const AppShell: React.FC = () => {
           onToggleCompact={() => setCompact(!compact)}
           onShare={() => setShareOpen(true)}
           onShortcuts={() => setShortcutsOpen(true)}
+          onInsertChart={(range) => setChart(range)}
+          onFind={() => setFindOpen(true)}
         />
+        {findOpen && <FindReplaceBar onClose={() => setFindOpen(false)} />}
         <FormattingToolbar />
         <FormulaBar />
 
         <div className="mainArea">
           <div className="gridArea">
-            <SpreadsheetTableOptimized />
+            <SpreadsheetTableOptimized sheetId={activeId} />
           </div>
           {showHistory && <VersionHistory onClose={() => setShowHistory(false)} />}
         </div>
+
+        <CollabLayer sheetId={activeId} />
 
         <footer className="tabBar">
           <button className="addSheet" onClick={addSheet} title="Add sheet"><AddSheetIcon size={14} /></button>
@@ -618,6 +754,7 @@ const AppShell: React.FC = () => {
                 title="Double-click to rename"
               >
                 {sh.name}
+                <TabPresence sheetId={sh.id} activeSheet={activeId} />
                 {sheets.length > 1 && (
                   <span
                     className="tabClose"
@@ -633,10 +770,12 @@ const AppShell: React.FC = () => {
           <div className="stats"><SelectionStats /></div>
         </footer>
 
+        <ChartHost range={chart} onClose={() => setChart(null)} />
         <DensityController compact={compact} />
         <DevDrawer />
       </SpreadsheetProviderPersisted>
 
+      <CollabToasts />
       {shareOpen && <ShareDialog onClose={() => setShareOpen(false)} />}
       {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
     </div>

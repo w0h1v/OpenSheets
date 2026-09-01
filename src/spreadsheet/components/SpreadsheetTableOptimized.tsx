@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useRef, useState, useCallback, useMemo, useEffect, useSyncExternalStore } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { columnToLetter } from '../utils/columnUtils';
 import { useSpreadsheetEnhanced } from '../SpreadsheetContextEnhanced';
@@ -11,10 +11,14 @@ import { ResizeHandle } from './ResizeHandle';
 import { DataValidation } from './DataValidation';
 import { downloadCSV, importFromCSVFile } from '../utils/csvUtils';
 import { applyFilters } from '../utils/filterUtils';
+import {
+  getFormulaHighlights, subscribeFormulaHighlights,
+} from '../utils/formulaHighlightStore';
+import { getCollabUsers, subscribeCollab } from '../collaboration/presenceStore';
 import { FilterIcon } from './icons';
 import styles from './SpreadsheetTable.module.css';
 
-export const SpreadsheetTableOptimized: React.FC = () => {
+export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ sheetId = 'default' }) => {
   const { state, dispatch } = useSpreadsheetEnhanced();
   const parentRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -91,6 +95,11 @@ export const SpreadsheetTableOptimized: React.FC = () => {
     for (let i = 0; i < n; i++) total += sizes?.[i] || fallback;
     return total;
   };
+
+  // Formula range highlights (published by the formula bar while editing)
+  const formulaHighlights = useSyncExternalStore(subscribeFormulaHighlights, getFormulaHighlights);
+  // Remote collaborator selections (published by the collab layer)
+  const collabUsers = useSyncExternalStore(subscribeCollab, getCollabUsers);
 
   // Geometry of the first selection range, for the overlay + fill handle
   const selectionBox = useMemo(() => {
@@ -244,6 +253,20 @@ export const SpreadsheetTableOptimized: React.FC = () => {
         } 
       },
       { label: '---' },
+      {
+        label: 'Insert comment…',
+        onClick: () => {
+          const text = prompt('Comment:');
+          if (!text) return;
+          dispatch({
+            type: 'SET_COMMENT',
+            payload: {
+              key: `${contextMenu.row}:${contextMenu.col}`,
+              comment: { author: 'You', text, timestamp: Date.now() },
+            },
+          });
+        }
+      },
       {
         label: 'Clear Contents',
         onClick: () => {
@@ -487,6 +510,76 @@ export const SpreadsheetTableOptimized: React.FC = () => {
               }}
             />
           )}
+
+          {/* Formula range highlights */}
+          {formulaHighlights.map((h, i) => {
+            const top = HEADER_H + sumUpTo(effectiveRowHeights, h.startRow, 22);
+            const height = sumUpTo(effectiveRowHeights, h.endRow + 1, 22) - sumUpTo(effectiveRowHeights, h.startRow, 22);
+            const left = GUTTER_W + sumUpTo(state.colWidths, h.startCol, 96);
+            const width = sumUpTo(state.colWidths, h.endCol + 1, 96) - sumUpTo(state.colWidths, h.startCol, 96);
+            return (
+              <div
+                key={i}
+                style={{
+                  position: 'absolute',
+                  top,
+                  left,
+                  width,
+                  height,
+                  border: `2px solid ${h.color}`,
+                  backgroundColor: `${h.color}1a`,
+                  pointerEvents: 'none',
+                  boxSizing: 'border-box',
+                  zIndex: 1,
+                }}
+              />
+            );
+          })}
+
+          {/* Remote collaborator selections */}
+          {collabUsers.map((u) => {
+            const r = u.selection;
+            if (!r || r.sheetId !== sheetId) return null;
+            const top = HEADER_H + sumUpTo(effectiveRowHeights, r.startRow, 22);
+            const height = sumUpTo(effectiveRowHeights, r.endRow + 1, 22) - sumUpTo(effectiveRowHeights, r.startRow, 22);
+            const left = GUTTER_W + sumUpTo(state.colWidths, r.startCol, 96);
+            const width = sumUpTo(state.colWidths, r.endCol + 1, 96) - sumUpTo(state.colWidths, r.startCol, 96);
+            return (
+              <div key={u.id}>
+                <div
+                  style={{
+                    position: 'absolute',
+                    top,
+                    left,
+                    width,
+                    height,
+                    border: `2px solid ${u.color}`,
+                    backgroundColor: `${u.color}14`,
+                    pointerEvents: 'none',
+                    boxSizing: 'border-box',
+                    zIndex: 1,
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: top - 16 < 0 ? top + 2 : top - 16,
+                    left,
+                    background: u.color,
+                    color: '#fff',
+                    fontSize: 10,
+                    padding: '1px 6px',
+                    borderRadius: '4px 4px 4px 0',
+                    pointerEvents: 'none',
+                    zIndex: 2,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {u.name}
+                </div>
+              </div>
+            );
+          })}
 
           {/* Body rows (filter-hidden rows are skipped entirely) */}
           {rowVirtualizer.getVirtualItems().filter((row) => rowHeightAt(row.index) > 0).map((row) => (
