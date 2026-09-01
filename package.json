@@ -1,11 +1,11 @@
 {
   "name": "opensheets",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Production-ready Google Sheets-like spreadsheet component for React",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-css.mjs",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -18,14 +18,13 @@
     "build:examples": "vite build examples",
     "preview": "vite preview examples",
     "serve": "node examples/server.mjs",
-    "demo": "npm run build:examples && npm run serve"
+    "demo": "npm run build:examples && npm run serve",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.12",
     "hyperformula": "^2.7.1",
     "immer": "^10.0.3",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
     "react-hotkeys-hook": "^4.4.1",
     "xlsx": "^0.18.5"
   },
@@ -54,7 +53,9 @@
     "ts-jest": "^29.1.1",
     "typescript": "^5.3.2",
     "vite": "^5.4.21",
-    "ws": "^8.21.3"
+    "ws": "^8.21.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "repository": {
     "type": "git",
@@ -80,5 +81,24 @@
   "bugs": {
     "url": "https://github.com/w0h1v/OpenSheets/issues"
   },
-  "homepage": "https://github.com/w0h1v/OpenSheets#readme"
+  "homepage": "https://github.com/w0h1v/OpenSheets#readme",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./styles/tokens.css": "./dist/spreadsheet/styles/tokens.css"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ]
 }

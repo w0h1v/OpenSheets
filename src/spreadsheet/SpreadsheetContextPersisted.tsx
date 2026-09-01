@@ -71,6 +71,8 @@ const enhancedReducer = (state: SpreadsheetState, action: SpreadsheetAction): Sp
       colWidths: loadedState.colWidths || state.colWidths,
       validation: loadedState.validation || state.validation,
       comments: loadedState.comments || state.comments,
+      frozenRows: loadedState.frozenRows,
+      frozenCols: loadedState.frozenCols,
     };
   }
 

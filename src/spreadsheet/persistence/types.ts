@@ -28,6 +28,8 @@ export interface PersistedState {
   colWidths: number[];
   validation?: Array<[string, any]>;
   comments?: Array<[string, import('../types/spreadsheet').CellComment]>;
+  frozenRows?: number;
+  frozenCols?: number;
   metadata: SpreadsheetMetadata;
 }
 

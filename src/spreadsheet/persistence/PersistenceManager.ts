@@ -254,6 +254,8 @@ export class PersistenceManager {
       colWidths: state.colWidths || [],
       validation: state.validation ? Array.from(state.validation.entries()) : undefined,
       comments: state.comments ? Array.from(state.comments.entries()) : undefined,
+      frozenRows: state.frozenRows,
+      frozenCols: state.frozenCols,
       metadata,
     };
   }
@@ -313,6 +315,8 @@ export class PersistenceManager {
       colWidths: persisted.colWidths,
       validation: persisted.validation ? new Map(persisted.validation) : undefined,
       comments: persisted.comments ? new Map(persisted.comments) : undefined,
+      frozenRows: persisted.frozenRows,
+      frozenCols: persisted.frozenCols,
     };
   }
 
@@ -339,6 +343,8 @@ export class PersistenceManager {
       colWidths: persisted.colWidths,
       validation: persisted.validation ? new Map(persisted.validation) : undefined,
       comments: persisted.comments ? new Map(persisted.comments) : undefined,
+      frozenRows: persisted.frozenRows,
+      frozenCols: persisted.frozenCols,
     };
   }
 

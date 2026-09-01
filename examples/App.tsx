@@ -14,6 +14,7 @@ import {
 import { DropdownMenu, MenuEntry } from '../src/spreadsheet/components/Menu';
 import { FindReplaceBar } from '../src/spreadsheet/components/FindReplaceBar';
 import { ChartPanel } from '../src/spreadsheet/components/ChartPanel';
+import { ConditionalFormattingPanel } from '../src/spreadsheet/components/ConditionalFormatting';
 import { useCollaboration } from '../src/spreadsheet/collaboration/useCollaboration';
 import {
   subscribeCollab, getCollabUsers, getCollabToasts, CollabUser,
@@ -382,7 +383,8 @@ const MenuBar: React.FC<{
   onShortcuts: () => void;
   onInsertChart: (range: { startRow: number; startCol: number; endRow: number; endCol: number }) => void;
   onFind: () => void;
-}> = ({ theme, toggleTheme, onToggleHistory, historyOpen, compact, onToggleCompact, onShare, onShortcuts, onInsertChart, onFind }) => {
+  onConditionalFormatting: () => void;
+}> = ({ theme, toggleTheme, onToggleHistory, historyOpen, compact, onToggleCompact, onShare, onShortcuts, onInsertChart, onFind, onConditionalFormatting }) => {
   const { state, dispatch, save, saveVersion, undo, redo, canUndo, canRedo } = useSpreadsheetPersisted();
   const csvInputRef = useRef<HTMLInputElement>(null);
   const active = state.selection.active;
@@ -439,10 +441,22 @@ const MenuBar: React.FC<{
     { label: 'Select all', shortcut: '⌘A', onClick: () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true })) },
   ];
 
+  const frozenRows = state.frozenRows ?? 0;
+  const frozenCols = state.frozenCols ?? 0;
+  const setFrozen = (rows: number | undefined, cols: number | undefined) =>
+    dispatch({ type: 'SET_FROZEN', payload: { rows, cols } });
+
   const viewMenu: MenuEntry[] = [
     { label: 'Dark mode', checked: theme === 'dark', onClick: toggleTheme },
     { label: 'Version history panel', checked: historyOpen, onClick: onToggleHistory },
     { label: 'Compact density', checked: compact, onClick: onToggleCompact },
+    { separator: true, label: '' },
+    { label: 'Freeze: none', checked: frozenRows === 0 && frozenCols === 0, onClick: () => setFrozen(0, 0) },
+    { label: 'Freeze: 1 row', checked: frozenRows === 1, onClick: () => setFrozen(1, undefined) },
+    { label: 'Freeze: 2 rows', checked: frozenRows === 2, onClick: () => setFrozen(2, undefined) },
+    { label: 'Freeze: 1 column', checked: frozenCols === 1, onClick: () => setFrozen(undefined, 1) },
+    { label: 'Freeze: 2 columns', checked: frozenCols === 2, onClick: () => setFrozen(undefined, 2) },
+    { label: 'Freeze: 1 row + 1 column', checked: frozenRows === 1 && frozenCols === 1, onClick: () => setFrozen(1, 1) },
   ];
 
   const insertMenu: MenuEntry[] = [
@@ -516,6 +530,7 @@ const MenuBar: React.FC<{
       }),
     },
     { separator: true, label: '' },
+    { label: 'Conditional formatting…', onClick: onConditionalFormatting },
     { label: 'Clear formatting', onClick: () => active && dispatch({ type: 'SET_CELL', payload: { row: active.row, col: active.col, data: { value: state.data.get(keyOf(active.row, active.col))?.value ?? '' } } }) },
   ];
 
@@ -628,6 +643,20 @@ const ChartHost: React.FC<{
   );
 };
 
+/* ---------------- Conditional formatting host ---------------- */
+
+const ConditionalFormattingHost: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
+  const { state } = useSpreadsheetPersisted();
+  if (!open) return null;
+  return (
+    <ConditionalFormattingPanel
+      isVisible={open}
+      onClose={onClose}
+      selectedRange={state.selection.ranges[0]}
+    />
+  );
+};
+
 /* ---------------- Density (View > Compact density) ---------------- */
 
 const DensityController: React.FC<{ compact: boolean }> = ({ compact }) => {
@@ -656,7 +685,8 @@ const HeaderBar: React.FC<{
   onShortcuts: () => void;
   onInsertChart: (range: { startRow: number; startCol: number; endRow: number; endCol: number }) => void;
   onFind: () => void;
-}> = ({ theme, toggleTheme, showHistory, onToggleHistory, compact, onToggleCompact, onShare, onShortcuts, onInsertChart, onFind }) => {
+  onConditionalFormatting: () => void;
+}> = ({ theme, toggleTheme, showHistory, onToggleHistory, compact, onToggleCompact, onShare, onShortcuts, onInsertChart, onFind, onConditionalFormatting }) => {
   const { syncStatus, dirty } = useSpreadsheetPersisted();
   const savedLabel = syncStatus.syncing ? 'Saving…' : dirty ? 'Unsaved changes' : 'Saved';
 
@@ -679,6 +709,7 @@ const HeaderBar: React.FC<{
           onShortcuts={onShortcuts}
           onInsertChart={onInsertChart}
           onFind={onFind}
+          onConditionalFormatting={onConditionalFormatting}
         />
       </div>
       <div className="headerActions">
@@ -706,6 +737,7 @@ const AppShell: React.FC = () => {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [compact, setCompact] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
+  const [cfOpen, setCfOpen] = useState(false);
   const [chart, setChart] = useState<{ startRow: number; startCol: number; endRow: number; endCol: number } | null>(null);
 
   // ⌘F / ⌘H open find & replace
@@ -774,6 +806,7 @@ const AppShell: React.FC = () => {
           onShortcuts={() => setShortcutsOpen(true)}
           onInsertChart={(range) => setChart(range)}
           onFind={() => setFindOpen(true)}
+          onConditionalFormatting={() => setCfOpen(true)}
         />
         {findOpen && <FindReplaceBar onClose={() => setFindOpen(false)} />}
         <FormattingToolbar />
@@ -821,6 +854,7 @@ const AppShell: React.FC = () => {
         </footer>
 
         <ChartHost sheetId={activeId} pending={chart} onConsumed={() => setChart(null)} />
+        <ConditionalFormattingHost open={cfOpen} onClose={() => setCfOpen(false)} />
         <DensityController compact={compact} />
         <DevDrawer />
       </SpreadsheetProviderPersisted>
