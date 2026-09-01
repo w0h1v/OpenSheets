@@ -109,6 +109,11 @@ export function formatCellValue(value: any, format?: CellFormat): string {
     return '';
   }
 
+  // Dates render as dates even without an explicit formatType (e.g. =TODAY())
+  if (value instanceof Date && (!format || !format.formatType)) {
+    return formatDate(value, { numberFormat: PREDEFINED_FORMATS.date.short });
+  }
+
   if (!format || format.formatType === 'text') {
     return String(value);
   }
@@ -209,11 +214,16 @@ function formatAccounting(value: any, format: CellFormat): string {
   })}`;
 }
 
+const EXCEL_EPOCH = Date.UTC(1899, 11, 30);
+
 function formatDate(value: any, format: CellFormat): string {
   let date: Date;
-  
+
   if (value instanceof Date) {
     date = value;
+  } else if (typeof value === 'number' && Number.isFinite(value)) {
+    // Excel-style serial date: days since 1899-12-30
+    date = new Date(EXCEL_EPOCH + value * 86400000);
   } else {
     date = new Date(value);
   }

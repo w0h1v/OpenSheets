@@ -10,9 +10,9 @@ import { keyOf } from '../types/spreadsheet';
 jest.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: () => ({
     getVirtualItems: () =>
-      [1, 2, 3, 4, 5, 6, 7].map((i) => ({
+      [0, 1, 2, 3, 4, 5, 6].map((i) => ({
         index: i,
-        start: (i - 1) * 28,
+        start: i * 28,
         size: 28,
         key: String(i),
       })),
