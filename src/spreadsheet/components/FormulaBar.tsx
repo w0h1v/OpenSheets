@@ -47,7 +47,10 @@ export const FormulaBar: React.FC = () => {
       if (newValue.startsWith('=')) {
         setCell(target.row, target.col, { formula: newValue, value: newValue });
       } else {
-        setCell(target.row, target.col, { value: newValue });
+        // Store numeric input as numbers so alignment/series-fill/formulas work
+        const numValue = parseFloat(newValue);
+        const value = newValue.trim() !== '' && !isNaN(numValue) ? numValue : newValue;
+        setCell(target.row, target.col, { value });
       }
       committedRef.current = null;
       dispatch({ type: 'SET_FORMULA_INPUT', payload: '' });

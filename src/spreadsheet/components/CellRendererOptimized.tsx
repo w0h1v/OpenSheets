@@ -97,7 +97,7 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
 
   // Memoize expensive calculations
   const displayValue = useMemo(() => {
-    if (!cellData) return '';
+    if (!cellData) return { text: '', isNumeric: false };
     
     let value: any;
     if (cellData.formula && cellData.formula.startsWith('=')) {
@@ -107,7 +107,7 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
     }
     
     // Apply formatting to the value
-    return formatCellValue(value, cellData.format);
+    return { text: formatCellValue(value, cellData.format), isNumeric: typeof value === 'number' };
   }, [cellData, getCell]);
 
   const cellStyle = useMemo(() => {
@@ -142,10 +142,11 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
       backgroundColor: format.backgroundColor,
       color: format.color,
       
-      // Alignment
-      textAlign: format.textAlign,
+      // Alignment (numbers right-align by default, like Sheets/Excel)
+      textAlign: format.textAlign ?? (displayValue.isNumeric ? 'right' : undefined),
       verticalAlign: format.verticalAlign,
-      justifyContent: format.textAlign === 'center' ? 'center' : format.textAlign === 'right' ? 'flex-end' : 'flex-start',
+      justifyContent: (format.textAlign ?? (displayValue.isNumeric ? 'right' : undefined)) === 'center' ? 'center'
+        : (format.textAlign ?? (displayValue.isNumeric ? 'right' : undefined)) === 'right' ? 'flex-end' : 'flex-start',
       alignItems: format.verticalAlign === 'middle' ? 'center' : format.verticalAlign === 'bottom' ? 'flex-end' : 'flex-start',
       
       // Text wrapping and rotation
@@ -159,6 +160,14 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
       borderLeft: format.borders?.left ? `${format.borders.left.width || 1}px ${format.borders.left.style || 'solid'} ${format.borders.left.color || '#000'}` : undefined,
     };
 
+    // Long text overflows into an empty right neighbor instead of clipping
+    const hasContent = displayValue.text !== '';
+    const rightNeighborEmpty = !getCell(row, col + 1)?.value && !getCell(row, col + 1)?.formula;
+    if (hasContent && rightNeighborEmpty && !format.wrapText) {
+      style.overflow = 'visible';
+      style.zIndex = 1;
+    }
+
     if (isSelected && !isActive) {
       style.backgroundColor = format.backgroundColor || 'rgba(26, 115, 232, 0.05)';
     }
@@ -169,7 +178,7 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
     }
 
     return style;
-  }, [cellData?.format, isSelected, isActive]);
+  }, [cellData?.format, isSelected, isActive, displayValue.isNumeric, displayValue.text, getCell, row, col]);
 
   // Get validation rule for this cell
   const validation = useMemo(() => {
@@ -261,7 +270,7 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
         onClick={handleCellClick}
         style={cellStyle}
         role="gridcell"
-        aria-label={`Cell ${columnToLetter(col)}${row + 1}: ${displayValue || 'empty'}`}
+        aria-label={`Cell ${columnToLetter(col)}${row + 1}: ${displayValue.text || 'empty'}`}
         aria-selected={isSelected}
         aria-current={isActive ? 'true' : undefined}
         tabIndex={isActive ? 0 : -1}
@@ -269,7 +278,7 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
         aria-haspopup={hasDropdown ? 'listbox' : undefined}
         aria-expanded={hasDropdown ? showDropdown : undefined}
       >
-        {displayValue}
+        {displayValue.text}
         {hasDropdown && validation?.showDropdownArrow !== false && (
           <DropdownArrow 
             onClick={handleDropdownClick}

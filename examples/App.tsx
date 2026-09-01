@@ -248,8 +248,54 @@ const TestControls: React.FC = () => {
   );
 };
 
+// Sheet tab bar: each tab is its own persisted spreadsheet
+const SHEET_LIST_KEY = 'opensheets_demo_sheet_list';
+
+interface SheetMeta { id: string; name: string }
+
+const loadSheetList = (): SheetMeta[] => {
+  try {
+    const raw = localStorage.getItem(SHEET_LIST_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* fall through */ }
+  return [{ id: 'test-spreadsheet', name: 'Sheet1' }];
+};
+
 // Main App Component
 const TestApp: React.FC = () => {
+  const [sheets, setSheets] = useState<SheetMeta[]>(loadSheetList);
+  const [activeId, setActiveId] = useState(() => loadSheetList()[0].id);
+
+  const persistSheets = (list: SheetMeta[]) => {
+    setSheets(list);
+    try {
+      localStorage.setItem(SHEET_LIST_KEY, JSON.stringify(list));
+    } catch { /* ignore quota errors */ }
+  };
+
+  const addSheet = () => {
+    const n = sheets.length + 1;
+    const sheet = { id: `sheet-${Date.now()}`, name: `Sheet${n}` };
+    persistSheets([...sheets, sheet]);
+    setActiveId(sheet.id);
+  };
+
+  const removeSheet = (id: string) => {
+    if (sheets.length <= 1) return;
+    if (!confirm('Delete this sheet and its saved data?')) return;
+    const remaining = sheets.filter((sh) => sh.id !== id);
+    persistSheets(remaining);
+    if (activeId === id) setActiveId(remaining[0].id);
+    try { localStorage.removeItem(`opensheets_${id}`); } catch { /* ignore */ }
+  };
+
+  const renameSheet = (id: string) => {
+    const sheet = sheets.find((sh) => sh.id === id);
+    const name = prompt('Sheet name:', sheet?.name);
+    if (!name || !sheet) return;
+    persistSheets(sheets.map((sh) => (sh.id === id ? { ...sh, name } : sh)));
+  };
+
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <div style={{
@@ -260,33 +306,77 @@ const TestApp: React.FC = () => {
         <h1 style={{ fontSize: '20px', margin: 0 }}>OpenSheets Demo</h1>
       </div>
 
-      <TestControls />
-      <PersistenceStatus />
-      <FormattingToolbar />
-      <FormulaBar />
+      {/* key remounts the provider so each sheet loads its own persisted state */}
+      <SpreadsheetProviderPersisted
+        key={activeId}
+        spreadsheetId={activeId}
+        persistenceMode="local"
+        autoSave={true}
+        autoSaveInterval={5000}
+        maxRows={1000}
+        maxCols={100}
+      >
+        <TestControls />
+        <PersistenceStatus />
+        <FormattingToolbar />
+        <FormulaBar />
 
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <SpreadsheetTableOptimized />
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <SpreadsheetTableOptimized />
+          </div>
+          <VersionHistory />
         </div>
-        <VersionHistory />
-      </div>
+
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '2px',
+          padding: '4px 8px',
+          background: '#f8f9fa',
+          borderTop: '1px solid #e0e0e0',
+        }}>
+          {sheets.map((sh) => (
+            <div
+              key={sh.id}
+              onDoubleClick={() => renameSheet(sh.id)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 12px',
+                cursor: 'pointer',
+                borderRadius: '4px 4px 0 0',
+                background: sh.id === activeId ? 'white' : 'transparent',
+                border: '1px solid',
+                borderColor: sh.id === activeId ? '#e0e0e0' : 'transparent',
+                borderBottom: 'none',
+                fontWeight: sh.id === activeId ? 500 : 400,
+                fontSize: '13px',
+                userSelect: 'none',
+              }}
+              onClick={() => setActiveId(sh.id)}
+              title="Double-click to rename"
+            >
+              {sh.name}
+              {sheets.length > 1 && (
+                <span
+                  onClick={(e) => { e.stopPropagation(); removeSheet(sh.id); }}
+                  style={{ color: '#5f6368', padding: '0 2px' }}
+                  title="Delete sheet"
+                >
+                  ×
+                </span>
+              )}
+            </div>
+          ))}
+          <button onClick={addSheet} style={{ margin: '0 8px' }} title="Add sheet">+</button>
+        </div>
+      </SpreadsheetProviderPersisted>
     </div>
   );
 };
 
-// App with Provider
 export default function App() {
-  return (
-    <SpreadsheetProviderPersisted
-      spreadsheetId="test-spreadsheet"
-      persistenceMode="local"
-      autoSave={true}
-      autoSaveInterval={5000}
-      maxRows={1000}
-      maxCols={100}
-    >
-      <TestApp />
-    </SpreadsheetProviderPersisted>
-  );
+  return <TestApp />;
 }

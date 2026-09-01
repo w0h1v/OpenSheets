@@ -148,7 +148,7 @@ const evaluateFormulaDepth = (
 
   // Handle functions (args contain no nested parentheses at this point;
   // ranges have already become JSON arrays)
-  expr = expr.replace(/(SUM|AVERAGE|COUNT|MIN|MAX|IF|CONCAT|LEN|ROUND|ABS)\(([^()]*)\)/gi, (match, fnName, args) => {
+  expr = expr.replace(/(SUM|AVERAGE|COUNT|MIN|MAX|IF|CONCAT|LEN|ROUND|ABS|TODAY|NOW)\(([^()]*)\)/gi, (match, fnName, args) => {
     const values: any[] = [];
 
     for (const part of splitArgs(args)) {
@@ -190,6 +190,13 @@ const evaluateFormulaDepth = (
         return String(Math.round(Number(values[0])));
       case 'ABS':
         return String(Math.abs(Number(values[0])));
+      case 'TODAY': {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        return JSON.stringify(d.toISOString());
+      }
+      case 'NOW':
+        return JSON.stringify(new Date().toISOString());
       default:
         return match;
     }
@@ -200,6 +207,10 @@ const evaluateFormulaDepth = (
     const result = Function(`"use strict"; return (${expr})`)();
     if (typeof result === 'number' && !isFinite(result)) {
       return '#ERROR';
+    }
+    // TODAY()/NOW() come back as ISO strings; hand the caller a real Date
+    if (typeof result === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(result)) {
+      return new Date(result);
     }
     return result;
   } catch {

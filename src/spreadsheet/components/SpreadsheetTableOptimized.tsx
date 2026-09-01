@@ -5,7 +5,6 @@ import { useSpreadsheetEnhanced } from '../SpreadsheetContextEnhanced';
 import { useMultiSelection } from '../hooks/useMultiSelection';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useClipboard } from '../hooks/useClipboard';
-import { SelectionOverlay } from './SelectionOverlay';
 import { CellRendererOptimized } from './CellRendererOptimized';
 import { ContextMenu } from './ContextMenu';
 import { ResizeHandle } from './ResizeHandle';
@@ -30,27 +29,93 @@ export const SpreadsheetTableOptimized: React.FC = () => {
   useKeyboardShortcuts();
   useClipboard();
 
-  // Optimized virtualizers with dynamic sizing
+  // Virtualizers cover the body only; the header row and row-number gutter
+  // render in separate pinned layers so they stay visible while scrolling
   const rowVirtualizer = useVirtualizer({
-    count: state.maxRows + 1,
+    count: state.maxRows,
     getScrollElement: () => parentRef.current,
     estimateSize: useCallback((index) => {
-      if (index === 0) return 28; // Header
-      return state.rowHeights?.[index - 1] || 28;
+      return state.rowHeights?.[index] || 28;
     }, [state.rowHeights]),
     overscan: 5,
   });
 
   const colVirtualizer = useVirtualizer({
     horizontal: true,
-    count: state.maxCols + 1,
+    count: state.maxCols,
     getScrollElement: () => parentRef.current,
     estimateSize: useCallback((index) => {
-      if (index === 0) return 48; // Row numbers
-      return state.colWidths?.[index - 1] || 100;
+      return state.colWidths?.[index] || 100;
     }, [state.colWidths]),
     overscan: 3,
   });
+
+  // Pinned-layer geometry
+  const HEADER_H = 28;
+  const GUTTER_W = 48;
+  const [scrollOffset, setScrollOffset] = useState({ top: 0, left: 0 });
+  const handleScroll = useCallback(() => {
+    const el = parentRef.current;
+    if (el) setScrollOffset({ top: el.scrollTop, left: el.scrollLeft });
+  }, []);
+
+  const sumUpTo = (sizes: number[] | undefined, n: number, fallback: number) => {
+    let total = 0;
+    for (let i = 0; i < n; i++) total += sizes?.[i] || fallback;
+    return total;
+  };
+
+  // Geometry of the first selection range, for the overlay + fill handle
+  const selectionBox = useMemo(() => {
+    if (!state.selection.ranges.length) return null;
+    const r = state.selection.ranges[0];
+    const top = HEADER_H + sumUpTo(state.rowHeights, Math.min(r.startRow, r.endRow), 28);
+    const height = sumUpTo(state.rowHeights, Math.max(r.startRow, r.endRow) + 1, 28)
+      - sumUpTo(state.rowHeights, Math.min(r.startRow, r.endRow), 28);
+    const left = GUTTER_W + sumUpTo(state.colWidths, Math.min(r.startCol, r.endCol), 100);
+    const width = sumUpTo(state.colWidths, Math.max(r.startCol, r.endCol) + 1, 100)
+      - sumUpTo(state.colWidths, Math.min(r.startCol, r.endCol), 100);
+    return { top, left, height, width };
+  }, [state.selection.ranges, state.rowHeights, state.colWidths]);
+
+  // Fill handle drag state
+  const [fillDrag, setFillDrag] = useState<{ endRow: number; endCol: number } | null>(null);
+
+  const dispatchFill = useCallback(() => {
+    if (!fillDrag || !state.selection.ranges.length) {
+      setFillDrag(null);
+      return;
+    }
+    const sel = state.selection.ranges[0];
+    const anchor = state.selection.active ?? { row: sel.startRow, col: sel.startCol };
+    const dRow = fillDrag.endRow - anchor.row;
+    const dCol = fillDrag.endCol - anchor.col;
+    if (dRow === 0 && dCol === 0) {
+      setFillDrag(null);
+      return;
+    }
+    const direction: 'down' | 'up' | 'right' | 'left' =
+      Math.abs(dRow) >= Math.abs(dCol) ? (dRow > 0 ? 'down' : 'up') : (dCol > 0 ? 'right' : 'left');
+
+    const startRow = Math.min(sel.startRow, sel.endRow, fillDrag.endRow);
+    const endRow = Math.max(sel.startRow, sel.endRow, fillDrag.endRow);
+    const startCol = Math.min(sel.startCol, sel.endCol, fillDrag.endCol);
+    const endCol = Math.max(sel.startCol, sel.endCol, fillDrag.endCol);
+
+    const sourceCell = state.data.get(`${anchor.row}:${anchor.col}`);
+    const fillType: 'copy' | 'series' =
+      sourceCell && typeof sourceCell.value === 'number' && !sourceCell.formula ? 'series' : 'copy';
+
+    dispatch({
+      type: 'FILL_RANGE',
+      payload: {
+        range: { startRow, startCol, endRow, endCol },
+        direction,
+        type: fillType,
+      },
+    });
+    setFillDrag(null);
+  }, [fillDrag, state.selection, state.data, dispatch]);
 
   // Memoized handlers with useCallback
   const handleMouseDown = useCallback((row: number, col: number, e: React.MouseEvent) => {
@@ -309,12 +374,36 @@ export const SpreadsheetTableOptimized: React.FC = () => {
     }
   }, [state.selection.active, state.data]);
 
+  const colTotal = colVirtualizer.getTotalSize();
+  const rowTotal = rowVirtualizer.getTotalSize();
+
+  // Union of selection and in-progress fill drag, for the preview rectangle
+  const fillBox = useMemo(() => {
+    if (!fillDrag || !state.selection.ranges.length) return null;
+    const sel = state.selection.ranges[0];
+    const startRow = Math.min(sel.startRow, sel.endRow, fillDrag.endRow);
+    const endRow = Math.max(sel.startRow, sel.endRow, fillDrag.endRow);
+    const startCol = Math.min(sel.startCol, sel.endCol, fillDrag.endCol);
+    const endCol = Math.max(sel.startCol, sel.endCol, fillDrag.endCol);
+    const top = HEADER_H + sumUpTo(state.rowHeights, startRow, 28);
+    const height = sumUpTo(state.rowHeights, endRow + 1, 28) - sumUpTo(state.rowHeights, startRow, 28);
+    const left = GUTTER_W + sumUpTo(state.colWidths, startCol, 100);
+    const width = sumUpTo(state.colWidths, endCol + 1, 100) - sumUpTo(state.colWidths, startCol, 100);
+    return { top, left, height, width };
+  }, [fillDrag, state.selection.ranges, state.rowHeights, state.colWidths]);
+
   return (
-    <>
-      <div 
-        ref={parentRef} 
+    <div
+      style={{ position: 'relative', height: '100%', minWidth: 0 }}
+      onMouseUp={() => {
+        if (fillDrag) dispatchFill();
+        handleMouseUp();
+      }}
+    >
+      <div
+        ref={parentRef}
         className={styles.container}
-        onMouseUp={handleMouseUp}
+        onScroll={handleScroll}
         role="grid"
         aria-label="Spreadsheet"
         aria-rowcount={state.maxRows}
@@ -322,16 +411,45 @@ export const SpreadsheetTableOptimized: React.FC = () => {
       >
         <div
           style={{
-            width: colVirtualizer.getTotalSize(),
-            height: rowVirtualizer.getTotalSize(),
+            width: GUTTER_W + colTotal,
+            height: HEADER_H + rowTotal,
             position: 'relative',
           }}
         >
-          <SelectionOverlay
-            rowHeights={rowVirtualizer.getVirtualItems().map((v) => v.size)}
-            colWidths={colVirtualizer.getVirtualItems().map((v) => v.size)}
-          />
-          
+          {/* Selection rectangle */}
+          {selectionBox && (
+            <div
+              style={{
+                position: 'absolute',
+                top: selectionBox.top,
+                left: selectionBox.left,
+                width: selectionBox.width,
+                height: selectionBox.height,
+                border: '1px solid #1a73e8',
+                backgroundColor: 'rgba(26, 115, 232, 0.08)',
+                pointerEvents: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+          )}
+
+          {/* Fill-handle drag preview */}
+          {fillBox && (
+            <div
+              style={{
+                position: 'absolute',
+                top: fillBox.top,
+                left: fillBox.left,
+                width: fillBox.width,
+                height: fillBox.height,
+                border: '1px dashed #1a73e8',
+                pointerEvents: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+          )}
+
+          {/* Body rows */}
           {rowVirtualizer.getVirtualItems().map((row) => (
             <div
               key={row.key}
@@ -339,79 +457,165 @@ export const SpreadsheetTableOptimized: React.FC = () => {
               aria-rowindex={row.index + 1}
               style={{
                 position: 'absolute',
-                top: row.start,
+                top: HEADER_H + row.start,
+                left: GUTTER_W,
                 height: row.size,
-                width: '100%',
+                width: colTotal,
               }}
             >
-              {colVirtualizer.getVirtualItems().map((col) => {
-                const isHeaderRow = row.index === 0;
-                const isHeaderCol = col.index === 0;
-
-                return (
-                  <div
-                    key={`${row.index}-${col.index}`}
-                    className={`${styles.cell} ${
-                      isHeaderRow || isHeaderCol ? styles.header : ''
-                    }`}
-                    style={{
-                      position: 'absolute',
-                      left: col.start,
-                      width: col.size,
-                      height: '100%',
-                    }}
-                    onMouseDown={(e) =>
-                      !isHeaderRow && !isHeaderCol && handleMouseDown(row.index - 1, col.index - 1, e)
+              {colVirtualizer.getVirtualItems().map((col) => (
+                <div
+                  key={`${row.index}-${col.index}`}
+                  className={styles.cell}
+                  style={{
+                    position: 'absolute',
+                    left: col.start,
+                    width: col.size,
+                    height: '100%',
+                  }}
+                  onMouseDown={(e) => handleMouseDown(row.index, col.index, e)}
+                  onClick={(e) => handleMouseDown(row.index, col.index, e)}
+                  onMouseEnter={() => {
+                    if (fillDrag) {
+                      setFillDrag({ endRow: row.index, endCol: col.index });
+                    } else {
+                      handleMouseEnter(row.index, col.index);
                     }
-                    onClick={(e) =>
-                      !isHeaderRow && !isHeaderCol &&
-                      handleMouseDown(row.index - 1, col.index - 1, e)
-                    }
-                    onMouseEnter={() =>
-                      !isHeaderRow && !isHeaderCol && handleMouseEnter(row.index - 1, col.index - 1)
-                    }
-                    onContextMenu={(e) =>
-                      !isHeaderRow && !isHeaderCol && handleContextMenu(e, row.index - 1, col.index - 1)
-                    }
-                    role={isHeaderRow || isHeaderCol ? 'columnheader' : 'presentation'}
-                    aria-colindex={col.index + 1}
-                  >
-                    {isHeaderRow && isHeaderCol ? (
-                      ''
-                    ) : isHeaderRow ? (
-                      <>
-                        {columnToLetter(col.index - 1)}
-                        {col.index > 0 && (
-                          <ResizeHandle
-                            type="column"
-                            index={col.index - 1}
-                            onResize={handleColResize}
-                            initialSize={col.size}
-                          />
-                        )}
-                      </>
-                    ) : isHeaderCol ? (
-                      <>
-                        {row.index}
-                        {row.index > 0 && (
-                          <ResizeHandle
-                            type="row"
-                            index={row.index - 1}
-                            onResize={handleRowResize}
-                            initialSize={row.size}
-                          />
-                        )}
-                      </>
-                    ) : (
-                      <CellRendererOptimized row={row.index - 1} col={col.index - 1} />
-                    )}
-                  </div>
-                );
-              })}
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e, row.index, col.index)}
+                  role="presentation"
+                  aria-colindex={col.index + 1}
+                >
+                  <CellRendererOptimized row={row.index} col={col.index} />
+                </div>
+              ))}
             </div>
           ))}
         </div>
       </div>
+
+      {/* Pinned header row (stays visible on vertical+horizontal scroll) */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: HEADER_H,
+          overflow: 'hidden',
+          zIndex: 3,
+          pointerEvents: 'none',
+        }}
+      >
+        <div
+          style={{
+            width: GUTTER_W + colTotal,
+            height: HEADER_H,
+            position: 'relative',
+            transform: `translateX(-${scrollOffset.left}px)`,
+          }}
+        >
+          {colVirtualizer.getVirtualItems().map((col) => (
+            <div
+              key={col.index}
+              className={`${styles.cell} ${styles.header}`}
+              style={{
+                position: 'absolute',
+                left: GUTTER_W + col.start,
+                width: col.size,
+                height: '100%',
+                pointerEvents: 'auto',
+              }}
+              role="columnheader"
+              aria-colindex={col.index + 1}
+            >
+              {columnToLetter(col.index)}
+              <ResizeHandle type="column" index={col.index} onResize={handleColResize} initialSize={col.size} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Pinned row-number gutter (stays visible on horizontal scroll) */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          bottom: 0,
+          width: GUTTER_W,
+          overflow: 'hidden',
+          zIndex: 2,
+          pointerEvents: 'none',
+        }}
+      >
+        <div
+          style={{
+            width: GUTTER_W,
+            position: 'relative',
+            transform: `translateY(-${scrollOffset.top}px)`,
+          }}
+        >
+          <div style={{ height: HEADER_H }} />
+          {rowVirtualizer.getVirtualItems().map((row) => (
+            <div
+              key={row.index}
+              className={`${styles.cell} ${styles.header}`}
+              style={{
+                position: 'absolute',
+                top: HEADER_H + row.start,
+                left: 0,
+                width: '100%',
+                height: row.size,
+                pointerEvents: 'auto',
+              }}
+              role="rowheader"
+              aria-rowindex={row.index + 1}
+            >
+              {row.index + 1}
+              <ResizeHandle type="row" index={row.index} onResize={handleRowResize} initialSize={row.size} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Corner box where the pinned header and gutter meet */}
+      <div
+        className={`${styles.cell} ${styles.header}`}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: GUTTER_W,
+          height: HEADER_H,
+          zIndex: 4,
+        }}
+      />
+
+      {/* Fill handle on the selection corner */}
+      {selectionBox && (
+        <div
+          style={{
+            position: 'absolute',
+            top: selectionBox.top + selectionBox.height - 4,
+            left: selectionBox.left + selectionBox.width - 4,
+            width: 7,
+            height: 7,
+            backgroundColor: '#1a73e8',
+            border: '1px solid #fff',
+            cursor: 'crosshair',
+            zIndex: 5,
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const sel = state.selection.ranges[0];
+            const anchor = state.selection.active ?? { row: sel.startRow, col: sel.startCol };
+            setFillDrag({ endRow: anchor.row, endCol: anchor.col });
+          }}
+          title="Drag to fill"
+        />
+      )}
 
       {contextMenu && (
         <ContextMenu
@@ -437,6 +641,6 @@ export const SpreadsheetTableOptimized: React.FC = () => {
         style={{ display: 'none' }}
         onChange={handleFileImport}
       />
-    </>
+    </div>
   );
 };
