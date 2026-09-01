@@ -3,7 +3,7 @@ import { SpreadsheetState, CellData } from '../types/spreadsheet';
 import {
   setCollabUsers, pushCollabToast, COLLAB_PALETTE, CollabUser,
 } from './presenceStore';
-import { setEditAuthor, editStampWins } from '../utils/editContext';
+import { setEditAuthor, editStampWins, beginRemoteApply, endRemoteApply } from '../utils/editContext';
 import { keyOf } from '../types/spreadsheet';
 
 /*
@@ -62,15 +62,8 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
     if (!enabled) return;
     const identity = identityRef.current;
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    let ws: WebSocket;
-    try {
-      ws = new WebSocket(`${proto}://${window.location.host}/collab`);
-    } catch {
-      return;
-    }
-    wsRef.current = ws;
 
-    const remoteUsers = new Map<string, CollabUser>();
+const remoteUsers = new Map<string, CollabUser>();
     const publishUsers = () => setCollabUsers(Array.from(remoteUsers.values()));
     const syncSnapshot = () => {
       lastSyncedRef.current = JSON.stringify(getStateRef.current().data, (_k, v) =>
@@ -78,20 +71,57 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
       );
     };
 
-    ws.onopen = () => {
-      setEditAuthor(identity.id);
-      ws.send(JSON.stringify({ type: 'hello', user: identity }));
-      // Ask the server for a snapshot; applied only if we have no local data
-      ws.send(JSON.stringify({ type: 'sync', sheetId }));
-      syncSnapshot();
-      // Flush anything buffered while the socket was connecting (e.g. a
-      // sheet-list broadcast that raced a provider remount)
-      const queued = pendingRef.current;
-      pendingRef.current = [];
-      queued.forEach((m) => ws.send(JSON.stringify(m)));
+    // One-shot messages queued while offline survive reloads via storage
+    const QUEUE_KEY = 'opensheets_collab_queue';
+    const loadQueue = (): unknown[] => {
+      try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); } catch { return []; }
+    };
+    const saveQueue = (q: unknown[]) => {
+      try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q.slice(-100))); } catch { /* quota */ }
     };
 
-    ws.onmessage = (event) => {
+    let disposed = false;
+    let reconnectAttempt = 0;
+    let reconnectTimer: number | null = null;
+    let ws: WebSocket;
+
+    const connect = () => {
+      if (disposed) return;
+      try {
+        ws = new WebSocket(`${proto}://${window.location.host}/collab`);
+      } catch {
+        scheduleReconnect();
+        return;
+      }
+      wireSocket(ws);
+    };
+
+    const scheduleReconnect = () => {
+      if (disposed || reconnectAttempt >= 12) return;
+      const delay = Math.min(15000, 1000 * Math.pow(2, reconnectAttempt));
+      reconnectAttempt++;
+      reconnectTimer = window.setTimeout(connect, delay);
+    };
+
+    const wireSocket = (socket: WebSocket) => {
+      wsRef.current = socket;
+
+      socket.onopen = () => {
+        reconnectAttempt = 0;
+        setEditAuthor(identity.id);
+        socket.send(JSON.stringify({ type: 'hello', user: identity }));
+        // Ask the server for a snapshot; applied only if we have no local data
+        socket.send(JSON.stringify({ type: 'sync', sheetId }));
+        syncSnapshot();
+        // Flush anything buffered while connecting/offline (connect-race
+        // broadcasts and messages queued across a disconnect)
+        const queued = [...pendingRef.current, ...loadQueue()];
+        pendingRef.current = [];
+        saveQueue([]);
+        queued.forEach((m) => socket.send(JSON.stringify(m)));
+      };
+
+      socket.onmessage = (event) => {
       let msg: any;
       try {
         msg = JSON.parse(event.data);
@@ -108,7 +138,9 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
             const [row, col] = key.split(':').map(Number);
             return { row, col, data: cell };
           });
+          beginRemoteApply();
           dispatchRef.current({ type: 'SET_CELLS', payload: { updates } });
+          endRemoteApply();
           setTimeout(syncSnapshot, 0);
         }
         return;
@@ -152,7 +184,9 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
             return editStampWins(u.data.editMeta, local?.editMeta);
           });
           if (updates.length) {
-            dispatchRef.current({ type: 'SET_CELLS', payload: { updates } });
+            beginRemoteApply();
+          dispatchRef.current({ type: 'SET_CELLS', payload: { updates } });
+          endRemoteApply();
           }
         }
         const existing = remoteUsers.get(msg.user.id);
@@ -173,15 +207,22 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
       }
     };
 
-    const onBeforeUnload = () => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'bye' }));
-    };
+      socket.onclose = () => {
+        if (!disposed) scheduleReconnect();
+      };
+      socket.onerror = () => {
+        /* onclose follows */
+      };
     window.addEventListener('beforeunload', onBeforeUnload);
 
     // Poll local state for diffs (simple and robust vs intercepting dispatch)
+
+    };
+
     const DIFF_DELAY = 150;
     const interval = window.setInterval(() => {
-      if (ws.readyState !== WebSocket.OPEN) return;
+      const sock = wsRef.current;
+      if (!sock || sock.readyState !== WebSocket.OPEN) return;
       const current = getStateRef.current().data;
       const prev = lastSyncedRef.current;
       const prevMap = new Map<string, CellData>();
@@ -208,17 +249,32 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
       if (updates.length && diffTimerRef.current === null) {
         diffTimerRef.current = window.setTimeout(() => {
           diffTimerRef.current = null;
-          ws.send(JSON.stringify({ type: 'cells', sheetId, updates }));
-          syncSnapshot();
+          const live = wsRef.current;
+          // Only mark the snapshot as synced when the send really went out;
+          // otherwise offline edits stay in the diff and re-send on reconnect
+          if (live && live.readyState === WebSocket.OPEN) {
+            live.send(JSON.stringify({ type: 'cells', sheetId, updates }));
+            syncSnapshot();
+          }
         }, DIFF_DELAY) as unknown as number;
       }
     }, 300);
 
+    const onBeforeUnload = () => {
+      const live = wsRef.current;
+      if (live && live.readyState === WebSocket.OPEN) live.send(JSON.stringify({ type: 'bye' }));
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+
+    connect();
+
     return () => {
+      disposed = true;
+      if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
       window.clearInterval(interval);
       if (diffTimerRef.current !== null) window.clearTimeout(diffTimerRef.current);
       window.removeEventListener('beforeunload', onBeforeUnload);
-      ws.close();
+      wsRef.current?.close();
       setCollabUsers([]);
     };
   }, [enabled, sheetId]);
@@ -253,10 +309,21 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(msg));
-    } else {
-      // Buffer until connected; the queue is dropped if it exceeds a sane
-      // bound (a socket that never opens shouldn't leak memory)
+      return;
+    }
+    if (ws && ws.readyState === WebSocket.CONNECTING) {
+      // Reconnecting: buffer in memory, flushed on open
       if (pendingRef.current.length < 100) pendingRef.current.push(msg);
+      return;
+    }
+    // Offline: persist one-shot messages so they survive reloads; cell
+    // edits don't need this — the diff poller re-detects and re-sends them
+    if ((msg as { type?: string })?.type === 'sheets') {
+      try {
+        const q = JSON.parse(localStorage.getItem('opensheets_collab_queue') || '[]');
+        q.push(msg);
+        localStorage.setItem('opensheets_collab_queue', JSON.stringify(q.slice(-100)));
+      } catch { /* quota */ }
     }
   }, []);
 

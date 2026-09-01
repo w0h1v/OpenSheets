@@ -548,6 +548,32 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
             />
           )}
 
+          {/* Protected ranges: faint dashed outline + diagonal hatch */}
+          {(state.protectedRanges || []).map((p) => {
+            const top = HEADER_H + sumUpTo(effectiveRowHeights, p.range.startRow, 22);
+            const height = sumUpTo(effectiveRowHeights, p.range.endRow + 1, 22) - sumUpTo(effectiveRowHeights, p.range.startRow, 22);
+            const left = GUTTER_W + sumUpTo(state.colWidths, p.range.startCol, 96);
+            const width = sumUpTo(state.colWidths, p.range.endCol + 1, 96) - sumUpTo(state.colWidths, p.range.startCol, 96);
+            return (
+              <div
+                key={p.id}
+                title={p.description ? `Protected: ${p.description}` : 'Protected range'}
+                style={{
+                  position: 'absolute',
+                  top,
+                  left,
+                  width,
+                  height,
+                  border: '1.5px dashed var(--faint)',
+                  background: 'repeating-linear-gradient(45deg, transparent, transparent 6px, var(--hover) 6px, var(--hover) 7px)',
+                  pointerEvents: 'none',
+                  boxSizing: 'border-box',
+                  zIndex: 0,
+                }}
+              />
+            );
+          })}
+
           {/* Formula range highlights */}
           {formulaHighlights.map((h, i) => {
             const top = HEADER_H + sumUpTo(effectiveRowHeights, h.startRow, 22);

@@ -75,6 +75,7 @@ const enhancedReducer = (state: SpreadsheetState, action: SpreadsheetAction): Sp
       frozenCols: loadedState.frozenCols,
       merges: loadedState.merges,
       filters: loadedState.filters,
+      protectedRanges: loadedState.protectedRanges,
     };
   }
 

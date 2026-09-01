@@ -258,6 +258,7 @@ export class PersistenceManager {
       frozenCols: state.frozenCols,
       merges: state.merges,
       filters: state.filters,
+      protectedRanges: state.protectedRanges,
       metadata,
     };
   }
@@ -321,6 +322,7 @@ export class PersistenceManager {
       frozenCols: persisted.frozenCols,
       merges: persisted.merges,
       filters: persisted.filters,
+      protectedRanges: persisted.protectedRanges,
     };
   }
 
@@ -351,6 +353,7 @@ export class PersistenceManager {
       frozenCols: persisted.frozenCols,
       merges: persisted.merges,
       filters: persisted.filters,
+      protectedRanges: persisted.protectedRanges,
     };
   }
 

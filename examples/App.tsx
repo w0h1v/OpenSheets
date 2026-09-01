@@ -351,6 +351,69 @@ const TabPresence: React.FC<{ sheetId: string; activeSheet: string }> = ({ sheet
 
 /* ---------------- Menu bar + dialogs ---------------- */
 
+/* ---------------- Protected ranges (cell-level permissions) ---------------- */
+
+const ProtectionHost: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
+  const { state, dispatch } = useSpreadsheetPersisted();
+  if (!open) return null;
+  const [description, setDescription] = useState('');
+  const range = state.selection.ranges[0];
+
+  return (
+    <div className="dialogBackdrop" onMouseDown={onClose}>
+      <div className="dialog" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="dialogHeader">
+          <h3>Protected ranges</h3>
+          <button onClick={onClose} title="Close">✕</button>
+        </div>
+        <p className="dialogNote">
+          Edits inside a protected range are rejected for everyone except its creator.
+          Select a range on the sheet, then press Protect.
+        </p>
+        {range && (
+          <div className="shareRow">
+            <input
+              className="shareLink"
+              style={{ flex: 1 }}
+              placeholder="Description (optional)"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+            <button
+              className="primary"
+              onClick={() => {
+                dispatch({ type: 'PROTECT_RANGE', payload: { range, description: description || undefined } });
+                setDescription('');
+              }}
+            >
+              Protect selection
+            </button>
+          </div>
+        )}
+        <div className="protectList">
+          {(state.protectedRanges || []).length === 0 && (
+            <div className="versionEmpty">No protected ranges</div>
+          )}
+          {(state.protectedRanges || []).map((p) => {
+            const cols = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
+            const label = `${cols[p.range.startCol] ?? '?'}${p.range.startRow + 1}:` +
+              `${cols[p.range.endCol] ?? '?'}${p.range.endRow + 1}`;
+            return (
+              <div key={p.id} className="protectRow">
+                <span className="protectLabel">{label}</span>
+                <span className="protectDesc">{p.description || 'Protected range'}</span>
+                <button onClick={() => dispatch({ type: 'UNPROTECT_RANGE', payload: { id: p.id } })}>
+                  Remove
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ShortcutsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => (
   <div className="dialogBackdrop" onMouseDown={onClose}>
     <div className="dialog" onMouseDown={(e) => e.stopPropagation()}>
@@ -441,7 +504,8 @@ const MenuBar: React.FC<{
   onInsertChart: (range: { startRow: number; startCol: number; endRow: number; endCol: number }) => void;
   onFind: () => void;
   onConditionalFormatting: () => void;
-}> = ({ theme, toggleTheme, onToggleHistory, historyOpen, compact, onToggleCompact, onShare, onShortcuts, onInsertChart, onFind, onConditionalFormatting }) => {
+  onProtect: () => void;
+}> = ({ theme, toggleTheme, onToggleHistory, historyOpen, compact, onToggleCompact, onShare, onShortcuts, onInsertChart, onFind, onConditionalFormatting, onProtect }) => {
   const { state, dispatch, save, saveVersion, undo, redo, canUndo, canRedo } = useSpreadsheetPersisted();
   const csvInputRef = useRef<HTMLInputElement>(null);
   const active = state.selection.active;
@@ -604,6 +668,7 @@ const MenuBar: React.FC<{
   const dataMenu: MenuEntry[] = [
     { label: 'Sort range A → Z', disabled: !range, onClick: () => sortSelection(true) },
     { label: 'Sort range Z → A', disabled: !range, onClick: () => sortSelection(false) },
+    { label: 'Protect range…', onClick: onProtect },
     { separator: true, label: '' },
     {
       label: state.filters?.length ? 'Clear filters' : 'Create a filter',
@@ -723,12 +788,17 @@ const ConditionalFormattingHost: React.FC<{ open: boolean; onClose: () => void }
 
 const DensityController: React.FC<{ compact: boolean }> = ({ compact }) => {
   const { state, dispatch } = useSpreadsheetPersisted();
+  const maxRowsRef = useRef(state.maxRows);
+  maxRowsRef.current = state.maxRows;
+  // Only on density toggles: re-running on maxRows changes would flatten
+  // custom row heights on every row insert and pollute undo history
   useEffect(() => {
     dispatch({
       type: 'SET_ROW_HEIGHTS',
-      payload: Array(state.maxRows).fill(compact ? 20 : 22),
+      payload: Array(maxRowsRef.current).fill(compact ? 20 : 22),
     });
-  }, [compact, state.maxRows, dispatch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compact]);
   return null;
 };
 
@@ -748,7 +818,8 @@ const HeaderBar: React.FC<{
   onInsertChart: (range: { startRow: number; startCol: number; endRow: number; endCol: number }) => void;
   onFind: () => void;
   onConditionalFormatting: () => void;
-}> = ({ theme, toggleTheme, showHistory, onToggleHistory, compact, onToggleCompact, onShare, onShortcuts, onInsertChart, onFind, onConditionalFormatting }) => {
+  onProtect: () => void;
+}> = ({ theme, toggleTheme, showHistory, onToggleHistory, compact, onToggleCompact, onShare, onShortcuts, onInsertChart, onFind, onConditionalFormatting, onProtect }) => {
   const { syncStatus, dirty } = useSpreadsheetPersisted();
   const savedLabel = syncStatus.syncing ? 'Saving…' : dirty ? 'Unsaved changes' : 'Saved';
 
@@ -772,6 +843,7 @@ const HeaderBar: React.FC<{
           onInsertChart={onInsertChart}
           onFind={onFind}
           onConditionalFormatting={onConditionalFormatting}
+          onProtect={onProtect}
         />
       </div>
       <div className="headerActions">
@@ -800,6 +872,7 @@ const AppShell: React.FC = () => {
   const [compact, setCompact] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const [cfOpen, setCfOpen] = useState(false);
+  const [protectOpen, setProtectOpen] = useState(false);
   const [chart, setChart] = useState<{ startRow: number; startCol: number; endRow: number; endCol: number } | null>(null);
 
   // ⌘F / ⌘H open find & replace
@@ -878,6 +951,7 @@ const AppShell: React.FC = () => {
           onInsertChart={(range) => setChart(range)}
           onFind={() => setFindOpen(true)}
           onConditionalFormatting={() => setCfOpen(true)}
+          onProtect={() => setProtectOpen(true)}
         />
         {findOpen && <FindReplaceBar onClose={() => setFindOpen(false)} />}
         <FormattingToolbar />
@@ -931,6 +1005,7 @@ const AppShell: React.FC = () => {
 
         <ChartHost sheetId={activeId} pending={chart} onConsumed={() => setChart(null)} />
         <ConditionalFormattingHost open={cfOpen} onClose={() => setCfOpen(false)} />
+        <ProtectionHost open={protectOpen} onClose={() => setProtectOpen(false)} />
         <DensityController compact={compact} />
         <DevDrawer />
       </SpreadsheetProviderPersisted>

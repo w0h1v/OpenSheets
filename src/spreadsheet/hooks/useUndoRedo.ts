@@ -1,6 +1,7 @@
 import { useRef, useCallback, useEffect } from 'react';
 import { SpreadsheetState } from '../types/spreadsheet';
 import { SpreadsheetAction } from '../types/actions';
+import { isRemoteApplying } from '../utils/editContext';
 
 interface UndoRedoState {
   past: SpreadsheetState[];
@@ -12,6 +13,24 @@ interface UndoRedoState {
 // with Maps look identical; serialize Maps as entry arrays instead
 const serializeState = (s: SpreadsheetState): string =>
   JSON.stringify(s, (_k, v) => (v instanceof Map ? Array.from(v.entries()) : v));
+
+// Undo/redo tracks DOCUMENT content only. Selection, editing and the
+// formula-input buffer are ephemeral UI state: recording them would make
+// every click an undo step and bury real edits.
+const serializeDocument = (s: SpreadsheetState): string =>
+  serializeState(({
+    data: s.data,
+    merges: s.merges,
+    filters: s.filters,
+    comments: s.comments,
+    frozenRows: s.frozenRows,
+    frozenCols: s.frozenCols,
+    rowHeights: s.rowHeights,
+    colWidths: s.colWidths,
+    maxRows: s.maxRows,
+    maxCols: s.maxCols,
+    validation: s.validation,
+  }) as unknown as SpreadsheetState);
 
 export function useUndoRedo(
   state: SpreadsheetState,
@@ -30,9 +49,11 @@ export function useUndoRedo(
 
   const saveState = useCallback((newState: SpreadsheetState) => {
     const { past, present } = history.current;
-    
-    // Don't save if state hasn't changed
-    if (serializeState(present) === serializeState(newState)) {
+
+    // Only document changes create undo steps; UI-state-only changes just
+    // advance the present pointer without touching the history stacks
+    if (serializeDocument(present) === serializeDocument(newState)) {
+      history.current = { ...history.current, present: newState };
       return;
     }
 
@@ -53,7 +74,7 @@ export function useUndoRedo(
 
   const undo = useCallback(() => {
     const { past, present, future } = history.current;
-    
+
     if (past.length === 0) return;
 
     const previous = past[past.length - 1];
@@ -100,7 +121,7 @@ export function useUndoRedo(
   // new history entries.
   useEffect(() => {
     if (history.current.present === state) return;
-    if (restoring.current) {
+    if (restoring.current || isRemoteApplying()) {
       restoring.current = false;
       history.current.present = state;
       return;
