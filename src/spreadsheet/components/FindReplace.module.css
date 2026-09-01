@@ -63,7 +63,7 @@
 
 .count {
   font-size: 11.5px;
-  color: var(--faint);
+  color: var(--muted);
   min-width: 70px;
   text-align: center;
   font-variant-numeric: tabular-nums;

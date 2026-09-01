@@ -11,6 +11,9 @@ export interface CellData {
   formula?: string;
   format?: CellFormat;
   metadata?: any;
+  // LWW edit stamp for convergent multi-user merges: (ts, by) totally
+  // orders concurrent writes to the same cell
+  editMeta?: { ts: number; by: string };
 }
 
 export interface BorderStyle {

@@ -788,12 +788,16 @@ const AppShell: React.FC = () => {
 
         <CollabLayer sheetId={activeId} />
 
-        <footer className="tabBar">
+        <footer className="tabBar" role="tablist" aria-label="Sheets">
           <button className="addSheet" onClick={addSheet} title="Add sheet"><AddSheetIcon size={14} /></button>
           <div className="tabs">
             {sheets.map((sh) => (
               <div
                 key={sh.id}
+                role="tab"
+                aria-selected={sh.id === activeId}
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setActiveId(sh.id); }}
                 className={`tab ${sh.id === activeId ? 'active' : ''}`}
                 onClick={() => setActiveId(sh.id)}
                 onDoubleClick={() => renameSheet(sh.id)}

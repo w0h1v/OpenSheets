@@ -46,11 +46,13 @@ export const DropdownMenu: React.FC<{
         className={`${styles.trigger} ${open ? styles.triggerOpen : ''}`}
         onClick={() => setOpen(!open)}
         title={title}
+        aria-haspopup="menu"
+        aria-expanded={open}
       >
         {label}
       </button>
       {open && (
-        <div className={`${styles.panel} ${align === 'right' ? styles.panelRight : ''}`}>
+        <div className={`${styles.panel} ${align === 'right' ? styles.panelRight : ''}`} role="menu">
           {entries.map((entry, i) =>
             entry.separator ? (
               <div key={i} className={styles.separator} role="separator" />

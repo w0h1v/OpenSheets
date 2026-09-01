@@ -16,7 +16,9 @@
     "dev": "vite serve examples",
     "dev:examples": "vite serve examples",
     "build:examples": "vite build examples",
-    "preview": "vite preview examples"
+    "preview": "vite preview examples",
+    "serve": "node examples/server.mjs",
+    "demo": "npm run build:examples && npm run serve"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.12",

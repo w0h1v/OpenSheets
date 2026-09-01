@@ -108,8 +108,18 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
     }
     
     // Apply formatting to the value
-    return { text: formatCellValue(value, cellData.format), isNumeric: typeof value === 'number' };
+    const text = formatCellValue(value, cellData.format);
+    return { text, isNumeric: typeof value === 'number' };
   }, [cellData, getCell]);
+
+  // Numbers too wide for the column render as #### instead of spilling
+  const showsHashes = useMemo(() => {
+    if (!displayValue.isNumeric || !displayValue.text) return false;
+    const colWidth = state.colWidths?.[col] || 96;
+    // tabular-nums at 12px: ~7.2px per digit is a safe estimate
+    const fits = displayValue.text.length * 7.2 <= colWidth - 12;
+    return !fits;
+  }, [displayValue.isNumeric, displayValue.text, state.colWidths, col]);
 
   const cellStyle = useMemo(() => {
     let baseFormat = cellData?.format || {};
@@ -162,7 +172,8 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
     };
 
     // Long text overflows into an empty right neighbor instead of clipping
-    const hasContent = displayValue.text !== '';
+    // (numbers never spill — they become #### via showsHashes)
+    const hasContent = displayValue.text !== '' && !showsHashes;
     const rightNeighborEmpty = !getCell(row, col + 1)?.value && !getCell(row, col + 1)?.formula;
     if (hasContent && rightNeighborEmpty && !format.wrapText) {
       style.overflow = 'visible';
@@ -312,7 +323,7 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
         aria-haspopup={hasDropdown ? 'listbox' : undefined}
         aria-expanded={hasDropdown ? showDropdown : undefined}
       >
-        {displayValue.text}
+        {showsHashes ? '#'.repeat(Math.max(1, Math.floor(((state.colWidths?.[col] || 96) - 12) / 7.2))) : displayValue.text}
         {cellComment && (
           <CommentIndicator
             comment={cellComment}

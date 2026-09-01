@@ -3,6 +3,8 @@ import { SpreadsheetState, CellData } from '../types/spreadsheet';
 import {
   setCollabUsers, pushCollabToast, COLLAB_PALETTE, CollabUser,
 } from './presenceStore';
+import { setEditAuthor, editStampWins } from '../utils/editContext';
+import { keyOf } from '../types/spreadsheet';
 
 /*
  * Live collaboration over the dev relay at /collab:
@@ -72,6 +74,7 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true }
     };
 
     ws.onopen = () => {
+      setEditAuthor(identity.id);
       ws.send(JSON.stringify({ type: 'hello', user: identity }));
       syncSnapshot();
     };
@@ -109,9 +112,17 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true }
       if (msg.user?.id === identity.id) return; // own echo
 
       if (msg.type === 'cells' && msg.sheetId === sheetId) {
-        const updates: Array<{ row: number; col: number; data: Partial<CellData> }> = msg.updates;
-        if (Array.isArray(updates) && updates.length) {
-          dispatchRef.current({ type: 'SET_CELLS', payload: { updates } });
+        const incoming: Array<{ row: number; col: number; data: Partial<CellData> }> = msg.updates;
+        if (Array.isArray(incoming) && incoming.length) {
+          // Convergent LWW: drop writes that lose to our local edit stamp
+          const current = getStateRef.current().data;
+          const updates = incoming.filter((u) => {
+            const local = current.get(keyOf(u.row, u.col));
+            return editStampWins(u.data.editMeta, local?.editMeta);
+          });
+          if (updates.length) {
+            dispatchRef.current({ type: 'SET_CELLS', payload: { updates } });
+          }
         }
         const existing = remoteUsers.get(msg.user.id);
         remoteUsers.set(msg.user.id, { ...msg.user, ...existing, editing: false, sheetId: msg.sheetId });

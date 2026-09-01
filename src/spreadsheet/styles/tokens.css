@@ -66,3 +66,36 @@ html[data-theme='dark'] {
 
   --menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
+
+/* ---------- Accessibility ---------- */
+
+/*
+ * Keyboard focus: visible 2px accent ring on interactive elements only
+ * when focused via keyboard (:focus-visible), so mouse clicks stay clean.
+ */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[role='gridcell']:focus-visible,
+[role='tab']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+/* Users who prefer reduced motion get none (we keep hovers instant) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Selection highlight inside cells should respect the theme too */
+::selection {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+}
