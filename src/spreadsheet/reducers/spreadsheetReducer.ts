@@ -18,6 +18,13 @@ export function spreadsheetReducer(
     case 'SET_ROW_HEIGHTS':
       return { ...state, rowHeights: action.payload };
 
+    case 'SET_FROZEN':
+      return {
+        ...state,
+        frozenRows: Math.max(0, action.payload.rows ?? state.frozenRows ?? 0),
+        frozenCols: Math.max(0, action.payload.cols ?? state.frozenCols ?? 0),
+      };
+
     case 'SET_COMMENT': {
       const comments = new Map(state.comments || []);
       if (action.payload.comment === null) {

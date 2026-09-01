@@ -5,6 +5,7 @@ export type SpreadsheetAction =
   | { type: 'CLEAR_ALL' }
   | { type: 'SET_FILTERS'; payload: { filters: import('./spreadsheet').FilterRule[] } }
   | { type: 'SET_ROW_HEIGHTS'; payload: number[] }
+  | { type: 'SET_FROZEN'; payload: { rows?: number; cols?: number } }
   | { type: 'SET_COMMENT'; payload: { key: string; comment: import('./spreadsheet').CellComment | null } }
   | { type: 'SET_CELLS'; payload: { updates: Array<{ row: number; col: number; data: Partial<CellData> }> } }
   | { type: 'CLEAR_CELL'; payload: { row: number; col: number } }

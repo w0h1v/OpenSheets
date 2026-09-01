@@ -1,4 +1,5 @@
-// Public library entry point.
+// Public library entry point. Design tokens live in a subpath export —
+// consumers import 'opensheets/styles/tokens.css' (see exports map).
 // `main`/`types` in package.json point at dist/index.js / dist/index.d.ts,
 // which are produced by `npm run build` from this file.
 

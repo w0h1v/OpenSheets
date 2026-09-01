@@ -96,6 +96,13 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
     return total;
   };
 
+  // Frozen panes: rows/cols [0..n) render in pinned strips beside/under
+  // the header and gutter and are excluded from the scrolling body
+  const frozenRows = Math.max(0, state.frozenRows ?? 0);
+  const frozenCols = Math.max(0, state.frozenCols ?? 0);
+  const frozenH = sumUpTo(state.rowHeights, frozenRows, 22);
+  const frozenW = sumUpTo(state.colWidths, frozenCols, 96);
+
   // Formula range highlights (published by the formula bar while editing)
   const formulaHighlights = useSyncExternalStore(subscribeFormulaHighlights, getFormulaHighlights);
   // Remote collaborator selections (published by the collab layer)
@@ -581,8 +588,10 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
             );
           })}
 
-          {/* Body rows (filter-hidden rows are skipped entirely) */}
-          {rowVirtualizer.getVirtualItems().filter((row) => rowHeightAt(row.index) > 0).map((row) => (
+          {/* Body rows (frozen and filter-hidden rows are skipped) */}
+          {rowVirtualizer.getVirtualItems()
+            .filter((row) => rowHeightAt(row.index) > 0 && row.index >= frozenRows)
+            .map((row) => (
             <div
               key={row.key}
               role="row"
@@ -595,7 +604,9 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
                 width: colTotal,
               }}
             >
-              {colVirtualizer.getVirtualItems().map((col) => (
+              {colVirtualizer.getVirtualItems()
+                .filter((col) => col.index >= frozenCols)
+                .map((col) => (
                 <div
                   key={`${row.index}-${col.index}`}
                   className={styles.cell}
@@ -719,6 +730,152 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
           ))}
         </div>
       </div>
+
+      {/* Frozen rows strip: rows [0..frozenRows) pinned under the header */}
+      {frozenRows > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            top: HEADER_H,
+            left: 0,
+            right: 0,
+            height: frozenH,
+            overflow: 'hidden',
+            zIndex: 3,
+            pointerEvents: 'none',
+            background: 'var(--cellbg)',
+          }}
+        >
+          <div
+            style={{
+              width: GUTTER_W + colTotal,
+              height: frozenH,
+              position: 'relative',
+              transform: `translateX(-${scrollOffset.left}px)`,
+            }}
+          >
+            {Array.from({ length: frozenRows }, (_, r) =>
+              rowHeightAt(r) > 0 ? (
+                <div key={r} role="row" aria-rowindex={r + 1} style={{ position: 'absolute', inset: 0 }}>
+                  {colVirtualizer.getVirtualItems()
+                    .filter((col) => col.index >= frozenCols)
+                    .map((col) => (
+                      <div
+                        key={col.index}
+                        className={styles.cell}
+                        style={{
+                          position: 'absolute',
+                          left: GUTTER_W + col.start,
+                          top: sumUpTo(state.rowHeights, r, 22) - (state.rowHeights?.[r] || 22),
+                          width: col.size,
+                          height: '100%',
+                          pointerEvents: 'auto',
+                        }}
+                        onMouseDown={(e) => handleMouseDown(r, col.index, e)}
+                        onClick={(e) => handleMouseDown(r, col.index, e)}
+                        onMouseEnter={() => !fillDrag && handleMouseEnter(r, col.index)}
+                        onContextMenu={(e) => handleContextMenu(e, r, col.index)}
+                        role="presentation"
+                      >
+                        <CellRendererOptimized row={r} col={col.index} />
+                      </div>
+                    ))}
+                </div>
+              ) : null
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Frozen columns strip: cols [0..frozenCols) pinned right of the gutter */}
+      {frozenCols > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            top: HEADER_H,
+            left: GUTTER_W,
+            bottom: 0,
+            width: frozenW,
+            overflow: 'hidden',
+            zIndex: 3,
+            pointerEvents: 'none',
+            background: 'var(--cellbg)',
+          }}
+        >
+          <div
+            style={{
+              width: frozenW,
+              height: HEADER_H + rowTotal,
+              position: 'relative',
+              transform: `translateY(-${scrollOffset.top}px)`,
+            }}
+          >
+            {rowVirtualizer.getVirtualItems()
+              .filter((row) => rowHeightAt(row.index) > 0 && row.index >= frozenRows)
+              .map((row) =>
+                Array.from({ length: frozenCols }, (_, c) => (
+                  <div
+                    key={`${row.index}-${c}`}
+                    className={styles.cell}
+                    style={{
+                      position: 'absolute',
+                      top: HEADER_H + row.start,
+                      left: sumUpTo(state.colWidths, c, 96),
+                      width: state.colWidths?.[c] || 96,
+                      height: row.size,
+                      pointerEvents: 'auto',
+                    }}
+                    onMouseDown={(e) => handleMouseDown(row.index, c, e)}
+                    onClick={(e) => handleMouseDown(row.index, c, e)}
+                    onMouseEnter={() => !fillDrag && handleMouseEnter(row.index, c)}
+                    onContextMenu={(e) => handleContextMenu(e, row.index, c)}
+                    role="presentation"
+                  >
+                    <CellRendererOptimized row={row.index} col={c} />
+                  </div>
+                ))
+              )}
+          </div>
+        </div>
+      )}
+
+      {/* Frozen corner: frozen rows × frozen cols, fully pinned */}
+      {frozenRows > 0 && frozenCols > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            top: HEADER_H,
+            left: GUTTER_W,
+            width: frozenW,
+            height: frozenH,
+            overflow: 'hidden',
+            zIndex: 5,
+            background: 'var(--cellbg)',
+          }}
+        >
+          {Array.from({ length: frozenRows }, (_, r) =>
+            Array.from({ length: frozenCols }, (_, c) => (
+              <div
+                key={`${r}-${c}`}
+                className={styles.cell}
+                style={{
+                  position: 'absolute',
+                  top: sumUpTo(state.rowHeights, r, 22),
+                  left: sumUpTo(state.colWidths, c, 96),
+                  width: state.colWidths?.[c] || 96,
+                  height: state.rowHeights?.[r] || 22,
+                }}
+                onMouseDown={(e) => handleMouseDown(r, c, e)}
+                onClick={(e) => handleMouseDown(r, c, e)}
+                onContextMenu={(e) => handleContextMenu(e, r, c)}
+                role="presentation"
+              >
+                <CellRendererOptimized row={r} col={c} />
+              </div>
+            ))
+          )}
+        </div>
+      )}
 
       {/* Corner box where the pinned header and gutter meet */}
       <div

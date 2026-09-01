@@ -51,7 +51,19 @@ A production-ready, Google Sheets-like spreadsheet component for React with adva
 > directly from this repository:
 
 ```bash
+npm install opensheets
+```
+
+Once published; until then install from GitHub:
+
+```bash
 npm install github:w0h1v/OpenSheets
+```
+
+Import the design tokens once (light/dark theming via CSS custom properties):
+
+```tsx
+import 'opensheets/styles/tokens.css';
 ```
 
 ## 🚀 Running the Demo App

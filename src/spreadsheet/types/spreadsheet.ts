@@ -142,6 +142,8 @@ export interface SpreadsheetState {
   readOnly?: boolean;
   filters?: FilterRule[];
   comments?: Map<string, CellComment>;
+  frozenRows?: number;
+  frozenCols?: number;
   rowHeights?: number[];
   colWidths?: number[];
   validation?: Map<string, ValidationRule>;
