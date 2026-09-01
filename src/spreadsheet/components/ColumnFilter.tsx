@@ -137,9 +137,13 @@ export const ColumnFilter: React.FC<ColumnFilterProps> = ({
       ref={dropdownRef}
       className={styles.filterDropdown}
       style={{
-        position: 'absolute',
-        left: position.x,
-        top: position.y,
+        position: 'fixed',
+        // A sentinel x of 999999 means "no anchor point"; right-anchor the
+        // panel near the toolbar instead of at literal coordinates
+        left: position.x >= 900000 ? undefined : position.x,
+        top: position.x >= 900000 ? undefined : position.y,
+        right: position.x >= 900000 ? 16 : undefined,
+        bottom: position.x >= 900000 ? 56 : undefined,
         zIndex: 1000
       }}
     >

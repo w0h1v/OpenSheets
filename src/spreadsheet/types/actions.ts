@@ -3,6 +3,8 @@ import { CellData, Selection, SelectionRect, CellFormat, ValidationRule, Spreads
 export type SpreadsheetAction =
   | { type: 'SET_CELL'; payload: { row: number; col: number; data: Partial<CellData> } }
   | { type: 'CLEAR_ALL' }
+  | { type: 'SET_FILTERS'; payload: { filters: import('./spreadsheet').FilterRule[] } }
+  | { type: 'SET_ROW_HEIGHTS'; payload: number[] }
   | { type: 'SET_CELLS'; payload: { updates: Array<{ row: number; col: number; data: Partial<CellData> }> } }
   | { type: 'CLEAR_CELL'; payload: { row: number; col: number } }
   | { type: 'CLEAR_RANGE'; payload: { range: SelectionRect } }

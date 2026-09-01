@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   SpreadsheetProviderPersisted,
   useSpreadsheetPersisted,
@@ -11,7 +11,10 @@ import { useTheme } from '../src/spreadsheet/hooks/useTheme';
 import {
   GridGlyphIcon, SunIcon, MoonIcon, HistoryIcon, AddSheetIcon,
 } from '../src/spreadsheet/components/icons';
+import { DropdownMenu, MenuEntry } from '../src/spreadsheet/components/Menu';
 import { keyOf } from '../src/spreadsheet/types/spreadsheet';
+import { downloadCSV } from '../src/spreadsheet/utils/csvUtils';
+import { exportToExcel } from '../src/spreadsheet/utils/excelUtils';
 import './chrome.css';
 
 interface VersionEntry {
@@ -223,6 +226,263 @@ const SelectionStats: React.FC = () => {
   );
 };
 
+/* ---------------- Menu bar + dialogs ---------------- */
+
+const ShortcutsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => (
+  <div className="dialogBackdrop" onMouseDown={onClose}>
+    <div className="dialog" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="dialogHeader">
+        <h3>Keyboard shortcuts</h3>
+        <button onClick={onClose} title="Close">✕</button>
+      </div>
+      <div className="shortcutGrid">
+        {[
+          ['Move selection', 'Arrows / Tab / Shift+Tab'],
+          ['Jump to data edge', 'Ctrl/Cmd + Arrow'],
+          ['Select all', 'Ctrl/Cmd + A'],
+          ['Start editing', 'Type text, Enter, or F2'],
+          ['Commit + move down', 'Enter'],
+          ['Cancel edit', 'Escape'],
+          ['Clear cell', 'Delete / Backspace'],
+          ['Copy / Cut / Paste', '⌘C / ⌘X / ⌘V'],
+          ['Undo / Redo', '⌘Z / ⌘⇧Z / ⌘Y'],
+          ['Fill handle', 'Drag cell corner'],
+          ['Extend selection', 'Shift + Arrow / Shift + Click'],
+          ['Add to selection', 'Ctrl/Cmd + Click'],
+          ['Save', '⌘S'],
+        ].map(([action, keys]) => (
+          <React.Fragment key={action}>
+            <span className="shortcutAction">{action}</span>
+            <span className="shortcutKeys">{keys}</span>
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+const ShareDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const [role, setRole] = useState<'view' | 'comment' | 'edit'>(() => {
+    try { return JSON.parse(localStorage.getItem('opensheets-share-role') || '"edit"'); } catch { return 'edit'; }
+  });
+  const [copied, setCopied] = useState(false);
+  const link = typeof window !== 'undefined' ? window.location.href : '';
+
+  const setAndPersist = (r: typeof role) => {
+    setRole(r);
+    try { localStorage.setItem('opensheets-share-role', JSON.stringify(r)); } catch { /* ignore */ }
+  };
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* clipboard unavailable */ }
+  };
+
+  return (
+    <div className="dialogBackdrop" onMouseDown={onClose}>
+      <div className="dialog" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="dialogHeader">
+          <h3>Share spreadsheet</h3>
+          <button onClick={onClose} title="Close">✕</button>
+        </div>
+        <p className="dialogNote">
+          This build runs entirely in your browser — the link below points at your local
+          demo. In a hosted deployment it would grant the selected access level.
+        </p>
+        <div className="shareRow">
+          <select value={role} onChange={(e) => setAndPersist(e.target.value as typeof role)}>
+            <option value="view">Anyone with the link — view</option>
+            <option value="comment">Anyone with the link — comment</option>
+            <option value="edit">Anyone with the link — edit</option>
+          </select>
+          <button className="primary" onClick={copyLink}>{copied ? 'Copied!' : 'Copy link'}</button>
+        </div>
+        <input className="shareLink" readOnly value={link} onFocus={(e) => e.target.select()} />
+      </div>
+    </div>
+  );
+};
+
+const MenuBar: React.FC<{
+  theme: 'light' | 'dark';
+  toggleTheme: () => void;
+  onToggleHistory: () => void;
+  historyOpen: boolean;
+  compact: boolean;
+  onToggleCompact: () => void;
+  onShare: () => void;
+  onShortcuts: () => void;
+}> = ({ theme, toggleTheme, onToggleHistory, historyOpen, compact, onToggleCompact, onShare, onShortcuts }) => {
+  const { state, dispatch, save, saveVersion, undo, redo, canUndo, canRedo } = useSpreadsheetPersisted();
+  const csvInputRef = useRef<HTMLInputElement>(null);
+  const active = state.selection.active;
+  const range = state.selection.ranges[0];
+
+  const importCSV = async (file: File | undefined) => {
+    if (!file) return;
+    const { importFromCSVFile } = await import('../src/spreadsheet/utils/csvUtils');
+    try {
+      const result = await importFromCSVFile(file);
+      dispatch({ type: 'CLEAR_ALL' });
+      const updates: Array<{ row: number; col: number; data: any }> = [];
+      result.data.forEach((cell, key) => {
+        const [row, col] = key.split(':').map(Number);
+        updates.push({ row, col, data: cell });
+      });
+      dispatch({ type: 'SET_CELLS', payload: { updates } });
+    } catch {
+      alert('Failed to import CSV');
+    }
+  };
+
+  const fileMenu: MenuEntry[] = [
+    { label: 'New sheet', onClick: () => dispatch({ type: 'CLEAR_ALL' }) },
+    { label: 'Save now', shortcut: '⌘S', onClick: () => save() },
+    { label: 'Save version', onClick: () => { const l = prompt('Version label:'); if (l) saveVersion(l); } },
+    { separator: true, label: '' },
+    { label: 'Import CSV…', onClick: () => csvInputRef.current?.click() },
+    { label: 'Download as CSV', onClick: () => downloadCSV(state.data, state.maxRows, state.maxCols, 'opensheets.csv') },
+    { label: 'Download as Excel', onClick: () => exportToExcel(state.data, state.maxRows, state.maxCols, 'opensheets.xlsx') },
+    { separator: true, label: '' },
+    { label: 'Version history', checked: historyOpen, onClick: onToggleHistory },
+  ];
+
+  const editMenu: MenuEntry[] = [
+    { label: 'Undo', shortcut: '⌘Z', disabled: !canUndo, onClick: () => undo() },
+    { label: 'Redo', shortcut: '⌘⇧Z', disabled: !canRedo, onClick: () => redo() },
+    { separator: true, label: '' },
+    { label: 'Cut', shortcut: '⌘X', onClick: () => document.execCommand('cut') },
+    { label: 'Copy', shortcut: '⌘C', onClick: () => document.execCommand('copy') },
+    { label: 'Paste', shortcut: '⌘V', onClick: () => document.execCommand('paste') },
+    { separator: true, label: '' },
+    {
+      label: 'Delete selection',
+      disabled: !range,
+      onClick: () => range && dispatch({ type: 'CLEAR_RANGE', payload: { range } }),
+    },
+    { label: 'Select all', shortcut: '⌘A', onClick: () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true })) },
+  ];
+
+  const viewMenu: MenuEntry[] = [
+    { label: 'Dark mode', checked: theme === 'dark', onClick: toggleTheme },
+    { label: 'Version history panel', checked: historyOpen, onClick: onToggleHistory },
+    { label: 'Compact density', checked: compact, onClick: onToggleCompact },
+  ];
+
+  const insertMenu: MenuEntry[] = [
+    { label: 'Row above', disabled: !active, onClick: () => active && dispatch({ type: 'INSERT_ROW', payload: { index: active.row } }) },
+    { label: 'Row below', disabled: !active, onClick: () => active && dispatch({ type: 'INSERT_ROW', payload: { index: active.row + 1 } }) },
+    { label: 'Column left', disabled: !active, onClick: () => active && dispatch({ type: 'INSERT_COLUMN', payload: { index: active.col } }) },
+    { label: 'Column right', disabled: !active, onClick: () => active && dispatch({ type: 'INSERT_COLUMN', payload: { index: active.col + 1 } }) },
+    { separator: true, label: '' },
+    {
+      label: 'Function…',
+      onClick: () => {
+        if (!active) return;
+        dispatch({ type: 'SET_FORMULA_INPUT', payload: '=' });
+        document.querySelector<HTMLInputElement>('input[placeholder*="Enter value or formula"]')?.focus();
+      },
+    },
+  ];
+
+  const formatCell = (fmt: Record<string, unknown>) => {
+    if (!active) return;
+    const key = keyOf(active.row, active.col);
+    const existing = state.data.get(key);
+    dispatch({
+      type: 'SET_CELL',
+      payload: {
+        row: active.row,
+        col: active.col,
+        data: { value: existing?.value ?? '', format: { ...(existing?.format || {}), ...fmt } },
+      },
+    });
+  };
+
+  const formatMenu: MenuEntry[] = [
+    { label: 'Bold', shortcut: '⌘B', onClick: () => formatCell({ bold: !state.data.get(keyOf(active?.row ?? 0, active?.col ?? 0))?.format?.bold }) },
+    { label: 'Italic', shortcut: '⌘I', onClick: () => formatCell({ italic: true }) },
+    { label: 'Underline', shortcut: '⌘U', onClick: () => formatCell({ underline: true }) },
+    { label: 'Strikethrough', onClick: () => formatCell({ strikethrough: true }) },
+    { separator: true, label: '' },
+    { label: 'Wrap text', onClick: () => formatCell({ wrapText: true }) },
+    {
+      label: 'All borders',
+      onClick: () => formatCell({
+        borders: {
+          top: { style: 'solid', width: 1, color: '#000' },
+          right: { style: 'solid', width: 1, color: '#000' },
+          bottom: { style: 'solid', width: 1, color: '#000' },
+          left: { style: 'solid', width: 1, color: '#000' },
+        },
+      }),
+    },
+    { separator: true, label: '' },
+    { label: 'Clear formatting', onClick: () => active && dispatch({ type: 'SET_CELL', payload: { row: active.row, col: active.col, data: { value: state.data.get(keyOf(active.row, active.col))?.value ?? '' } } }) },
+  ];
+
+  const sortSelection = (ascending: boolean) => {
+    if (!range || active === null) return;
+    dispatch({ type: 'SORT_RANGE', payload: { range, column: active.col, ascending } });
+  };
+
+  const dataMenu: MenuEntry[] = [
+    { label: 'Sort range A → Z', disabled: !range, onClick: () => sortSelection(true) },
+    { label: 'Sort range Z → A', disabled: !range, onClick: () => sortSelection(false) },
+    { separator: true, label: '' },
+    {
+      label: state.filters?.length ? 'Clear filters' : 'Create a filter',
+      onClick: () => {
+        if (state.filters?.length) {
+          dispatch({ type: 'SET_FILTERS', payload: { filters: [] } });
+        } else {
+          document.querySelector<HTMLButtonElement>('button[title="Create a filter"]')?.click();
+        }
+      },
+    },
+  ];
+
+  const helpMenu: MenuEntry[] = [
+    { label: 'Keyboard shortcuts', onClick: onShortcuts },
+    { label: 'About OpenSheets', onClick: () => alert('OpenSheets — an open-source, Google Sheets-style spreadsheet component for React.') },
+  ];
+
+  return (
+    <nav className="menuRow">
+      <input
+        ref={csvInputRef}
+        type="file"
+        accept=".csv,text/csv"
+        style={{ display: 'none' }}
+        onChange={(e) => { importCSV(e.target.files?.[0]); e.target.value = ''; }}
+      />
+      <DropdownMenu label="File" entries={fileMenu} />
+      <DropdownMenu label="Edit" entries={editMenu} />
+      <DropdownMenu label="View" entries={viewMenu} />
+      <DropdownMenu label="Insert" entries={insertMenu} />
+      <DropdownMenu label="Format" entries={formatMenu} />
+      <DropdownMenu label="Data" entries={dataMenu} />
+      <DropdownMenu label="Help" entries={helpMenu} />
+    </nav>
+  );
+};
+
+/* ---------------- Density (View > Compact density) ---------------- */
+
+const DensityController: React.FC<{ compact: boolean }> = ({ compact }) => {
+  const { state, dispatch } = useSpreadsheetPersisted();
+  useEffect(() => {
+    dispatch({
+      type: 'SET_ROW_HEIGHTS',
+      payload: Array(state.maxRows).fill(compact ? 20 : 22),
+    });
+  }, [compact, state.maxRows, dispatch]);
+  return null;
+};
+
 /* ---------------- App shell ---------------- */
 
 // Header lives inside the provider so it can read sync status; theme and
@@ -232,7 +492,11 @@ const HeaderBar: React.FC<{
   toggleTheme: () => void;
   showHistory: boolean;
   onToggleHistory: () => void;
-}> = ({ theme, toggleTheme, showHistory, onToggleHistory }) => {
+  compact: boolean;
+  onToggleCompact: () => void;
+  onShare: () => void;
+  onShortcuts: () => void;
+}> = ({ theme, toggleTheme, showHistory, onToggleHistory, compact, onToggleCompact, onShare, onShortcuts }) => {
   const { syncStatus } = useSpreadsheetPersisted();
   const savedLabel = syncStatus.syncing ? 'Saving…' : 'Saved';
 
@@ -244,11 +508,16 @@ const HeaderBar: React.FC<{
           <span className="title">Untitled spreadsheet</span>
           <span className="saved">{savedLabel}</span>
         </div>
-        <nav className="menuRow">
-          {['File', 'Edit', 'View', 'Insert', 'Format', 'Data', 'Help'].map((m) => (
-            <button key={m} className="menuItem" title={`${m} (menus coming soon)`}>{m}</button>
-          ))}
-        </nav>
+        <MenuBar
+          theme={theme}
+          toggleTheme={toggleTheme}
+          historyOpen={showHistory}
+          onToggleHistory={onToggleHistory}
+          compact={compact}
+          onToggleCompact={onToggleCompact}
+          onShare={onShare}
+          onShortcuts={onShortcuts}
+        />
       </div>
       <div className="headerActions">
         <button className="headerIconBtn" onClick={toggleTheme} title="Toggle dark mode">
@@ -261,7 +530,7 @@ const HeaderBar: React.FC<{
         >
           <HistoryIcon />
         </button>
-        <button className="shareButton" title="Share (coming soon)">Share</button>
+        <button className="shareButton" onClick={onShare} title="Share">Share</button>
       </div>
     </header>
   );
@@ -270,6 +539,9 @@ const HeaderBar: React.FC<{
 const AppShell: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const [showHistory, setShowHistory] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [compact, setCompact] = useState(false);
   const [sheets, setSheets] = useState<SheetMeta[]>(loadSheetList);
   const [activeId, setActiveId] = useState(() => loadSheetList()[0].id);
 
@@ -319,6 +591,10 @@ const AppShell: React.FC = () => {
           toggleTheme={toggleTheme}
           showHistory={showHistory}
           onToggleHistory={() => setShowHistory(!showHistory)}
+          compact={compact}
+          onToggleCompact={() => setCompact(!compact)}
+          onShare={() => setShareOpen(true)}
+          onShortcuts={() => setShortcutsOpen(true)}
         />
         <FormattingToolbar />
         <FormulaBar />
@@ -357,8 +633,12 @@ const AppShell: React.FC = () => {
           <div className="stats"><SelectionStats /></div>
         </footer>
 
+        <DensityController compact={compact} />
         <DevDrawer />
       </SpreadsheetProviderPersisted>
+
+      {shareOpen && <ShareDialog onClose={() => setShareOpen(false)} />}
+      {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
     </div>
   );
 };

@@ -9,7 +9,13 @@ export function spreadsheetReducer(
 ): SpreadsheetState {
   switch (action.type) {
     case 'CLEAR_ALL':
-      return { ...state, data: new Map() };
+      return { ...state, data: new Map(), filters: [] };
+
+    case 'SET_FILTERS':
+      return { ...state, filters: action.payload.filters };
+
+    case 'SET_ROW_HEIGHTS':
+      return { ...state, rowHeights: action.payload };
 
     case 'SET_CELL': {
       const { row, col, data } = action.payload;
