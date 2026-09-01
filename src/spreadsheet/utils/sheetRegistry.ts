@@ -9,8 +9,27 @@ import { CellData } from '../types/spreadsheet';
 
 const sheets = new Map<string, Map<string, CellData>>();
 
+// Bumped whenever any registered sheet's data changes, so formulas with
+// cross-sheet refs re-evaluate live while their source sheet is edited
+let version = 0;
+const versionListeners = new Set<() => void>();
+
 export function registerSheetData(name: string, data: Map<string, CellData>) {
-  sheets.set(name, data);
+  const prev = sheets.get(name);
+  if (prev !== data) {
+    sheets.set(name, data);
+    version++;
+    versionListeners.forEach((l) => l());
+  }
+}
+
+export function subscribeRegistryVersion(listener: () => void) {
+  versionListeners.add(listener);
+  return () => versionListeners.delete(listener);
+}
+
+export function getRegistryVersion() {
+  return version;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { SpreadsheetState, CellData } from '../types/spreadsheet';
 import {
   setCollabUsers, pushCollabToast, COLLAB_PALETTE, CollabUser,
@@ -19,6 +19,8 @@ interface CollabHooks {
   dispatch: (action: any) => void;
   sheetId: string;
   enabled?: boolean;
+  /** Called for every relayed message from other users (e.g. sheet-list sync). */
+  onRemoteMessage?: (msg: any) => void;
 }
 
 const NAMES = ['Alice', 'Bob', 'Carol', 'Dave', 'Erin', 'Frank', 'Grace', 'Heidi'];
@@ -41,17 +43,20 @@ const loadIdentity = (): { id: string; name: string; color: string } => {
   return identity;
 };
 
-export function useCollaboration({ getState, dispatch, sheetId, enabled = true }: CollabHooks) {
+export function useCollaboration({ getState, dispatch, sheetId, enabled = true, onRemoteMessage }: CollabHooks) {
   const wsRef = useRef<WebSocket | null>(null);
   const identityRef = useRef(loadIdentity());
   const lastSyncedRef = useRef<string>('');
+  const pendingRef = useRef<unknown[]>([]);
   const diffTimerRef = useRef<number | null>(null);
   // Keep callbacks in refs so the socket effect never tears down because a
   // caller passed fresh inline arrows
   const getStateRef = useRef(getState);
   const dispatchRef = useRef(dispatch);
+  const onRemoteMessageRef = useRef(onRemoteMessage);
   getStateRef.current = getState;
   dispatchRef.current = dispatch;
+  onRemoteMessageRef.current = onRemoteMessage;
 
   useEffect(() => {
     if (!enabled) return;
@@ -79,6 +84,11 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true }
       // Ask the server for a snapshot; applied only if we have no local data
       ws.send(JSON.stringify({ type: 'sync', sheetId }));
       syncSnapshot();
+      // Flush anything buffered while the socket was connecting (e.g. a
+      // sheet-list broadcast that raced a provider remount)
+      const queued = pendingRef.current;
+      pendingRef.current = [];
+      queued.forEach((m) => ws.send(JSON.stringify(m)));
     };
 
     ws.onmessage = (event) => {
@@ -127,6 +137,10 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true }
       }
 
       if (msg.user?.id === identity.id) return; // own echo
+
+      try {
+        onRemoteMessageRef.current?.(msg);
+      } catch { /* listener errors must not break the socket */ }
 
       if (msg.type === 'cells' && msg.sheetId === sheetId) {
         const incoming: Array<{ row: number; col: number; data: Partial<CellData> }> = msg.updates;
@@ -235,5 +249,16 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true }
     }
   }, [sel, sheetId]);
 
-  return { identity: identityRef.current, connected: !!wsRef.current };
+  const send = useCallback((msg: unknown) => {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(msg));
+    } else {
+      // Buffer until connected; the queue is dropped if it exceeds a sane
+      // bound (a socket that never opens shouldn't leak memory)
+      if (pendingRef.current.length < 100) pendingRef.current.push(msg);
+    }
+  }, []);
+
+  return { identity: identityRef.current, connected: !!wsRef.current, send };
 }
