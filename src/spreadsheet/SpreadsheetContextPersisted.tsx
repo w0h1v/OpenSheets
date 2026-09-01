@@ -132,6 +132,7 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
   const hasUnsavedChanges = useRef(false);
   const hasLoadedOnce = useRef(false);
+  const saveDataRef = useRef<(() => Promise<unknown>) | null>(null);
   const lastSavedState = useRef<string>('');
 
   // Initialize persistence manager
@@ -156,6 +157,11 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
     }
 
     return () => {
+      // Flush pending edits before unmounting (e.g. switching sheets
+      // faster than the autosave debounce would otherwise lose them)
+      if (hasUnsavedChanges.current) {
+        saveDataRef.current?.();
+      }
       persistenceManager.current?.destroy();
     };
   }, [spreadsheetId, persistenceMode]);
@@ -221,6 +227,8 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
       setSyncStatus(prev => ({ ...prev, syncing: false }));
     }
   };
+
+  saveDataRef.current = saveData;
 
   // Auto-save functionality
   useEffect(() => {

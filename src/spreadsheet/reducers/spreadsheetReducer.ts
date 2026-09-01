@@ -1,8 +1,63 @@
-import { SpreadsheetState, CellData, keyOf, parseKey } from '../types/spreadsheet';
+import { SpreadsheetState, CellData, keyOf, parseKey, SelectionRect } from '../types/spreadsheet';
 import { SpreadsheetAction } from '../types/actions';
 import { stampEditMeta } from '../utils/editContext';
 import { updateFormulaReferences } from '../utils/formulaUtils';
 import { normalizeRect } from '../utils/selectionUtils';
+
+/**
+ * Shift/prune merged regions for row/column insertions and deletions.
+ * Inserts shift merges at/after the index; deletes drop merges that
+ * intersect the removed range and shift the rest.
+ */
+function shiftMerges(
+  merges: SelectionRect[] | undefined,
+  op: 'insertRow' | 'deleteRow' | 'insertColumn' | 'deleteColumn',
+  index: number,
+  count: number
+): SelectionRect[] | undefined {
+  if (!merges || !merges.length) return merges;
+  const horizontal = op === 'insertRow' || op === 'deleteRow';
+  const out: SelectionRect[] = [];
+  for (const m of merges) {
+    const start = horizontal ? m.startRow : m.startCol;
+    const end = horizontal ? m.endRow : m.endCol;
+    if (op === 'insertRow' || op === 'insertColumn') {
+      if (start >= index) {
+        out.push(horizontal
+          ? { ...m, startRow: start + count, endRow: end + count }
+          : { ...m, startCol: start + count, endCol: end + count });
+      } else if (end >= index) {
+        // Insertion lands inside the merge: grow it
+        out.push(horizontal
+          ? { ...m, endRow: end + count }
+          : { ...m, endCol: end + count });
+      } else {
+        out.push(m);
+      }
+    } else {
+      if (end < index) {
+        out.push(m);
+      } else if (start >= index + count) {
+        out.push(horizontal
+          ? { ...m, startRow: start - count, endRow: end - count }
+          : { ...m, startCol: start - count, endCol: end - count });
+      } else if (start >= index && end < index + count) {
+        // Entirely inside the deleted range: drop it
+      } else if (start < index && end >= index + count) {
+        // Deletion carves the middle out of the merge: shrink toward start
+        out.push(horizontal
+          ? { ...m, endRow: start + (end - index - count) }
+          : { ...m, endCol: start + (end - index - count) });
+      } else {
+        // Partial overlap at the head: shift the tail back
+        out.push(horizontal
+          ? { ...m, startRow: index, endRow: end - count }
+          : { ...m, startCol: index, endCol: end - count });
+      }
+    }
+  }
+  return out;
+}
 
 export function spreadsheetReducer(
   state: SpreadsheetState,
@@ -164,6 +219,7 @@ export function spreadsheetReducer(
         ...state,
         data: newData,
         rowHeights: newRowHeights,
+        merges: shiftMerges(state.merges, 'insertRow', index, count),
         maxRows: state.maxRows + count,
       };
     }
@@ -200,6 +256,7 @@ export function spreadsheetReducer(
         ...state,
         data: newData,
         colWidths: newColWidths,
+        merges: shiftMerges(state.merges, 'insertColumn', index, count),
         maxCols: state.maxCols + count,
       };
     }
@@ -236,6 +293,7 @@ export function spreadsheetReducer(
         ...state,
         data: newData,
         rowHeights: newRowHeights,
+        merges: shiftMerges(state.merges, 'deleteRow', index, count),
         maxRows: Math.max(10, state.maxRows - count),
       };
     }
@@ -272,6 +330,7 @@ export function spreadsheetReducer(
         ...state,
         data: newData,
         colWidths: newColWidths,
+        merges: shiftMerges(state.merges, 'deleteColumn', index, count),
         maxCols: Math.max(10, state.maxCols - count),
       };
     }

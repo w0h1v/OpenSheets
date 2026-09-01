@@ -238,7 +238,12 @@ const SelectionStats: React.FC = () => {
 
 // Applies/streams collaboration state; also registers this sheet's data
 // under its name so cross-sheet formulas (=Sheet1!A1) can resolve it
-const CollabLayer: React.FC<{ sheetId: string; sheetName: string }> = ({ sheetId, sheetName }) => {
+const CollabLayer: React.FC<{
+  sheetId: string;
+  sheetName: string;
+  onSheetsReceived: (sheets: SheetMeta[]) => void;
+  sendRef: React.MutableRefObject<((msg: unknown) => void) | null>;
+}> = ({ sheetId, sheetName, onSheetsReceived, sendRef }) => {
   const { state, dispatch } = useSpreadsheetPersisted();
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -249,13 +254,56 @@ const CollabLayer: React.FC<{ sheetId: string; sheetName: string }> = ({ sheetId
   useEffect(() => {
     registerSheetData(sheetName, state.data);
   }, [sheetName, state.data]);
-  useCollaboration({
+  const { send } = useCollaboration({
     sheetId,
     getState: () => stateRef.current,
     dispatch,
+    onRemoteMessage: (msg) => {
+      if (msg.type === 'sheets' && Array.isArray(msg.sheets)) {
+        onSheetsReceived(msg.sheets);
+      }
+    },
   });
+  sendRef.current = send;
   return null;
 };
+
+// Broadcasts the sheet list to collaborators; applies remote lists without
+// echoing them back (suppress flag breaks the feedback loop)
+const useSheetsSync = (
+  sheets: SheetMeta[],
+  setSheets: (s: SheetMeta[]) => void,
+  sendRef: React.MutableRefObject<((msg: unknown) => void) | null>
+) => {
+  const suppressRef = useRef(false);
+  const lastSigRef = useRef(JSON.stringify(sheets));
+
+  useEffect(() => {
+    const sig = JSON.stringify(sheets);
+    if (sig === lastSigRef.current) return;
+    lastSigRef.current = sig;
+    if (suppressRef.current) {
+      suppressRef.current = false;
+      return;
+    }
+    sendRef.current?.({ type: 'sheets', sheets });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheets]);
+
+  const receive = useCallback((remote: SheetMeta[]) => {
+    const sig = JSON.stringify(remote);
+    if (sig === lastSigRef.current) return;
+    suppressRef.current = true;
+    lastSigRef.current = sig;
+    try {
+      localStorage.setItem(SHEET_LIST_KEY, sig);
+    } catch { /* quota */ }
+    setSheets(remote);
+  }, [setSheets]);
+
+  return receive;
+};
+
 
 const AvatarStack: React.FC = () => {
   const users = useSyncExternalStore(subscribeCollab, getCollabUsers);
@@ -767,6 +815,8 @@ const AppShell: React.FC = () => {
   }, []);
   const [sheets, setSheets] = useState<SheetMeta[]>(loadSheetList);
   const [activeId, setActiveId] = useState(() => loadSheetList()[0].id);
+  const collabSendRef = useRef<((msg: unknown) => void) | null>(null);
+  const receiveSheets = useSheetsSync(sheets, setSheets, collabSendRef);
 
   const persistSheets = (list: SheetMeta[]) => {
     setSheets(list);
@@ -789,6 +839,13 @@ const AppShell: React.FC = () => {
     if (activeId === id) setActiveId(remaining[0].id);
     try { localStorage.removeItem(`opensheets_${id}`); } catch { /* ignore */ }
   };
+
+  // If the active sheet was removed remotely, fall back to the first
+  useEffect(() => {
+    if (sheets.length && !sheets.some((sh) => sh.id === activeId)) {
+      setActiveId(sheets[0].id);
+    }
+  }, [sheets, activeId]);
 
   const renameSheet = (id: string) => {
     const sheet = sheets.find((sh) => sh.id === id);
@@ -833,7 +890,12 @@ const AppShell: React.FC = () => {
           {showHistory && <VersionHistory onClose={() => setShowHistory(false)} />}
         </div>
 
-        <CollabLayer sheetId={activeId} sheetName={(sheets.find((sh) => sh.id === activeId) || { name: activeId }).name} />
+        <CollabLayer
+          sheetId={activeId}
+          sheetName={(sheets.find((sh) => sh.id === activeId) || { name: activeId }).name}
+          onSheetsReceived={receiveSheets}
+          sendRef={collabSendRef}
+        />
 
         <footer className="tabBar" role="tablist" aria-label="Sheets">
           <button className="addSheet" onClick={addSheet} title="Add sheet"><AddSheetIcon size={14} /></button>

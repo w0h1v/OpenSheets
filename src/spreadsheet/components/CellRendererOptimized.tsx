@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo, memo, useSyncExternalStore } from 'react';
 import { useSpreadsheet } from '../SpreadsheetContext';
 import { evaluateFormula } from '../utils/formulaUtils';
 import { isCellInSelection } from '../utils/selectionUtils';
@@ -6,6 +6,7 @@ import { formatCellValue } from '../utils/formatUtils';
 import { evaluateConditionalFormat, combineConditionalFormats } from '../utils/conditionalFormattingUtils';
 import { CellDropdown } from './CellDropdown';
 import { columnToLetter } from '../utils/columnUtils';
+import { subscribeRegistryVersion, getRegistryVersion } from '../utils/sheetRegistry';
 import { CommentIndicator } from './CommentIndicator';
 import { DropdownArrow } from './DropdownArrow';
 import styles from './CellRenderer.module.css';
@@ -19,6 +20,9 @@ interface Props {
 export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
   const { state, setState, getCell, setCell } = useSpreadsheet();
   const cellData = getCell(row, col);
+  // Cross-sheet formulas re-evaluate when any source sheet's data changes
+  const registryVersion = useSyncExternalStore(subscribeRegistryVersion, getRegistryVersion);
+  const crossSheetVersion = cellData?.formula?.includes('!') ? registryVersion : null;
   const isEditing =
     state.editing && state.editing.row === row && state.editing.col === col;
   const isSelected = isCellInSelection(row, col, state.selection);
@@ -110,7 +114,8 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
     // Apply formatting to the value
     const text = formatCellValue(value, cellData.format);
     return { text, isNumeric: typeof value === 'number' };
-  }, [cellData, getCell]);
+    // crossSheetVersion re-evaluates =Sheet1!A1-style formulas live
+  }, [cellData, getCell, crossSheetVersion]);
 
   // Numbers too wide for the column render as #### instead of spilling
   const showsHashes = useMemo(() => {
