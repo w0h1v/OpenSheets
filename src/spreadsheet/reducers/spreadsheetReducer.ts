@@ -17,6 +17,16 @@ export function spreadsheetReducer(
     case 'SET_ROW_HEIGHTS':
       return { ...state, rowHeights: action.payload };
 
+    case 'SET_COMMENT': {
+      const comments = new Map(state.comments || []);
+      if (action.payload.comment === null) {
+        comments.delete(action.payload.key);
+      } else {
+        comments.set(action.payload.key, action.payload.comment);
+      }
+      return { ...state, comments };
+    }
+
     case 'SET_CELL': {
       const { row, col, data } = action.payload;
       const key = keyOf(row, col);

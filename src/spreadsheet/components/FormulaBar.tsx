@@ -2,7 +2,42 @@ import React, { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { useSpreadsheetEnhanced } from '../SpreadsheetContextEnhanced';
 import { columnToLetter } from '../utils/columnUtils';
 import { normalizeRect } from '../utils/selectionUtils';
+import { parseCellRef, cellsInRange } from '../utils/formulaUtils';
+import {
+  setFormulaHighlights, HIGHLIGHT_PALETTE, FormulaHighlight,
+} from '../utils/formulaHighlightStore';
 import styles from './FormulaBar.module.css';
+
+// Extract A1 ranges and single refs from a formula, in order of appearance
+const refsInFormula = (formula: string): Array<[number, number, number, number]> => {
+  const out: Array<[number, number, number, number]> = [];
+  if (!formula.startsWith('=')) return out;
+  const rangeRe = /(\$?[A-Z]+\$?\d+):(\$?[A-Z]+\$?\d+)/g;
+  const singleRe = /(\$?[A-Z]+\$?\d+)/g;
+  const seen = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = rangeRe.exec(formula)) !== null) {
+    try {
+      const cells = cellsInRange(m[1], m[2]);
+      const rows = cells.map((c) => c[0]);
+      const cols = cells.map((c) => c[1]);
+      const entry: [number, number, number, number] = [
+        Math.min(...rows), Math.min(...cols), Math.max(...rows), Math.max(...cols),
+      ];
+      const k = entry.join(',');
+      if (!seen.has(k)) { seen.add(k); out.push(entry); }
+    } catch { /* invalid ref */ }
+  }
+  const withoutRanges = formula.replace(rangeRe, '0');
+  while ((m = singleRe.exec(withoutRanges)) !== null) {
+    try {
+      const [r, c] = parseCellRef(m[1]);
+      const k = `${r},${c},${r},${c}`;
+      if (!seen.has(k)) { seen.add(k); out.push([r, c, r, c]); }
+    } catch { /* invalid ref */ }
+  }
+  return out;
+};
 
 export const FormulaBar: React.FC = () => {
   const { state, dispatch, getCell, setCell } = useSpreadsheetEnhanced();
@@ -27,13 +62,27 @@ export const FormulaBar: React.FC = () => {
     }
   }, [active, state.formulaInput, getCell]);
 
-  // A new active cell starts a fresh bar session
+  // A new active cell starts a fresh bar session (keyed on the cell, not
+  // the object identity, so same-cell re-renders don't clear highlights)
+  const prevActiveRef = useRef('');
   useEffect(() => {
+    const sig = active ? `${active.row}:${active.col}` : '';
+    if (sig === prevActiveRef.current) return;
+    prevActiveRef.current = sig;
     committedRef.current = null;
+    setFormulaHighlights([]);
   }, [active]);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     setLocalValue(e.target.value);
+    // Live range highlights while editing a formula
+    const refs = refsInFormula(e.target.value);
+    setFormulaHighlights(
+      refs.slice(0, HIGHLIGHT_PALETTE.length).map((r, i): FormulaHighlight => ({
+        startRow: r[0], startCol: r[1], endRow: r[2], endCol: r[3],
+        color: HIGHLIGHT_PALETTE[i],
+      }))
+    );
     if (!committedRef.current && active) {
       committedRef.current = { row: active.row, col: active.col };
     }
@@ -55,6 +104,7 @@ export const FormulaBar: React.FC = () => {
       }
       committedRef.current = null;
       dispatch({ type: 'SET_FORMULA_INPUT', payload: '' });
+      setFormulaHighlights([]);
       // Reset the bar and move the selection down, like Sheets/Excel
       setLocalValue('');
       dispatch({
@@ -73,6 +123,7 @@ export const FormulaBar: React.FC = () => {
     } else if (e.key === 'Escape') {
       // Revert the bar to the active cell's stored content
       committedRef.current = null;
+      setFormulaHighlights([]);
       dispatch({ type: 'SET_FORMULA_INPUT', payload: '' });
       if (active) {
         const cellData = getCell(active.row, active.col);
