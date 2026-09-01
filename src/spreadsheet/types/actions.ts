@@ -7,6 +7,8 @@ export type SpreadsheetAction =
   | { type: 'SET_ROW_HEIGHTS'; payload: number[] }
   | { type: 'SET_FROZEN'; payload: { rows?: number; cols?: number } }
   | { type: 'TOGGLE_MERGE'; payload: { range: import('./spreadsheet').SelectionRect } }
+  | { type: 'PROTECT_RANGE'; payload: { range: import('./spreadsheet').SelectionRect; description?: string } }
+  | { type: 'UNPROTECT_RANGE'; payload: { id: string } }
   | { type: 'SET_COMMENT'; payload: { key: string; comment: import('./spreadsheet').CellComment | null } }
   | { type: 'SET_CELLS'; payload: { updates: Array<{ row: number; col: number; data: Partial<CellData> }> } }
   | { type: 'CLEAR_CELL'; payload: { row: number; col: number } }

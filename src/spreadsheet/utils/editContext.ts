@@ -29,3 +29,18 @@ export function editStampWins(
   if (a.ts !== b.ts) return a.ts > b.ts;
   return a.by > b.by;
 }
+
+// Remote-applied edits (collaboration) must not create local undo history
+let remoteApplyDepth = 0;
+
+export function beginRemoteApply() {
+  remoteApplyDepth++;
+}
+
+export function endRemoteApply() {
+  remoteApplyDepth = Math.max(0, remoteApplyDepth - 1);
+}
+
+export function isRemoteApplying(): boolean {
+  return remoteApplyDepth > 0;
+}

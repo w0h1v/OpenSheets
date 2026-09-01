@@ -1,6 +1,6 @@
 import { SpreadsheetState, CellData, keyOf, parseKey, SelectionRect } from '../types/spreadsheet';
 import { SpreadsheetAction } from '../types/actions';
-import { stampEditMeta } from '../utils/editContext';
+import { stampEditMeta, getEditAuthor } from '../utils/editContext';
 import { updateFormulaReferences } from '../utils/formulaUtils';
 import { normalizeRect } from '../utils/selectionUtils';
 
@@ -59,6 +59,42 @@ function shiftMerges(
   return out;
 }
 
+/**
+ * Cell-level permissions: writes intersecting a protected range are
+ * rejected unless the current editor is the range's owner.
+ */
+function isWriteAllowed(
+  state: SpreadsheetState,
+  row: number,
+  col: number
+): boolean {
+  const ranges = state.protectedRanges;
+  if (!ranges || !ranges.length) return true;
+  const author = getEditAuthor();
+  return !ranges.some(
+    (p) =>
+      row >= p.range.startRow && row <= p.range.endRow
+      && col >= p.range.startCol && col <= p.range.endCol
+      && p.owner !== author
+  );
+}
+
+function rangeProtectedForOthers(
+  state: SpreadsheetState,
+  range: SelectionRect
+): boolean {
+  const ranges = state.protectedRanges;
+  if (!ranges || !ranges.length) return false;
+  const author = getEditAuthor();
+  return ranges.some(
+    (p) =>
+      p.owner !== author
+      && !(range.endRow < p.range.startRow || range.startRow > p.range.endRow
+        || range.endCol < p.range.startCol || range.startRow > p.range.endCol
+        || range.endCol < p.range.startCol || range.startCol > p.range.endCol)
+  );
+}
+
 export function spreadsheetReducer(
   state: SpreadsheetState,
   action: SpreadsheetAction
@@ -75,6 +111,7 @@ export function spreadsheetReducer(
 
     case 'TOGGLE_MERGE': {
       const rect = normalizeRect(action.payload.range);
+      if (rangeProtectedForOthers(state, rect)) return state;
       const merges = [...(state.merges || [])];
       // Toggle: if the exact region (or any overlap of it) is merged, unmerge
       const idx = merges.findIndex(
@@ -96,6 +133,23 @@ export function spreadsheetReducer(
       return { ...state, merges };
     }
 
+    case 'PROTECT_RANGE': {
+      const range = normalizeRect(action.payload.range);
+      const entry = {
+        id: `pr-${Date.now()}`,
+        range,
+        description: action.payload.description,
+        owner: getEditAuthor(),
+      };
+      return { ...state, protectedRanges: [...(state.protectedRanges || []), entry] };
+    }
+
+    case 'UNPROTECT_RANGE':
+      return {
+        ...state,
+        protectedRanges: (state.protectedRanges || []).filter((p) => p.id !== action.payload.id),
+      };
+
     case 'SET_FROZEN':
       return {
         ...state,
@@ -115,6 +169,7 @@ export function spreadsheetReducer(
 
     case 'SET_CELL': {
       const { row, col, data } = action.payload;
+      if (!isWriteAllowed(state, row, col)) return state;
       const key = keyOf(row, col);
       const existing = state.data.get(key) || { value: '' };
       // Remote-applied writes arrive with their stamp; local writes get one
@@ -133,7 +188,7 @@ export function spreadsheetReducer(
 
     case 'SET_CELLS': {
       const newData = new Map(state.data);
-      action.payload.updates.forEach(({ row, col, data }) => {
+      action.payload.updates.filter(({ row, col }) => isWriteAllowed(state, row, col)).forEach(({ row, col, data }) => {
         const key = keyOf(row, col);
         const existing = newData.get(key) || { value: '' };
         const editMeta = data.editMeta ?? stampEditMeta();
@@ -156,6 +211,7 @@ export function spreadsheetReducer(
     }
 
     case 'CLEAR_RANGE': {
+      if (rangeProtectedForOthers(state, normalizeRect(action.payload.range))) return state;
       const { range } = action.payload;
       const normalized = normalizeRect(range);
       const newData = new Map(state.data);

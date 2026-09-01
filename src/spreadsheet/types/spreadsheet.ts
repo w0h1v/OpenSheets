@@ -124,6 +124,13 @@ export interface FilterState {
   sortDirection?: 'asc' | 'desc';
 }
 
+export interface ProtectedRange {
+  id: string;
+  range: SelectionRect;
+  description?: string;
+  owner: string;
+}
+
 export interface CellComment {
   author: string;
   text: string;
@@ -146,6 +153,9 @@ export interface SpreadsheetState {
   frozenCols?: number;
   // Merged regions: origin cell (startRow/startCol) spans to (endRow/endCol)
   merges?: SelectionRect[];
+  // Cell-level permissions: edits inside a protected range are rejected
+  // unless the current editor is its owner
+  protectedRanges?: ProtectedRange[];
   rowHeights?: number[];
   colWidths?: number[];
   validation?: Map<string, ValidationRule>;

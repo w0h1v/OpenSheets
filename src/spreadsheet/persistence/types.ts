@@ -32,6 +32,7 @@ export interface PersistedState {
   frozenCols?: number;
   merges?: Array<import('../types/spreadsheet').SelectionRect>;
   filters?: Array<import('../types/spreadsheet').FilterRule>;
+  protectedRanges?: Array<import('../types/spreadsheet').ProtectedRange>;
   metadata: SpreadsheetMetadata;
 }
 
