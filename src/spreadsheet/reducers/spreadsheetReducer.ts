@@ -1,5 +1,6 @@
 import { SpreadsheetState, CellData, keyOf, parseKey } from '../types/spreadsheet';
 import { SpreadsheetAction } from '../types/actions';
+import { stampEditMeta } from '../utils/editContext';
 import { updateFormulaReferences } from '../utils/formulaUtils';
 import { normalizeRect } from '../utils/selectionUtils';
 
@@ -31,7 +32,9 @@ export function spreadsheetReducer(
       const { row, col, data } = action.payload;
       const key = keyOf(row, col);
       const existing = state.data.get(key) || { value: '' };
-      const updated: CellData = { ...existing, ...data, value: data.value ?? existing.value };
+      // Remote-applied writes arrive with their stamp; local writes get one
+      const editMeta = data.editMeta ?? stampEditMeta();
+      const updated: CellData = { ...existing, ...data, editMeta, value: data.value ?? existing.value };
       const newData = new Map(state.data);
       
       if (updated.value === '' && !updated.formula && !updated.format) {
@@ -48,7 +51,8 @@ export function spreadsheetReducer(
       action.payload.updates.forEach(({ row, col, data }) => {
         const key = keyOf(row, col);
         const existing = newData.get(key) || { value: '' };
-        const updated: CellData = { ...existing, ...data, value: data.value ?? existing.value };
+        const editMeta = data.editMeta ?? stampEditMeta();
+        const updated: CellData = { ...existing, ...data, editMeta, value: data.value ?? existing.value };
         
         if (updated.value === '' && !updated.formula && !updated.format) {
           newData.delete(key);
