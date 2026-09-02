@@ -108,6 +108,9 @@ export function spreadsheetReducer(
     case 'SET_ROW_HEIGHTS':
       return { ...state, rowHeights: action.payload };
 
+    case 'SET_COLUMN_WIDTHS':
+      return { ...state, colWidths: action.payload };
+
     case 'TOGGLE_MERGE': {
       const rect = normalizeRect(action.payload.range);
       if (rangeProtectedForOthers(state, rect)) return state;

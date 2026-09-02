@@ -1,7 +1,7 @@
 {
   "name": "opensheets",
   "version": "2.1.0",
-  "description": "Production-ready Google Sheets-like spreadsheet component for React",
+  "description": "React spreadsheet component: virtualized grid, formulas, formatting, CSV/XLSX, and real-time collaboration",
   "keywords": [
     "spreadsheet",
     "excel",
@@ -14,8 +14,7 @@
     "formula",
     "csv",
     "xlsx",
-    "collaborative-editing",
-    "crdt"
+    "collaborative-editing"
   ],
   "license": "MIT",
   "author": "OpenSheets Team",
@@ -77,21 +76,19 @@
     "test:coverage": "jest --coverage",
     "test:relay": "node --test server/relayCore.test.mjs",
     "test:package": "node scripts/smoke-package.mjs",
-    "lint": "eslint src --ext .ts,.tsx",
+    "lint": "eslint src examples server scripts --ext .ts,.tsx,.mjs",
     "typecheck": "tsc --noEmit",
     "dev": "vite serve examples",
-    "dev:examples": "vite serve examples",
     "build:examples": "vite build examples",
     "preview": "vite preview examples",
     "serve": "node examples/server.mjs",
     "demo": "npm run build:examples && npm run serve",
-    "release:check": "npm run typecheck && npm run lint && npm test -- --ci && npm run test:relay && npm run build && npm run test:package",
-    "prepublishOnly": "npm run release:check"
+    "release:check": "npm run typecheck && npm run typecheck:examples && npm run lint && npm test -- --ci && npm run test:relay && npm run build && npm run test:package",
+    "prepublishOnly": "npm run release:check",
+    "typecheck:examples": "tsc -p examples/tsconfig.json"
   },
   "dependencies": {
-    "@tanstack/react-virtual": "^3.14.10",
-    "immer": "^10.2.0",
-    "react-hotkeys-hook": "^4.6.2"
+    "@tanstack/react-virtual": "^3.14.10"
   },
   "peerDependencies": {
     "react": "^18.0.0",

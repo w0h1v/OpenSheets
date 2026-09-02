@@ -119,17 +119,28 @@ export function subscribeAuth(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
-/** One id per browser tab; lets several tabs of one account coexist on the relay. */
-export function getClientId(): string {
+export interface ClientSlot {
+  clientId: string;
+  clientSecret: string;
+}
+
+/**
+ * The relay assigns each tab a client id plus a secret that lets the same
+ * tab resume its own slot after a reconnect; nothing else can take a slot
+ * over. Kept in sessionStorage so it is one per tab.
+ */
+export function getClientSlot(): ClientSlot | null {
   try {
     const saved = sessionStorage.getItem(CLIENT_KEY);
-    if (saved) return saved;
-    const fresh = `c-${randomId()}`;
-    sessionStorage.setItem(CLIENT_KEY, fresh);
-    return fresh;
-  } catch {
-    return `c-${randomId()}`;
-  }
+    if (!saved) return null;
+    const parsed = JSON.parse(saved);
+    if (parsed && typeof parsed.clientId === 'string' && typeof parsed.clientSecret === 'string') return parsed;
+  } catch { /* ignore */ }
+  return null;
+}
+
+export function setClientSlot(slot: ClientSlot) {
+  try { sessionStorage.setItem(CLIENT_KEY, JSON.stringify(slot)); } catch { /* ignore */ }
 }
 
 const call = async (path: string, body: unknown): Promise<any> => {

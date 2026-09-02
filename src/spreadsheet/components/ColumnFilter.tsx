@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FilterRule } from '../types/spreadsheet';
-import { createDFIRFilter, DFIR_FILTER_PRESETS } from '../utils/filterUtils';
 import styles from './ColumnFilter.module.css';
 
 interface ColumnFilterProps {
@@ -20,7 +19,7 @@ export const ColumnFilter: React.FC<ColumnFilterProps> = ({
   onClose,
   position,
 }) => {
-  const [activeTab, setActiveTab] = useState<'values' | 'conditions' | 'dfir'>('values');
+  const [activeTab, setActiveTab] = useState<'values' | 'conditions'>('values');
   const [selectedValues, setSelectedValues] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(true);
   const [searchText, setSearchText] = useState('');
@@ -117,14 +116,6 @@ export const ColumnFilter: React.FC<ColumnFilterProps> = ({
     onClose();
   };
 
-  const applyDFIRFilter = (preset: keyof typeof DFIR_FILTER_PRESETS) => {
-    const newFilters = existingFilters.filter(f => f.column !== column);
-    newFilters.push(createDFIRFilter(preset, column));
-    
-    onFilterChange(newFilters);
-    onClose();
-  };
-
   const clearFilter = () => {
     const newFilters = existingFilters.filter(f => f.column !== column);
     onFilterChange(newFilters);
@@ -164,12 +155,6 @@ export const ColumnFilter: React.FC<ColumnFilterProps> = ({
           onClick={() => setActiveTab('conditions')}
         >
           Conditions
-        </button>
-        <button 
-          className={`${styles.tab} ${activeTab === 'dfir' ? styles.active : ''}`}
-          onClick={() => setActiveTab('dfir')}
-        >
-          DFIR
         </button>
       </div>
 
@@ -320,102 +305,6 @@ export const ColumnFilter: React.FC<ColumnFilterProps> = ({
               >
                 Apply Condition
               </button>
-              <button className={styles.clearButton} onClick={clearFilter}>
-                Clear Filter
-              </button>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'dfir' && (
-          <div className={styles.dfirTab}>
-            <p className={styles.description}>
-              Quick filters for Digital Forensics and Incident Response analysis:
-            </p>
-
-            <div className={styles.presetsList}>
-              <div className={styles.presetCategory}>
-                <h4>🔍 IOC Detection</h4>
-                <button 
-                  className={styles.presetButton}
-                  onClick={() => applyDFIRFilter('maliciousIPs')}
-                >
-                  Malicious IPs (External)
-                </button>
-                <button 
-                  className={styles.presetButton}
-                  onClick={() => applyDFIRFilter('suspiciousFileExtensions')}
-                >
-                  Suspicious File Extensions
-                </button>
-                <button 
-                  className={styles.presetButton}
-                  onClick={() => applyDFIRFilter('suspiciousProcessNames')}
-                >
-                  Suspicious Processes
-                </button>
-              </div>
-
-              <div className={styles.presetCategory}>
-                <h4>📊 Hash Analysis</h4>
-                <button 
-                  className={styles.presetButton}
-                  onClick={() => applyDFIRFilter('validMD5')}
-                >
-                  Valid MD5 Hashes
-                </button>
-                <button 
-                  className={styles.presetButton}
-                  onClick={() => applyDFIRFilter('validSHA1')}
-                >
-                  Valid SHA1 Hashes
-                </button>
-                <button 
-                  className={styles.presetButton}
-                  onClick={() => applyDFIRFilter('validSHA256')}
-                >
-                  Valid SHA256 Hashes
-                </button>
-              </div>
-
-              <div className={styles.presetCategory}>
-                <h4>🌐 Network Analysis</h4>
-                <button 
-                  className={styles.presetButton}
-                  onClick={() => applyDFIRFilter('externalConnections')}
-                >
-                  External Connections
-                </button>
-                <button 
-                  className={styles.presetButton}
-                  onClick={() => applyDFIRFilter('suspiciousPorts')}
-                >
-                  Suspicious Ports
-                </button>
-              </div>
-
-              <div className={styles.presetCategory}>
-                <h4>⏰ Time Analysis</h4>
-                <button 
-                  className={styles.presetButton}
-                  onClick={() => applyDFIRFilter('recentActivity')}
-                >
-                  Recent Activity (24h)
-                </button>
-              </div>
-
-              <div className={styles.presetCategory}>
-                <h4>🚨 Severity</h4>
-                <button 
-                  className={styles.presetButton}
-                  onClick={() => applyDFIRFilter('highSeverity')}
-                >
-                  High/Critical Severity
-                </button>
-              </div>
-            </div>
-
-            <div className={styles.actions}>
               <button className={styles.clearButton} onClick={clearFilter}>
                 Clear Filter
               </button>

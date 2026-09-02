@@ -12,7 +12,7 @@ export class FormulaEngine {
 
   constructor(config?: any) {
     this.hf = HyperFormula.buildEmpty({
-      licenseKey: 'gpl-v3', // Use appropriate license
+      licenseKey: 'gpl-v3',
       ...config,
     });
     
@@ -247,13 +247,6 @@ export class FormulaEngine {
     }
   }
 
-  // Get all changed cells after an operation
-  public getChangedCells(): Array<{ row: number; col: number; value: any }> {
-    // HyperFormula doesn't have getAllCellValues, so return empty for now
-    // In a real implementation, you'd track changes manually
-    return [];
-  }
-
   // Check if a value is an error
   private isError(value: CellValue): boolean {
     return typeof value === 'object' && value !== null && 'type' in value;
@@ -284,27 +277,6 @@ export class FormulaEngine {
     return '#ERROR!';
   }
 
-  // Undo last operation - not supported in this HyperFormula version
-  public undo(): void {
-    // HyperFormula doesn't have built-in undo/redo in this version
-    console.warn('Undo not implemented in HyperFormula engine');
-  }
-
-  // Redo last undone operation - not supported in this HyperFormula version
-  public redo(): void {
-    // HyperFormula doesn't have built-in undo/redo in this version
-    console.warn('Redo not implemented in HyperFormula engine');
-  }
-
-  // Check if can undo - not supported in this HyperFormula version
-  public canUndo(): boolean {
-    return false;
-  }
-
-  // Check if can redo - not supported in this HyperFormula version
-  public canRedo(): boolean {
-    return false;
-  }
 
   // Get available functions
   public getAvailableFunctions(): string[] {

@@ -642,13 +642,12 @@ const MenuBar: React.FC<{
   historyOpen: boolean;
   compact: boolean;
   onToggleCompact: () => void;
-  onShare: () => void;
   onShortcuts: () => void;
   onInsertChart: (range: { startRow: number; startCol: number; endRow: number; endCol: number }) => void;
   onFind: () => void;
   onConditionalFormatting: () => void;
   onProtect: () => void;
-}> = ({ theme, toggleTheme, onToggleHistory, historyOpen, compact, onToggleCompact, onShare, onShortcuts, onInsertChart, onFind, onConditionalFormatting, onProtect }) => {
+}> = ({ theme, toggleTheme, onToggleHistory, historyOpen, compact, onToggleCompact, onShortcuts, onInsertChart, onFind, onConditionalFormatting, onProtect }) => {
   const { state, dispatch, save, saveVersion, undo, redo, canUndo, canRedo } = useSpreadsheetPersisted();
   const csvInputRef = useRef<HTMLInputElement>(null);
   const active = state.selection.active;
@@ -982,7 +981,6 @@ const HeaderBar: React.FC<{
           onToggleHistory={onToggleHistory}
           compact={compact}
           onToggleCompact={onToggleCompact}
-          onShare={onShare}
           onShortcuts={onShortcuts}
           onInsertChart={onInsertChart}
           onFind={onFind}
@@ -1079,7 +1077,6 @@ const AppShell: React.FC = () => {
       <SpreadsheetProviderPersisted
         key={activeId}
         spreadsheetId={activeId}
-        persistenceMode="local"
         autoSave={true}
         autoSaveInterval={5000}
         maxRows={1000}

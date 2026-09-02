@@ -5,6 +5,7 @@ export type SpreadsheetAction =
   | { type: 'CLEAR_ALL' }
   | { type: 'SET_FILTERS'; payload: { filters: import('./spreadsheet').FilterRule[] } }
   | { type: 'SET_ROW_HEIGHTS'; payload: number[] }
+  | { type: 'SET_COLUMN_WIDTHS'; payload: number[] }
   | { type: 'SET_FROZEN'; payload: { rows?: number; cols?: number } }
   | { type: 'TOGGLE_MERGE'; payload: { range: import('./spreadsheet').SelectionRect } }
   | { type: 'PROTECT_RANGE'; payload: { range: import('./spreadsheet').SelectionRect; description?: string } }
@@ -36,10 +37,3 @@ export type SpreadsheetAction =
   // Bridge action: applies a React-style setState updater against current state
   | { type: 'APPLY_SET_STATE'; payload: SpreadsheetState | ((prev: SpreadsheetState) => SpreadsheetState) };
 
-
-export interface Command {
-  execute: () => void;
-  undo: () => void;
-  redo: () => void;
-  description: string;
-}

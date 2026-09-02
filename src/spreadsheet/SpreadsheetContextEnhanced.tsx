@@ -23,16 +23,13 @@ export const SpreadsheetEnhancedContext = SpreadsheetContext;
 
 // Create enhanced reducer with middleware support
 const enhancedReducer = (state: SpreadsheetState, action: SpreadsheetAction): SpreadsheetState => {
-  // Handle special restore state action for undo/redo
-  if ((action as any).type === 'RESTORE_STATE') {
-    return (action as any).payload;
-  }
+  if (action.type === 'RESTORE_STATE') return action.payload;
 
   // Apply a React-style setState updater against the accumulated state so
   // functional updates composed with other actions in the same batch are
   // not lost.
-  if ((action as any).type === 'APPLY_SET_STATE') {
-    const updater = (action as any).payload;
+  if (action.type === 'APPLY_SET_STATE') {
+    const updater = action.payload;
     return typeof updater === 'function' ? updater(state) : updater;
   }
 
@@ -106,53 +103,6 @@ export const SpreadsheetProviderEnhanced: React.FC<React.PropsWithChildren<Table
       onSelectionChange(state.selection);
     }
   }, [state.selection, onSelectionChange]);
-
-  // Save state to localStorage for persistence
-  useEffect(() => {
-    const saveTimer = setTimeout(() => {
-      try {
-        // Save column widths and row heights
-        localStorage.setItem('spreadsheet-col-widths', JSON.stringify(state.colWidths));
-        localStorage.setItem('spreadsheet-row-heights', JSON.stringify(state.rowHeights));
-        
-        // Optionally save data (be careful with size)
-        if (state.data.size < 1000) {
-          const dataArray = Array.from(state.data.entries());
-          localStorage.setItem('spreadsheet-data', JSON.stringify(dataArray));
-        }
-      } catch (e) {
-        console.warn('Failed to save spreadsheet state:', e);
-      }
-    }, 1000);
-
-    return () => clearTimeout(saveTimer);
-  }, [state.colWidths, state.rowHeights, state.data]);
-
-  // Load persisted state on mount
-  useEffect(() => {
-    try {
-      const savedColWidths = localStorage.getItem('spreadsheet-col-widths');
-      const savedRowHeights = localStorage.getItem('spreadsheet-row-heights');
-      
-      if (savedColWidths || savedRowHeights) {
-        dispatch({
-          type: 'BATCH',
-          payload: [
-            ...(savedColWidths ? [{ 
-              type: 'SET_COLUMN_WIDTHS' as any, 
-              payload: JSON.parse(savedColWidths) 
-            }] : []),
-            ...(savedRowHeights ? [{ 
-              type: 'SET_ROW_HEIGHTS' as any, 
-              payload: JSON.parse(savedRowHeights) 
-            }] : []),
-          ],
-        });
-      }
-    } catch (e) {
-      console.warn('Failed to load spreadsheet state:', e);
-    }
-  }, []);
 
   const contextValue = useMemo(() => ({
     state,

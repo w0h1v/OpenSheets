@@ -55,7 +55,6 @@ export interface SaveResult {
   timestamp: number;
   revision?: number;
   error?: string;
-  conflictResolution?: ConflictResolution;
 }
 
 export interface Version {
@@ -73,28 +72,5 @@ export interface SyncStatus {
   lastSync?: number;
   pendingChanges: number;
   error?: string;
-  mode: 'local' | 'cloud' | 'hybrid';
-}
-
-export interface ConflictResolution {
-  type: 'auto-merged' | 'server-wins' | 'client-wins' | 'manual';
-  conflicts: CellConflict[];
-  resolved: boolean;
-}
-
-export interface CellConflict {
-  cell: string;
-  localValue: CellData;
-  serverValue: CellData;
-  resolution?: CellData;
-}
-
-export interface PersistenceConfig {
-  adapter: PersistenceAdapter;
-  autoSave: boolean;
-  autoSaveInterval: number;
-  maxVersions: number;
-  conflictStrategy: 'last-write-wins' | 'manual' | 'merge';
-  offlineQueue: boolean;
-  compression: boolean;
+  mode: 'local';
 }

@@ -163,6 +163,11 @@ export function evaluateFilterRule(value: any, rule: FilterRule): boolean {
   }
 }
 
+const DATE_LIKE = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?)?/;
+
+const isDateString = (value: string): boolean =>
+  DATE_LIKE.test(value) && !Number.isNaN(new Date(value).getTime());
+
 /**
  * Sort data by column
  */
@@ -253,86 +258,6 @@ export function getColumnUniqueValues(
 }
 
 /**
- * DFIR-specific filter presets for common incident response scenarios
- */
-export const DFIR_FILTER_PRESETS = {
-  // IOC Filtering
-  maliciousIPs: (value: any): boolean => {
-    const ip = String(value);
-    // Check against common malicious IP patterns (simplified)
-    return /^(10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.|127\.)/.test(ip) === false &&
-           /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip);
-  },
-
-  suspiciousFileExtensions: (value: any): boolean => {
-    const filename = String(value).toLowerCase();
-    const suspiciousExtensions = ['.exe', '.scr', '.bat', '.cmd', '.pif', '.com', '.vbs', '.js', '.jar', '.ps1'];
-    return suspiciousExtensions.some(ext => filename.endsWith(ext));
-  },
-
-  recentActivity: (value: any): boolean => {
-    const date = new Date(value);
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    return date > twentyFourHoursAgo;
-  },
-
-  highSeverity: (value: any): boolean => {
-    const severity = String(value).toLowerCase();
-    return ['critical', 'high', 'severe'].includes(severity);
-  },
-
-  suspiciousProcessNames: (value: any): boolean => {
-    const processName = String(value).toLowerCase();
-    const suspiciousNames = [
-      'powershell.exe', 'cmd.exe', 'rundll32.exe', 'regsvr32.exe', 
-      'mshta.exe', 'wscript.exe', 'cscript.exe', 'psexec.exe'
-    ];
-    return suspiciousNames.some(name => processName.includes(name));
-  },
-
-  // Hash Validation
-  validMD5: (value: any): boolean => {
-    return /^[a-fA-F0-9]{32}$/.test(String(value));
-  },
-
-  validSHA1: (value: any): boolean => {
-    return /^[a-fA-F0-9]{40}$/.test(String(value));
-  },
-
-  validSHA256: (value: any): boolean => {
-    return /^[a-fA-F0-9]{64}$/.test(String(value));
-  },
-
-  // Network Analysis
-  externalConnections: (value: any): boolean => {
-    const ip = String(value);
-    // Filter for external IPs (not private/local)
-    return !/^(10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.|127\.|169\.254\.)/.test(ip);
-  },
-
-  suspiciousPorts: (value: any): boolean => {
-    const port = Number(value);
-    const suspiciousPorts = [4444, 5555, 6666, 7777, 8080, 9999, 31337, 12345];
-    return suspiciousPorts.includes(port);
-  }
-};
-
-/**
- * Helper function to detect date strings
- */
-function isDateString(value: string): boolean {
-  if (!value || typeof value !== 'string') return false;
-  
-  const datePatterns = [
-    /^\d{4}-\d{2}-\d{2}/, // YYYY-MM-DD
-    /^\d{1,2}\/\d{1,2}\/\d{4}/, // MM/DD/YYYY or M/D/YYYY
-    /^\d{1,2}-\d{1,2}-\d{4}/, // MM-DD-YYYY
-  ];
-
-  return datePatterns.some(pattern => pattern.test(value)) && !isNaN(Date.parse(value));
-}
-
-/**
  * Create filter rule from simple parameters
  */
 export function createFilterRule(
@@ -349,17 +274,5 @@ export function createFilterRule(
     value,
     caseSensitive: false,
     ...options
-  };
-}
-
-/**
- * Quick filters for common DFIR scenarios
- */
-export function createDFIRFilter(preset: keyof typeof DFIR_FILTER_PRESETS, column: number): FilterRule {
-  return {
-    column,
-    type: 'custom',
-    condition: 'equals', // Not used for custom functions
-    customFunction: DFIR_FILTER_PRESETS[preset]
   };
 }

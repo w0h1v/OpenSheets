@@ -1,6 +1,7 @@
 /*
  * Type surface of relayCore.mjs for the TypeScript callers (the Vite dev
- * plugin). Keep in step with the runtime module.
+ * plugin and consumers of `opensheets/server`). Keep in step with the
+ * runtime module.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { WebSocket, WebSocketServer } from 'ws';
@@ -28,6 +29,29 @@ export interface CellUpdate {
   data?: { value?: unknown; [key: string]: unknown } | null;
 }
 
+export interface RelayLimits {
+  maxFrameBytes: number;
+  maxBodyBytes: number;
+  maxUpdatesPerMessage: number;
+  maxCellBytes: number;
+  maxCellsPerSheet: number;
+  maxSheets: number;
+  snapshotTtlSeconds: number;
+  maxRows: number;
+  maxCols: number;
+  messagesPerSecond: number;
+  messageBurst: number;
+  connectionsPerIp: number;
+  maxPresence: number;
+  authRequestsPerMinute: number;
+  loginFailuresBeforeLock: number;
+  loginLockMs: number;
+  registrationsPerHour: number;
+  futureSkewMs: number;
+}
+
+export declare const DEFAULT_LIMITS: Readonly<RelayLimits>;
+
 export interface RelayBus {
   kind: 'memory' | 'redis';
   init(): Promise<void>;
@@ -35,21 +59,26 @@ export interface RelayBus {
   publish(channel: string, message: unknown): Promise<void>;
   subscribe(channel: string, handler: (message: any) => void): Promise<void>;
   getSnapshot(sheetId: string): Promise<Map<string, unknown> | null>;
-  applyCellUpdates(sheetId: string, updates: CellUpdate[]): Promise<void>;
-  presenceJoin(clientId: string, session: string, user: RelayUser): Promise<{ first: boolean; left: RelayUser | null }>;
+  /** Stores what fits within the caps and resolves with the updates that were stored. */
+  applyCellUpdates(sheetId: string, updates: CellUpdate[]): Promise<CellUpdate[]>;
+  presenceGet(clientId: string): Promise<{ clientId: string; session: string; secretHash: string; user: RelayUser } | null>;
+  /** Resolves null when the presence cap is reached. */
+  presenceJoin(clientId: string, session: string, user: RelayUser, secretHash: string): Promise<{ first: boolean; left: RelayUser | null } | null>;
   presenceLeave(clientId: string, session: string): Promise<{ last: boolean; user: RelayUser | null }>;
   presenceList(): Promise<PresenceEntry[]>;
 }
 
 export declare class MemoryBus implements RelayBus {
+  constructor(limits?: RelayLimits);
   kind: 'memory';
   init(): Promise<void>;
   close(): Promise<void>;
   publish(channel: string, message: unknown): Promise<void>;
   subscribe(channel: string, handler: (message: any) => void): Promise<void>;
   getSnapshot(sheetId: string): Promise<Map<string, unknown> | null>;
-  applyCellUpdates(sheetId: string, updates: CellUpdate[]): Promise<void>;
-  presenceJoin(clientId: string, session: string, user: RelayUser): Promise<{ first: boolean; left: RelayUser | null }>;
+  applyCellUpdates(sheetId: string, updates: CellUpdate[]): Promise<CellUpdate[]>;
+  presenceGet(clientId: string): Promise<{ clientId: string; session: string; secretHash: string; user: RelayUser } | null>;
+  presenceJoin(clientId: string, session: string, user: RelayUser, secretHash: string): Promise<{ first: boolean; left: RelayUser | null } | null>;
   presenceLeave(clientId: string, session: string): Promise<{ last: boolean; user: RelayUser | null }>;
   presenceList(): Promise<PresenceEntry[]>;
 }
@@ -58,6 +87,7 @@ export interface RedisBusOptions {
   prefix?: string;
   heartbeatMs?: number;
   staleMs?: number;
+  limits?: RelayLimits;
 }
 
 export declare class RedisBus implements RelayBus {
@@ -69,13 +99,14 @@ export declare class RedisBus implements RelayBus {
   publish(channel: string, message: unknown): Promise<void>;
   subscribe(channel: string, handler: (message: any) => void): Promise<void>;
   getSnapshot(sheetId: string): Promise<Map<string, unknown> | null>;
-  applyCellUpdates(sheetId: string, updates: CellUpdate[]): Promise<void>;
-  presenceJoin(clientId: string, session: string, user: RelayUser): Promise<{ first: boolean; left: RelayUser | null }>;
+  applyCellUpdates(sheetId: string, updates: CellUpdate[]): Promise<CellUpdate[]>;
+  presenceGet(clientId: string): Promise<{ clientId: string; session: string; secretHash: string; user: RelayUser } | null>;
+  presenceJoin(clientId: string, session: string, user: RelayUser, secretHash: string): Promise<{ first: boolean; left: RelayUser | null } | null>;
   presenceLeave(clientId: string, session: string): Promise<{ last: boolean; user: RelayUser | null }>;
   presenceList(): Promise<PresenceEntry[]>;
 }
 
-export declare function createBus(env?: NodeJS.ProcessEnv): RelayBus;
+export declare function createBus(env?: NodeJS.ProcessEnv, limits?: RelayLimits): RelayBus;
 
 export declare const DEFAULT_DATA_DIR: string;
 export declare const ACCOUNT_COLORS: string[];
@@ -93,6 +124,7 @@ export interface StoredAccount {
 export interface AccountBackend {
   init(): Promise<void>;
   all(): Promise<StoredAccount[]>;
+  count(): Promise<number>;
   put(account: StoredAccount): Promise<void>;
 }
 
@@ -100,6 +132,7 @@ export declare class FileAccountBackend implements AccountBackend {
   constructor(dataDir?: string);
   init(): Promise<void>;
   all(): Promise<StoredAccount[]>;
+  count(): Promise<number>;
   put(account: StoredAccount): Promise<void>;
 }
 
@@ -107,6 +140,7 @@ export declare class RedisAccountBackend implements AccountBackend {
   constructor(client: unknown, key: string);
   init(): Promise<void>;
   all(): Promise<StoredAccount[]>;
+  count(): Promise<number>;
   put(account: StoredAccount): Promise<void>;
 }
 
@@ -116,7 +150,7 @@ export interface Session {
 }
 
 export declare class AccountStore {
-  constructor(backend?: string | AccountBackend);
+  constructor(backend?: string | AccountBackend, options?: { maxAccounts?: number });
   init(): Promise<void>;
   register(name: string, password: string): Promise<Session>;
   login(name: string, password: string): Promise<Session>;
@@ -126,16 +160,32 @@ export declare class AccountStore {
 
 export declare function createAccountStore(bus: RelayBus, dataDir?: string): AccountStore;
 
-export interface Relay {
-  handleHttp(req: IncomingMessage, res: ServerResponse): Promise<boolean>;
-  handleConnection(ws: WebSocket): void;
-  attach(server: UpgradeableServer, options?: { rejectOthers?: boolean }): WebSocketServer;
-  close(): Promise<void>;
-  instance: string;
+export interface AuthorizeContext {
+  user: RelayUser;
+  action: 'read' | 'write';
+  sheetId: string;
 }
 
-export declare function createRelay(options: {
+export interface RelayOptions {
   bus: RelayBus;
   accounts: AccountStore;
   log?: Pick<Console, 'error'>;
-}): Relay;
+  /** 'same-host' (default), an explicit list of origins, or true to accept any. */
+  allowedOrigins?: 'same-host' | string[] | true;
+  /** Trust cf-connecting-ip / x-forwarded-for for rate limiting. */
+  trustProxy?: boolean;
+  limits?: Partial<RelayLimits>;
+  /** Decide whether a user may read or write a sheet; default allows everything. */
+  authorize?: (ctx: AuthorizeContext) => boolean | Promise<boolean>;
+}
+
+export interface Relay {
+  handleHttp(req: IncomingMessage, res: ServerResponse): Promise<boolean>;
+  handleConnection(ws: WebSocket, req: IncomingMessage): void;
+  attach(server: UpgradeableServer, options?: { rejectOthers?: boolean }): WebSocketServer;
+  close(): Promise<void>;
+  instance: string;
+  limits: RelayLimits;
+}
+
+export declare function createRelay(options: RelayOptions): Relay;

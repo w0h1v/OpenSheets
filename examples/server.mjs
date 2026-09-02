@@ -20,6 +20,10 @@ import { createRelay, createBus, createAccountStore } from '../server/relayCore.
  *                        instance, in-memory
  *   OPENSHEETS_DATA_DIR  where accounts.json lives (default examples/data);
  *                        with REDIS_URL accounts live in Redis instead
+ *   ALLOWED_ORIGINS      comma-separated origins allowed to open the WebSocket
+ *                        (default: only the origin the page was served from)
+ *   TRUST_PROXY          set to 1 behind a reverse proxy or Cloudflare so rate
+ *                        limits apply to the real client address
  */
 
 const PORT = Number(process.env.PORT || 8080);
@@ -43,7 +47,10 @@ if (bus.kind === 'redis') console.log(`OpenSheets relay: connecting to Redis at 
 await bus.init();
 const accounts = createAccountStore(bus, DATA_DIR);
 await accounts.init();
-const relay = createRelay({ bus, accounts });
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
+  : 'same-host';
+const relay = createRelay({ bus, accounts, allowedOrigins, trustProxy: process.env.TRUST_PROXY === '1' });
 
 const server = createServer(async (req, res) => {
   try {

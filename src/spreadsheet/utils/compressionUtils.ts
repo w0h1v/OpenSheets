@@ -118,39 +118,3 @@ function fallbackDecompress(compressed: string): string {
   
   return result;
 }
-
-// Estimate compression ratio
-export function estimateCompressionRatio(original: string, compressed: string): number {
-  if (original.length === 0) return 0;
-  return Math.round((1 - compressed.length / original.length) * 100);
-}
-
-// Check if data should be compressed (based on size and content)
-export function shouldCompress(data: string, threshold: number = 1024): boolean {
-  // Don't compress if too small
-  if (data.length < threshold) return false;
-  
-  // Check for already compressed data (high entropy)
-  const entropy = calculateEntropy(data.slice(0, 1000)); // Sample first 1000 chars
-  
-  // If entropy is very high, data might already be compressed
-  return entropy < 7.5;
-}
-
-function calculateEntropy(str: string): number {
-  const freq: Record<string, number> = {};
-  
-  for (const char of str) {
-    freq[char] = (freq[char] || 0) + 1;
-  }
-  
-  let entropy = 0;
-  const len = str.length;
-  
-  for (const count of Object.values(freq)) {
-    const p = count / len;
-    entropy -= p * Math.log2(p);
-  }
-  
-  return entropy;
-}

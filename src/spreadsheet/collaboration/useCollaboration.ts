@@ -4,7 +4,7 @@ import {
   setCollabUsers, pushCollabToast, CollabUser,
 } from './presenceStore';
 import {
-  getIdentity, subscribeAuth, getAuthToken, getClientId, adoptServerIdentity, Identity,
+  getIdentity, subscribeAuth, getAuthToken, getClientSlot, setClientSlot, adoptServerIdentity, Identity,
 } from './authStore';
 import { setEditAuthor, editStampWins, beginRemoteApply, endRemoteApply } from '../utils/editContext';
 import { keyOf } from '../types/spreadsheet';
@@ -15,8 +15,8 @@ import { keyOf } from '../types/spreadsheet';
  *  - incoming: remote cell edits applied via dispatch, roster updates
  * Identity comes from authStore (the signed-in account, else a per-tab
  * guest); the relay confirms it in the roster reply and is authoritative.
- * Each tab also has a clientId so several tabs of one account coexist:
- * echo suppression is per tab, presence is per person. The first-hop CRDT
+ * The relay assigns each tab a client id so several tabs of one account
+ * coexist: echo suppression is per tab, presence is per person. The first-hop CRDT
  * in crdt.ts stamps edits with user + timestamp.
  */
 
@@ -47,7 +47,7 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
   // Reconnects whenever the identity changes (sign in / out, in any tab)
   useEffect(() => {
     if (!enabled) return;
-    const clientId = getClientId();
+    let clientId = getClientSlot()?.clientId ?? null;
     let selfId = identity.id;
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
 
@@ -98,7 +98,8 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
         reconnectAttempt = 0;
         setEditAuthor(selfId);
         // The token decides who we are; the user claim only shapes a guest
-        socket.send(JSON.stringify({ type: 'hello', clientId, token: getAuthToken(), user: identity }));
+        const slot = getClientSlot();
+        socket.send(JSON.stringify({ type: 'hello', ...(slot || {}), token: getAuthToken(), user: identity }));
         // Ask the server for a snapshot; applied only if we have no local data
         socket.send(JSON.stringify({ type: 'sync', sheetId }));
         syncSnapshot();
@@ -119,6 +120,10 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
         }
 
         if (msg.type === 'roster') {
+          if (typeof msg.clientId === 'string' && typeof msg.clientSecret === 'string') {
+            clientId = msg.clientId;
+            setClientSlot({ clientId: msg.clientId, clientSecret: msg.clientSecret });
+          }
           if (msg.you) {
             // The relay's answer is authoritative (it may have rejected our
             // token or normalized a guest id); our edits are stamped with it
@@ -167,7 +172,7 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
           return;
         }
 
-        if (msg.clientId === clientId) return; // own echo (the relay already skips us)
+        if (clientId && msg.clientId === clientId) return; // own echo (the relay already skips us)
         // Another tab of our own account is a peer for edits but not for presence
         const ownAccount = msg.user?.id === selfId;
 

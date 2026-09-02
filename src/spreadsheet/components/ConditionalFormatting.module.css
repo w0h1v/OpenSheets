@@ -209,7 +209,7 @@
 }
 
 /* Templates Tab */
-.templatesTab, .dfirTab {
+.templatesTab {
   display: flex;
   flex-direction: column;
 }
@@ -221,13 +221,13 @@
   line-height: 1.4;
 }
 
-.templatesList, .dfirRulesList {
+.templatesList {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
 }
 
-.templateCard, .dfirRuleCard {
+.templateCard {
   background: white;
   border: 1px solid #dadce0;
   border-radius: 6px;
@@ -235,26 +235,26 @@
   transition: all 0.15s ease;
 }
 
-.templateCard:hover, .dfirRuleCard:hover {
+.templateCard:hover {
   border-color: #1a73e8;
   box-shadow: 0 2px 8px rgba(26, 115, 232, 0.1);
 }
 
-.templateHeader, .dfirRuleHeader {
+.templateHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
 }
 
-.templateHeader h4, .dfirRuleHeader h4 {
+.templateHeader h4 {
   margin: 0;
   font-size: 14px;
   font-weight: 500;
   color: #3c4043;
 }
 
-.templatePreview, .dfirRulePreview {
+.templatePreview {
   width: 40px;
   height: 20px;
   border-radius: 3px;
@@ -266,14 +266,14 @@
   font-weight: 500;
 }
 
-.templateDescription, .dfirRuleDescription {
+.templateDescription {
   font-size: 12px;
   color: #5f6368;
   margin: 0 0 12px 0;
   line-height: 1.3;
 }
 
-.templateButton, .dfirRuleButton {
+.templateButton {
   width: 100%;
   padding: 8px 12px;
   border: 1px solid #dadce0;
@@ -285,21 +285,12 @@
   transition: all 0.15s ease;
 }
 
-.templateButton:hover, .dfirRuleButton:hover {
+.templateButton:hover {
   background: #f1f3f4;
   border-color: #1a73e8;
 }
 
-.dfirRuleButton {
-  background: #e8f0fe;
-  color: #1a73e8;
-  border-color: #1a73e8;
-}
 
-.dfirRuleButton:hover {
-  background: #1a73e8;
-  color: white;
-}
 
 /* Trigger Button */
 .triggerButton {
@@ -334,7 +325,7 @@
     padding: 16px;
   }
 
-  .templatesList, .dfirRulesList {
+  .templatesList {
     grid-template-columns: 1fr;
   }
 
