@@ -67,7 +67,7 @@
             </button>
           </div>
           <p id="copy-status" class="sr-only" aria-live="polite"></p>
-          <p class="fine">The <a href="https://www.npmjs.com/package/opensheets">package on npm</a> is published from GitHub releases with npm provenance.</p>
+          <p class="fine">Releases are published to npm from GitHub releases, with npm provenance linking each version to its commit.</p>
         </div>
 
         <div class="callout" role="note">
@@ -236,7 +236,7 @@
           <figcaption>Two collaborators on one sheet, each with their own selection colour.</figcaption>
         </figure>
 
-        <p class="caveat">The relay hashes passwords and session tokens, but it has no rate limiting and its permission checks are enforced by the client. Put your own authentication and rate limiting in front of it before exposing it to the public internet; the details are in the <a href="https://github.com/w0h1v/OpenSheets/blob/main/SECURITY.md">security policy</a>.</p>
+        <p class="caveat">The relay checks the origin of connections, rate-limits connections, messages and sign-in, caps sizes, and enforces protected-range ownership. What it does not do is decide who may open which sheet: every connected client can read and write every sheet unless you supply an authorize hook. The <a href="https://github.com/w0h1v/OpenSheets/blob/main/SECURITY.md">security policy</a> has the details.</p>
       </div>
     </section>
 

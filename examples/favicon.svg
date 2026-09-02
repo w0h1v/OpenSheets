@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="32" height="32">
+  <!-- The app's GridGlyphIcon (src/spreadsheet/components/icons.tsx) on the demo header's accent tile -->
+  <rect width="16" height="16" rx="3.5" fill="#0284c7"/>
+  <g transform="translate(2.4 2.4) scale(0.7)" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2" y="2" width="12" height="12" rx="1.5"/>
+    <path d="M2 6.5h12M6.5 2v12"/>
+  </g>
+</svg>
