@@ -358,8 +358,6 @@ const TabPresence: React.FC<{ sheetId: string; activeSheet: string }> = ({ sheet
 
 const ProtectionHost: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const { state, dispatch } = useSpreadsheet();
-  // Hooks run unconditionally: the early return used to sit above useState,
-  // which changed the hook count when the dialog opened
   const [description, setDescription] = useState('');
   const identity = useSyncExternalStore(subscribeAuth, getIdentity);
   if (!open) return null;
