@@ -119,7 +119,9 @@ export const CellRenderer: React.FC<Props> = memo(({ row, col }) => {
     // Apply formatting to the value
     const text = formatCellValue(value, cellData.format);
     return { value, text, isNumeric: typeof value === 'number' };
-    // crossSheetVersion re-evaluates =Sheet1!A1-style formulas live
+    // crossSheetVersion is not read here; it changes when another sheet's
+    // data does, which is what makes =Sheet1!A1-style formulas re-evaluate
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cellData, getCell, crossSheetVersion]);
 
   // Numbers too wide for the column render as #### instead of spilling
@@ -227,7 +229,7 @@ export const CellRenderer: React.FC<Props> = memo(({ row, col }) => {
     }
 
     return style;
-  }, [cellData?.format, isSelected, isActive, displayValue.value, displayValue.isNumeric, displayValue.text, getCell, row, col, coveringMerge, state.colWidths, state.rowHeights]);
+  }, [cellData?.format, isSelected, isActive, displayValue.value, displayValue.isNumeric, displayValue.text, showsHashes, getCell, row, col, coveringMerge, state.data, state.colWidths, state.rowHeights]);
 
   // Get validation rule for this cell
   const validation = useMemo(() => {

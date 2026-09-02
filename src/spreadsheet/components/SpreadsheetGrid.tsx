@@ -440,7 +440,7 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
         } 
       },
     ].map(item => item.label === '---' ? { label: item.label, onClick: () => {} } : item);
-  }, [contextMenu, state.selection.ranges, state.data, state.maxRows, state.maxCols, dispatch, focusGrid]);
+  }, [contextMenu, state.selection.ranges, state.data, dispatch, focusGrid]);
 
   // Handle file import
   const handleFileImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {

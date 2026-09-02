@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { ValidationRule } from '../types/spreadsheet';
 import { useClickOutside } from '../hooks/useClickOutside';
 import styles from './CellDropdown.module.css';
@@ -48,6 +48,20 @@ export const CellDropdown: React.FC<CellDropdownProps> = ({
     return allOptions;
   }, [validation.list, validation.allowCustomValues, validation.searchable, currentValue, searchTerm]);
 
+  const handleSelect = useCallback((value: string) => {
+    if (validation.multiSelect) {
+      // Comma-separated values; picks accumulate while the dropdown is open
+      const newValues = selectedValues.includes(value)
+        ? selectedValues.filter(v => v !== value)
+        : [...selectedValues, value];
+      setSelectedValues(newValues);
+      onSelect(newValues.join(', '));
+    } else {
+      onSelect(value);
+      onClose();
+    }
+  }, [validation.multiSelect, selectedValues, onSelect, onClose]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
@@ -79,7 +93,7 @@ export const CellDropdown: React.FC<CellDropdownProps> = ({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIndex, options, searchTerm, validation.allowCustomValues, onClose]);
+  }, [selectedIndex, options, searchTerm, validation.allowCustomValues, handleSelect, onClose]);
 
   useClickOutside(dropdownRef, onClose);
 
@@ -92,26 +106,6 @@ export const CellDropdown: React.FC<CellDropdownProps> = ({
       }
     }
   }, [validation.searchable, currentValue]);
-
-  const handleSelect = (value: string) => {
-    if (validation.multiSelect) {
-      // Handle multi-select (comma-separated values); track selections
-      // locally so multiple picks accumulate within one open session
-      const currentValues = selectedValues;
-      if (currentValues.includes(value)) {
-        const newValues = currentValues.filter(v => v !== value);
-        setSelectedValues(newValues);
-        onSelect(newValues.join(', '));
-      } else {
-        const newValues = [...currentValues, value];
-        setSelectedValues(newValues);
-        onSelect(newValues.join(', '));
-      }
-    } else {
-      onSelect(value);
-      onClose();
-    }
-  };
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);

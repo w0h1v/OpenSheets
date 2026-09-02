@@ -252,11 +252,8 @@ const CollabLayer: React.FC<{
   stateRef.current = state;
   useEffect(() => {
     registerSheetData(sheetName, state.data);
-    return () => unregisterSheetData(sheetName);
-  }, [sheetName]);
-  useEffect(() => {
-    registerSheetData(sheetName, state.data);
   }, [sheetName, state.data]);
+  useEffect(() => () => unregisterSheetData(sheetName), [sheetName]);
   const { send } = useCollaboration({
     sheetId,
     getState: () => stateRef.current,
