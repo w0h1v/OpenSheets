@@ -1,0 +1,754 @@
+/*
+ * opensheets.dev — plain CSS over the same token layer the component uses
+ * (src/spreadsheet/styles/tokens.css, "Crisp" design). Light values on
+ * :root, dark values via prefers-color-scheme. No build step, no fonts
+ * fetched: system stack only.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --ink: #0f172a;
+  --text: #1e293b;
+  --muted: #475569;
+  --faint: #94a3b8;
+  --border: #e2e8f0;
+  --hover: #f1f5f9;
+  --accent: #0284c7;
+  --accent-hov: #0369a1;
+  --accent-contrast: #ffffff;
+  --tabbg: #f8fafc;
+  --cellbg: #ffffff;
+  --headline: #cbd5e1;
+
+  --gridline: #eef2f6;
+  --grid-header-bg: #f8fafc;
+  --grid-header-text: #64748b;
+  --grid-header-tint: #e0f2fe;
+  --grid-header-tint-text: #0369a1;
+  --grid-range-fill: rgba(2, 132, 199, 0.08);
+
+  --menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+
+  /*
+   * Page-only tokens. Text-sized accent uses (links, the primary button)
+   * take the palette's darker shade in light mode: #0284c7 on white is
+   * 4.10:1, under the 4.5:1 needed for body text, while #0369a1 is 5.93:1.
+   * Icons and the focus ring keep --accent (non-text, 3:1 is enough).
+   */
+  --action: var(--accent-hov);
+  --action-hov: color-mix(in srgb, var(--accent-hov) 85%, black);
+  --code-keyword: #0369a1;
+  --code-string: #15803d;
+  --code-tag: #0f172a;
+  --code-attr: #6d28d9;
+
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f172a;
+    --panel: #16213a;
+    --ink: #f1f5f9;
+    --text: #dbe4f0;
+    --muted: #94a3b8;
+    --faint: #64748b;
+    --border: #263650;
+    --hover: #22304a;
+    --accent: #38bdf8;
+    --accent-hov: #7dd3fc;
+    --accent-contrast: #0b1424;
+    --tabbg: #0b1424;
+    --cellbg: #0f172a;
+    --headline: #33455f;
+
+    --gridline: #1c2a42;
+    --grid-header-bg: #16213a;
+    --grid-header-text: #8fa3c0;
+    --grid-header-tint: #1e3a55;
+    --grid-header-tint-text: #7dd3fc;
+    --grid-range-fill: rgba(56, 189, 248, 0.1);
+
+    --menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+
+    --action: var(--accent);
+    --action-hov: var(--accent-hov);
+    --code-keyword: #7dd3fc;
+    --code-string: #86efac;
+    --code-tag: #f1f5f9;
+    --code-attr: #c4b5fd;
+  }
+}
+
+/* ---------- Base ---------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.55 var(--font);
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--ink);
+  line-height: 1.2;
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--action);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.15em;
+}
+
+a:hover {
+  color: var(--action-hov);
+}
+
+code,
+pre,
+kbd {
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+
+p code,
+li code,
+dd code {
+  background: var(--hover);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.05em 0.35em;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+svg {
+  flex: none;
+}
+
+/* Visible keyboard focus, same ring as the component */
+a:focus-visible,
+button:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip {
+  position: absolute;
+  left: 1rem;
+  top: -3rem;
+  z-index: 10;
+  padding: 0.5rem 0.8rem;
+  background: var(--action);
+  color: var(--accent-contrast);
+  border-radius: 6px;
+  text-decoration: none;
+}
+
+.skip:focus {
+  top: 0.75rem;
+}
+
+.wrap {
+  width: min(100% - 2rem, 68rem);
+  margin-inline: auto;
+}
+
+/* ---------- Header ---------- */
+
+.site-header {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.site-header .wrap {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  min-height: 56px;
+  padding-block: 0.5rem;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 15px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.brand:hover {
+  color: var(--ink);
+}
+
+/* Same 26px accent tile as the demo header's .logo */
+.mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.site-nav {
+  margin-left: auto;
+}
+
+.site-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 0.25rem;
+}
+
+.site-nav a {
+  display: inline-block;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.site-nav a:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+/* ---------- Sections ---------- */
+
+.section {
+  padding-block: 3.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.section-head {
+  max-width: 40rem;
+  margin-bottom: 1.75rem;
+}
+
+.section h2 {
+  font-size: clamp(1.4rem, 2.6vw, 1.75rem);
+  margin-bottom: 0.5rem;
+}
+
+.section-head p {
+  color: var(--muted);
+}
+
+/* ---------- Hero ---------- */
+
+.hero {
+  padding-block: 3.5rem 2.5rem;
+}
+
+.hero h1 {
+  font-size: clamp(2.25rem, 6vw, 3.25rem);
+  letter-spacing: -0.02em;
+  margin-bottom: 0.75rem;
+}
+
+.lead {
+  max-width: 38rem;
+  font-size: clamp(1.05rem, 2.2vw, 1.2rem);
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.75rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 42px;
+  padding: 0.4rem 1.1rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.btn-primary {
+  background: var(--action);
+  border-color: var(--action);
+  color: var(--accent-contrast);
+}
+
+.btn-primary:hover {
+  background: var(--action-hov);
+  border-color: var(--action-hov);
+  color: var(--accent-contrast);
+}
+
+.btn-secondary {
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--ink);
+}
+
+.btn-secondary:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.install-block {
+  margin-top: 1.75rem;
+}
+
+.install {
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--tabbg);
+  overflow: hidden;
+}
+
+.install code {
+  padding: 0.6rem 0.95rem;
+  font-size: 0.95rem;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+.install code::before {
+  content: '$ ';
+  color: var(--grid-header-text);
+}
+
+.copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.85rem;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease;
+}
+
+.copy:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.copy:focus-visible {
+  outline-offset: -2px;
+}
+
+.copy .icon-check {
+  display: none;
+}
+
+.copy.is-copied {
+  color: var(--action);
+}
+
+.copy.is-copied .icon-copy {
+  display: none;
+}
+
+.copy.is-copied .icon-check {
+  display: block;
+}
+
+.fine {
+  margin-top: 0.6rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* Callout: mirrors the demo's toast (3px accent edge) */
+.callout {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  margin-top: 2rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--panel);
+  font-size: 0.95rem;
+}
+
+.callout svg {
+  color: var(--accent);
+  margin-top: 0.15rem;
+}
+
+/* ---------- Screenshot slots ---------- */
+
+.shot {
+  margin: 2rem 0 0;
+}
+
+.shot-frame {
+  aspect-ratio: 16 / 10;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: var(--tabbg);
+  background-image:
+    linear-gradient(var(--gridline) 1px, transparent 1px),
+    linear-gradient(90deg, var(--gridline) 1px, transparent 1px);
+  background-size: 96px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shot-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 1rem;
+}
+
+.shot figcaption {
+  margin-top: 0.6rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* ---------- Feature cards ---------- */
+
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: 1rem;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.1rem 1.2rem 1.2rem;
+  background: var(--panel);
+}
+
+.card h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 1.02rem;
+  margin-bottom: 0.45rem;
+}
+
+.card h3 svg {
+  color: var(--accent);
+}
+
+.card p {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+/* ---------- Collaboration ---------- */
+
+.flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.6rem;
+  margin: 0 0 2rem;
+}
+
+.flow-box {
+  flex: 1 1 12rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  background: var(--panel);
+  font-size: 0.92rem;
+}
+
+.flow-box strong {
+  display: block;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.flow-box span {
+  color: var(--muted);
+}
+
+.flow-box.is-optional {
+  border-style: dashed;
+}
+
+.flow-arrow {
+  align-self: center;
+  color: var(--grid-header-text);
+  padding: 0 0.1rem;
+}
+
+.collab-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+  gap: 1rem 2rem;
+  margin: 0;
+}
+
+.collab-list dt {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.collab-list dd {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.caveat {
+  margin-top: 2rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+  max-width: 46rem;
+}
+
+/* ---------- Use it ---------- */
+
+.code {
+  margin: 0;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--tabbg);
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.6;
+  overflow-x: auto;
+  tab-size: 2;
+}
+
+.code .k { color: var(--code-keyword); }
+.code .s { color: var(--code-string); }
+.code .t { color: var(--code-tag); font-weight: 600; }
+.code .a { color: var(--code-attr); }
+
+.entries {
+  margin: 1.5rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.entries li {
+  margin-bottom: 0.5rem;
+  color: var(--muted);
+}
+
+.entries li strong,
+.facts li strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* ---------- How it is built ---------- */
+
+.facts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+  gap: 0.75rem 2rem;
+}
+
+.facts li {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  color: var(--muted);
+  padding: 0.35rem 0;
+}
+
+.facts li svg {
+  color: var(--accent);
+  margin-top: 0.3rem;
+}
+
+.facts-note {
+  margin-top: 1.5rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+/* ---------- Footer ---------- */
+
+.site-footer {
+  border-top: 1px solid var(--border);
+  background: var(--tabbg);
+  padding-block: 1.5rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.site-footer .wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.5rem;
+}
+
+.site-footer ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin-left: auto;
+}
+
+.site-footer a {
+  color: var(--muted);
+}
+
+.site-footer a:hover {
+  color: var(--ink);
+}
+
+/* ---------- 404 ---------- */
+
+.notfound {
+  padding-block: 5rem;
+  max-width: 36rem;
+}
+
+.notfound h1 {
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  margin-bottom: 0.75rem;
+}
+
+.notfound p {
+  color: var(--muted);
+}
+
+/* ---------- Motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* ---------- Narrow screens ---------- */
+
+@media (max-width: 480px) {
+  .section {
+    padding-block: 2.5rem;
+  }
+
+  .hero {
+    padding-block: 2.5rem 2rem;
+  }
+
+  .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .install {
+    display: flex;
+  }
+
+  /* At 360px the prompt plus the button is a few pixels too wide */
+  .install code {
+    flex: 1;
+    font-size: 0.86rem;
+    padding-inline: 0.8rem;
+  }
+
+  .install code::before {
+    content: none;
+  }
+
+  .site-header .wrap {
+    gap: 0.5rem 0.75rem;
+  }
+
+  .site-nav a {
+    padding: 0.35rem 0.45rem;
+  }
+}
