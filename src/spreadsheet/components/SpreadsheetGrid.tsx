@@ -485,6 +485,14 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
     return () => document.removeEventListener('focusin', handleFocus);
   }, [state.editing]);
 
+  // The in-cell editor holds focus while it is open; when it closes, focus
+  // returns to the grid so keyboard navigation continues without a click
+  const wasEditing = useRef(false);
+  useEffect(() => {
+    if (wasEditing.current && !state.editing && document.activeElement === document.body) focusGrid();
+    wasEditing.current = Boolean(state.editing);
+  }, [state.editing, focusGrid]);
+
   // Announce cell navigation for screen readers
   useEffect(() => {
     if (state.selection.active) {
