@@ -12,6 +12,18 @@ Landing page: [opensheets.dev](https://opensheets.dev).
 The package is not on npm yet. Releases will be published from GitHub
 releases with npm provenance; see [Development](#development).
 
+## Scope
+
+OpenSheets is a lightweight, embeddable grid for applications that need
+spreadsheet behaviour inside a React page: one runtime dependency, a
+formula engine that never executes text as code, and collaboration that
+runs on a relay you host. It is not a Google Sheets replacement. The
+built-in formula library covers the common functions (the HyperFormula
+entry gives you the full set), charts are basic, there are no pivot tables,
+and the interface is mouse and keyboard first. If you need the heavyweight
+option, look at Handsontable, AG Grid or Univer. The
+[issues](https://github.com/w0h1v/OpenSheets/issues) list what is planned.
+
 ## Install
 
 ```bash
@@ -146,8 +158,10 @@ implementation. Loaded documents are validated before they are applied.
 The hook connects the provider's state to a relay and keeps every client
 convergent: cell edits carry a last-writer stamp, document fields (merges,
 protected ranges, filters, frozen panes, sizes) carry one each, and the
-higher stamp wins. It reconnects with backoff and queues what it could not
-send while offline.
+higher stamp wins. This is last-writer-wins per cell, not a CRDT: when two
+people type into the same cell at the same moment, the later edit is the one
+everyone ends up with, and text is not merged character by character. It
+reconnects with backoff and queues what it could not send while offline.
 
 ```tsx
 import { useRef } from 'react';

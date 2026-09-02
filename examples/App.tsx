@@ -847,7 +847,7 @@ const MenuBar: React.FC<{
     { label: 'Keyboard shortcuts', onClick: onShortcuts },
     {
       label: 'About OpenSheets',
-      onClick: () => void alert({ title: 'OpenSheets', message: 'An open-source, Google Sheets-style spreadsheet component for React.' }),
+      onClick: () => void alert({ title: 'OpenSheets', message: 'A lightweight, embeddable, collaborative spreadsheet grid for React. MIT licensed.' }),
     },
   ];
 
