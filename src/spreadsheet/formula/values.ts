@@ -81,7 +81,7 @@ export const toNumber = (value: ScalarValue): number | FormulaError => {
 };
 
 // 15 significant digits, the precision spreadsheets display, so 0.1+0.2 reads as 0.3
-export const numberToText = (n: number): string => String(Number(n.toPrecision(15)));
+const numberToText = (n: number): string => String(Number(n.toPrecision(15)));
 
 export const toText = (value: ScalarValue): string => {
   if (value === null) return '';

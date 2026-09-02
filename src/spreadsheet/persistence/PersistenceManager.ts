@@ -2,7 +2,6 @@ import { PersistenceAdapter, PersistedState, SaveResult, SyncStatus, Version } f
 import { SpreadsheetState } from '../types/spreadsheet';
 import { LocalStorageAdapter } from './LocalStorageAdapter';
 
-export type PersistenceMode = 'local';
 
 interface PersistenceManagerConfig {
   spreadsheetId: string;

@@ -59,7 +59,7 @@ export { columnToLetter, letterToColumn } from './spreadsheet/utils/columnUtils'
 export { parseCellRef, cellRefToString, cellsInRange, evaluateFormula, FORMULA_FUNCTIONS } from './spreadsheet/utils/formulaUtils';
 export type { FormulaFunctionInfo } from './spreadsheet/formula/functions';
 export { normalizeRect, isCellInSelection, singleCellSelection } from './spreadsheet/utils/selectionUtils';
-export { parseCSV, exportToCSV, downloadCSV, importFromCSVFile } from './spreadsheet/utils/csvUtils';
+export { parseCSV, exportToCSV, downloadCSV, importFromCSVFile, type CSVOptions } from './spreadsheet/utils/csvUtils';
 export { formatCellValue, autoDetectFormat, PREDEFINED_FORMATS } from './spreadsheet/utils/formatUtils';
 export type { NumberFormatOptions, DateFormatOptions } from './spreadsheet/utils/formatUtils';
 export { applyFilters, sortData, getColumnUniqueValues, createFilterRule } from './spreadsheet/utils/filterUtils';
