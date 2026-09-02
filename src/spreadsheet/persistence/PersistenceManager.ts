@@ -24,7 +24,7 @@ const PERSISTED_VERSION = '2.0.0';
 export class PersistenceManager {
   private readonly adapter: PersistenceAdapter;
   private readonly config: PersistenceManagerConfig;
-  private inFlight: Promise<SaveResult> | null = null;
+  private inFlight: Promise<unknown> | null = null;
 
   constructor(config: PersistenceManagerConfig) {
     this.config = config;
@@ -84,9 +84,10 @@ export class PersistenceManager {
       return result;
     };
     const next = (this.inFlight ?? Promise.resolve()).then(run, run);
-    this.inFlight = next.finally(() => {
-      if (this.inFlight === next) this.inFlight = null;
-    });
+    // The queue only needs to know when this save settled. Swallowing the
+    // outcome here keeps a rejected save from also surfacing as an unhandled
+    // rejection; the caller still receives it through the returned promise.
+    this.inFlight = next.then(() => undefined, () => undefined);
     return next;
   }
 

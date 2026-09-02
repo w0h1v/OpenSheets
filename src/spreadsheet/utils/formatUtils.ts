@@ -320,12 +320,10 @@ function applyDateFormat(date: Date, formatStr: string): string {
     'ddd': date.toLocaleString('en-US', { weekday: 'short' }),
   };
 
-  let result = formatStr;
-  Object.entries(replacements).forEach(([pattern, replacement]) => {
-    result = result.replace(new RegExp(pattern, 'g'), replacement);
-  });
-
-  return result;
+  // One pass, longest token first: replacing sequentially would rewrite the
+  // letters of an already-substituted month or weekday name (MMMM -> "May",
+  // whose M then became the month number)
+  return formatStr.replace(/YYYY|YY|MMMM|MMM|MM|M|DD|D|dddd|ddd/g, (token) => replacements[token]);
 }
 
 /**
