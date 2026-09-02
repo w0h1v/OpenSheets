@@ -1,6 +1,6 @@
 import { spreadsheetReducer } from '../reducers/spreadsheetReducer';
 import { SpreadsheetAction } from '../types/actions';
-import { CellData, SelectionRect, SpreadsheetState, keyOf } from '../types/spreadsheet';
+import { CellData, DEFAULT_COL_WIDTH, DEFAULT_ROW_HEIGHT, SelectionRect, SpreadsheetState, keyOf } from '../types/spreadsheet';
 import { setEditAuthor } from '../utils/editContext';
 
 const rect = (startRow: number, startCol: number, endRow: number, endCol: number): SelectionRect =>
@@ -187,7 +187,7 @@ describe('spreadsheetReducer', () => {
 
     it('inserts default heights, grows the grid and shifts merges', () => {
       const next = reduce(state, { type: 'INSERT_ROW', payload: { index: 1 } });
-      expect(next.rowHeights).toEqual([10, 28, 11, 12, 13]);
+      expect(next.rowHeights).toEqual([10, DEFAULT_ROW_HEIGHT, 11, 12, 13]);
       expect(next.maxRows).toBe(21);
       // A merge below moves, a merge spanning the index grows, a merge above stays
       expect(next.merges).toEqual([rect(3, 0, 4, 0), rect(0, 2, 3, 2), rect(0, 3, 0, 3)]);
@@ -197,7 +197,7 @@ describe('spreadsheetReducer', () => {
       const next = reduce(state, { type: 'INSERT_ROW', payload: { index: 0, count: 2 } });
       expect(valueAt(next, 2, 0)).toBe(1);
       expect(formulaAt(next, 2, 1)).toBe('=A5');
-      expect(next.rowHeights).toEqual([28, 28, 10, 11, 12, 13]);
+      expect(next.rowHeights).toEqual([DEFAULT_ROW_HEIGHT, DEFAULT_ROW_HEIGHT, 10, 11, 12, 13]);
       expect(next.maxRows).toBe(22);
     });
   });
@@ -227,7 +227,7 @@ describe('spreadsheetReducer', () => {
 
     it('inserts default widths, grows the grid and shifts merges', () => {
       const next = reduce(state, { type: 'INSERT_COLUMN', payload: { index: 1, count: 1 } });
-      expect(next.colWidths).toEqual([50, 100, 60, 70, 80]);
+      expect(next.colWidths).toEqual([50, DEFAULT_COL_WIDTH, 60, 70, 80]);
       expect(next.maxCols).toBe(21);
       expect(next.merges).toEqual([rect(0, 3, 0, 4), rect(0, 0, 0, 3), rect(3, 0, 3, 0)]);
     });
@@ -625,10 +625,8 @@ describe('spreadsheetReducer', () => {
     });
   });
 
-  it('UNDO, REDO and unknown actions leave the state untouched', () => {
+  it('leaves the state untouched for an unknown action', () => {
     const state = makeState();
-    expect(reduce(state, { type: 'UNDO' })).toBe(state);
-    expect(reduce(state, { type: 'REDO' })).toBe(state);
     expect(reduce(state, { type: 'NOT_AN_ACTION' } as unknown as SpreadsheetAction)).toBe(state);
   });
 });

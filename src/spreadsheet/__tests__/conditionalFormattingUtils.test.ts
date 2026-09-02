@@ -1,7 +1,5 @@
 import {
   evaluateConditionalFormat,
-  applyConditionalFormatting,
-  getApplicableConditionalFormats,
   combineConditionalFormats,
 } from '../utils/conditionalFormattingUtils';
 import * as formulaUtils from '../utils/formulaUtils';
@@ -191,32 +189,6 @@ describe('conditionalFormattingUtils', () => {
   it('never matches an unknown rule type or a missing rule', () => {
     expect(matches(1, rule('gradient' as ConditionalFormat['type'], 'equal', 1))).toBe(false);
     expect(matches(1, null as unknown as ConditionalFormat)).toBe(false);
-  });
-
-  describe('applyConditionalFormatting', () => {
-    it('returns the base format (or an empty one) when the rule does not apply', () => {
-      expect(applyConditionalFormatting({ bold: true }, { italic: true }, false)).toEqual({ bold: true });
-      expect(applyConditionalFormatting(undefined, { italic: true }, false)).toEqual({});
-    });
-
-    it('layers the conditional format over the base, keeping base borders when the rule has none', () => {
-      const borders = { top: { color: 'red' } };
-      expect(applyConditionalFormatting({ bold: true, borders }, { italic: true }, true)).toEqual({ bold: true, italic: true, borders });
-      const ruleBorders = { left: { color: 'blue' } };
-      expect(applyConditionalFormatting({ borders }, { borders: ruleBorders }, true)).toEqual({ borders: ruleBorders });
-    });
-  });
-
-  describe('getApplicableConditionalFormats', () => {
-    it('collects the formats of the rules that match, in order', () => {
-      const rules: ConditionalFormat[] = [
-        { type: 'cellValue', condition: 'greaterThan', value1: 10, format: { bold: true } },
-        { type: 'cellValue', condition: 'lessThan', value1: 10, format: { italic: true } },
-        { type: 'textContains', condition: 'contains', value1: '5', format: { color: 'red' } },
-      ];
-      expect(getApplicableConditionalFormats(15, 0, 0, noData, rules)).toEqual([{ bold: true }, { color: 'red' }]);
-      expect(getApplicableConditionalFormats(2, 0, 0, noData, rules)).toEqual([{ italic: true }]);
-    });
   });
 
   describe('combineConditionalFormats', () => {

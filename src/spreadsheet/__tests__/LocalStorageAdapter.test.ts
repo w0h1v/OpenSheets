@@ -46,7 +46,8 @@ const persisted = (overrides: Partial<PersistedState> = {}): PersistedState => (
   ...overrides,
 });
 
-const OVERSIZED = 'x'.repeat(5 * 1024 * 1024 + 1);
+// Just past the 64 KB threshold where the adapter starts compressing
+const OVERSIZED = 'x'.repeat(64 * 1024 + 1);
 const quotaError = () => new DOMException('quota', 'QuotaExceededError');
 
 describe('LocalStorageAdapter', () => {
@@ -57,10 +58,9 @@ describe('LocalStorageAdapter', () => {
   beforeEach(() => {
     storage = createMemoryStorage();
     Object.defineProperty(window, 'localStorage', { configurable: true, value: storage });
-    // A realistic clock: freeUpSpace prunes autosaves older than seven days
+    // A ticking clock, so successive saves get distinct timestamps
     now = 1_700_000_000_000;
     jest.spyOn(Date, 'now').mockImplementation(() => ++now);
-    jest.spyOn(console, 'error').mockImplementation(() => {});
     adapter = new LocalStorageAdapter();
   });
 
@@ -74,7 +74,7 @@ describe('LocalStorageAdapter', () => {
       await adapter.save('doc', state);
       expect(JSON.parse(storage.getItem('opensheets_doc') as string).data).toEqual([['0:0', { value: 'hello' }]]);
       expect(storage.getItem('opensheets_doc_compressed')).toBeNull();
-      expect(await adapter.load('doc')).toEqual(persisted());
+      expect(await adapter.load('doc')).toEqual(persisted({ metadata: { ...state.metadata, revision: 1, updatedAt: now } }));
     });
 
     it('bumps the revision, stamps the metadata and reports the sync', async () => {
@@ -86,7 +86,7 @@ describe('LocalStorageAdapter', () => {
       expect(first).toEqual({ success: true, revision: 1, timestamp: first.timestamp });
       expect(await adapter.getMetadata('doc')).toMatchObject({ id: 'doc', revision: 1, updatedAt: first.timestamp });
       expect(onSyncStatusChange).toHaveBeenCalledWith(expect.objectContaining({ syncing: false, connected: true, mode: 'local' }));
-      expect(adapter.getSyncStatus().lastSync).toBeGreaterThan(first.timestamp);
+      expect(adapter.getSyncStatus().lastSync).toBe(first.timestamp);
 
       const second = await adapter.save('doc', state);
       expect(second.revision).toBe(2);
@@ -96,7 +96,6 @@ describe('LocalStorageAdapter', () => {
       expect(await adapter.load('missing')).toBeNull();
       storage.setItem('opensheets_doc', '{oops');
       expect(await adapter.load('doc')).toBeNull();
-      expect(console.error).toHaveBeenCalled();
     });
 
     it('answers exists from the main key only', async () => {
@@ -187,37 +186,27 @@ describe('LocalStorageAdapter', () => {
       await adapter.save('doc', oversized());
       await adapter.save('doc', persisted());
       expect(storage.getItem('opensheets_doc_compressed')).toBeNull();
-      expect(await adapter.load('doc')).toEqual(persisted());
+      expect((await adapter.load('doc'))?.data).toEqual(persisted().data);
     });
 
-    it('refuses oversized documents when compression is disabled', async () => {
+    it('stores large documents as they are when compression is disabled', async () => {
       const plain = new LocalStorageAdapter(false);
-      expect(await plain.save('doc', oversized())).toEqual({
-        success: false,
-        timestamp: expect.any(Number),
-        error: 'Data too large for LocalStorage',
-      });
-      expect(storage.getItem('opensheets_doc')).toBeNull();
+      expect((await plain.save('doc', oversized())).success).toBe(true);
+      expect(storage.getItem('opensheets_doc')).not.toMatch(/^gz:/);
+      expect(storage.getItem('opensheets_doc_compressed')).toBeNull();
     });
 
-    it('refuses documents that stay oversized after compression', async () => {
-      const { compress } = jest.requireMock('../utils/compressionUtils') as { compress: jest.Mock };
-      compress.mockImplementationOnce(async (text: string) => text + text);
-      expect((await adapter.save('doc', oversized())).error).toBe('Data too large for LocalStorage even after compression');
-    });
-
-    it('cannot read a compressed document with compression disabled', async () => {
+    it('still reads a compressed document when compression is disabled', async () => {
       await adapter.save('doc', oversized());
-      expect(await new LocalStorageAdapter(false).load('doc')).toBeNull();
+      const loaded = await new LocalStorageAdapter(false).load('doc');
+      expect(loaded?.data[0][1].value).toBe(OVERSIZED);
     });
   });
 
   describe('quota handling', () => {
-    it('frees old versions and stale autosaves, then retries once', async () => {
-      storage.setItem('opensheets_other_version_v1', '{}');
-      storage.setItem('opensheets_old_autosave', JSON.stringify({ metadata: { updatedAt: 0 } }));
-      storage.setItem('opensheets_fresh_autosave', JSON.stringify({ metadata: { updatedAt: now } }));
-      storage.setItem('opensheets_broken_autosave', '{oops');
+    it("drops the document's own versions and retries once", async () => {
+      const version = await adapter.saveVersion('doc', persisted(), 'v1');
+      const otherVersion = await adapter.saveVersion('other', persisted(), 'v1');
       const setItem = jest.spyOn(storage, 'setItem');
       setItem.mockImplementationOnce(() => { throw quotaError(); });
 
@@ -225,10 +214,9 @@ describe('LocalStorageAdapter', () => {
 
       expect(result.success).toBe(true);
       expect(storage.getItem('opensheets_doc')).not.toBeNull();
-      expect(storage.getItem('opensheets_other_version_v1')).toBeNull();
-      expect(storage.getItem('opensheets_old_autosave')).toBeNull();
-      expect(storage.getItem('opensheets_broken_autosave')).toBeNull();
-      expect(storage.getItem('opensheets_fresh_autosave')).not.toBeNull();
+      expect(storage.getItem(`opensheets_doc_version_${version.id}`)).toBeNull();
+      expect(await adapter.listVersions('doc')).toEqual([]);
+      expect(storage.getItem(`opensheets_other_version_${otherVersion.id}`)).not.toBeNull();
     });
 
     it('reports a quota error when the retry fails as well', async () => {

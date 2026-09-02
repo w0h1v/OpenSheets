@@ -73,25 +73,25 @@ describe('csvUtils', () => {
   describe('exportToCSV', () => {
     it('writes rows up to the last populated cell, filling gaps with empty fields', () => {
       const data = dataOf([[0, 0, { value: 'a' }], [1, 2, { value: 'c' }]]);
-      expect(exportToCSV(data, 100, 100)).toBe('a,,\n,,c');
+      expect(exportToCSV(data)).toBe('a,,\n,,c');
     });
 
     it('quotes values containing the delimiter, quotes or newlines', () => {
       const data = dataOf([[0, 0, { value: 'a,b' }], [0, 1, { value: 'say "hi"' }], [0, 2, { value: 'line\nbreak' }]]);
-      expect(exportToCSV(data, 1, 3)).toBe('"a,b","say ""hi""","line\nbreak"');
+      expect(exportToCSV(data)).toBe('"a,b","say ""hi""","line\nbreak"');
     });
 
     it('exports values by default and formulas when asked', () => {
       const data = dataOf([[0, 0, { value: 3, formula: '=1+2' }], [0, 1, { value: null }]]);
-      expect(exportToCSV(data, 1, 2)).toBe('3,');
-      expect(exportToCSV(data, 1, 2, { includeFormulas: true })).toBe('=1+2,');
+      expect(exportToCSV(data)).toBe('3,');
+      expect(exportToCSV(data, { includeFormulas: true })).toBe('=1+2,');
     });
 
     it('uses the configured line break and delimiter', () => {
       const data = dataOf([[0, 0, { value: 1 }], [1, 0, { value: 2 }]]);
-      expect(exportToCSV(data, 2, 1, { lineBreak: '\r\n', delimiter: ';' })).toBe('1\r\n2');
+      expect(exportToCSV(data, { lineBreak: '\r\n', delimiter: ';' })).toBe('1\r\n2');
       const wide = dataOf([[0, 0, { value: 1 }], [0, 1, { value: 2 }]]);
-      expect(exportToCSV(wide, 1, 2, { delimiter: ';' })).toBe('1;2');
+      expect(exportToCSV(wide, { delimiter: ';' })).toBe('1;2');
     });
 
     it('round-trips through parseCSV', () => {
@@ -100,7 +100,7 @@ describe('csvUtils', () => {
         [1, 0, { value: 12.5 }], [1, 1, { value: 'quote "me", please' }],
         [2, 1, { value: true }],
       ]);
-      const { data } = parseCSV(exportToCSV(original, 3, 2));
+      const { data } = parseCSV(exportToCSV(original));
       expect(valueAt(data, 0, 0)).toBe('name');
       expect(valueAt(data, 1, 0)).toBe(12.5);
       expect(valueAt(data, 1, 1)).toBe('quote "me", please');
@@ -130,7 +130,7 @@ describe('csvUtils', () => {
         clicked.push(this);
       });
 
-      downloadCSV(dataOf([[0, 0, { value: 'a' }]]), 10, 10, 'export.csv');
+      downloadCSV(dataOf([[0, 0, { value: 'a' }]]), 'export.csv');
 
       expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
       expect(clicked).toHaveLength(1);

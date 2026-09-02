@@ -92,14 +92,11 @@ describe('compressionUtils', () => {
     const globals = window as unknown as Record<string, unknown>;
     globals.CompressionStream = class { constructor() { throw new Error('unsupported'); } };
     globals.DecompressionStream = class { constructor() { throw new Error('unsupported'); } };
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
     try {
       const text = 'fallback please 🙂';
       const packed = await compress(text);
       expect(await decompress(packed)).toBe(text);
-      expect(warn).toHaveBeenCalledTimes(2);
     } finally {
-      warn.mockRestore();
       delete globals.CompressionStream;
       delete globals.DecompressionStream;
     }

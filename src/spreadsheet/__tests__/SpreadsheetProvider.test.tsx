@@ -339,10 +339,13 @@ describe('SpreadsheetProvider', () => {
       act(() => { ctx.setCell(0, 0, { value: 'second' }); });
       await waitFor(() => expect(text('history')).toBe('true/false'));
 
-      fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+      // The grid forwards its keyboard shortcuts to this handler
+      const shortcut = (shiftKey: boolean) =>
+        ({ key: 'z', ctrlKey: true, shiftKey, preventDefault: () => {} }) as unknown as React.KeyboardEvent;
+      act(() => { baseCtx.handleUndoRedoKeyDown(shortcut(false)); });
       await waitFor(() => expect(text('a1')).toBe('first'));
 
-      fireEvent.keyDown(window, { key: 'z', ctrlKey: true, shiftKey: true });
+      act(() => { baseCtx.handleUndoRedoKeyDown(shortcut(true)); });
       await waitFor(() => expect(text('a1')).toBe('second'));
     });
 
