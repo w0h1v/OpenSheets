@@ -239,13 +239,27 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
     }
   }, [focusGrid, startSelection, updateSelection]);
 
-  const handleMouseEnter = useCallback((row: number, col: number) => {
+  // Extending a range needs the primary button held, as in Sheets and Excel;
+  // moving the pointer over cells after a click must not grow the selection
+  const handleMouseEnter = useCallback((row: number, col: number, e: React.MouseEvent) => {
+    if (e.buttons !== 1) {
+      endSelection();
+      return;
+    }
     updateSelection(row, col);
-  }, [updateSelection]);
+  }, [updateSelection, endSelection]);
 
   const handleMouseUp = useCallback(() => {
+    if (fillDrag) dispatchFill();
     endSelection();
-  }, [endSelection]);
+  }, [fillDrag, dispatchFill, endSelection]);
+
+  // The button can be released outside the grid (or the window), so listen
+  // on the window rather than only on the grid
+  useEffect(() => {
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => window.removeEventListener('mouseup', handleMouseUp);
+  }, [handleMouseUp]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, row: number, col: number) => {
     e.preventDefault();
@@ -548,10 +562,6 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
   return (
     <div
       style={{ position: 'relative', height: '100%', minWidth: 0 }}
-      onMouseUp={() => {
-        if (fillDrag) dispatchFill();
-        handleMouseUp();
-      }}
     >
       <div
         ref={parentRef}
@@ -734,12 +744,11 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
                     height: '100%',
                   }}
                   onMouseDown={(e) => handleMouseDown(row.index, col.index, e)}
-                  onClick={(e) => handleMouseDown(row.index, col.index, e)}
-                  onMouseEnter={() => {
+                  onMouseEnter={(e) => {
                     if (fillDrag) {
                       setFillDrag({ endRow: row.index, endCol: col.index });
                     } else {
-                      handleMouseEnter(row.index, col.index);
+                      handleMouseEnter(row.index, col.index, e);
                     }
                   }}
                   onContextMenu={(e) => handleContextMenu(e, row.index, col.index)}
@@ -904,8 +913,7 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
                           pointerEvents: 'auto',
                         }}
                         onMouseDown={(e) => handleMouseDown(r, col.index, e)}
-                        onClick={(e) => handleMouseDown(r, col.index, e)}
-                        onMouseEnter={() => !fillDrag && handleMouseEnter(r, col.index)}
+                        onMouseEnter={(e) => !fillDrag && handleMouseEnter(r, col.index, e)}
                         onContextMenu={(e) => handleContextMenu(e, r, col.index)}
                         role="presentation"
                       >
@@ -958,8 +966,7 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
                       pointerEvents: 'auto',
                     }}
                     onMouseDown={(e) => handleMouseDown(row.index, c, e)}
-                    onClick={(e) => handleMouseDown(row.index, c, e)}
-                    onMouseEnter={() => !fillDrag && handleMouseEnter(row.index, c)}
+                    onMouseEnter={(e) => !fillDrag && handleMouseEnter(row.index, c, e)}
                     onContextMenu={(e) => handleContextMenu(e, row.index, c)}
                     role="presentation"
                   >
@@ -998,7 +1005,6 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
                   height: state.rowHeights?.[r] || 22,
                 }}
                 onMouseDown={(e) => handleMouseDown(r, c, e)}
-                onClick={(e) => handleMouseDown(r, c, e)}
                 onContextMenu={(e) => handleContextMenu(e, r, c)}
                 role="presentation"
               >

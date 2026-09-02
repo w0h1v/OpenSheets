@@ -59,7 +59,7 @@ describe('Two grids on one page', () => {
     const { left, right } = renderTwoGrids();
 
     // Clicking a cell focuses that grid's container
-    fireEvent.click(cell(left, 'A1'));
+    fireEvent.mouseDown(cell(left, 'A1'));
     expect(left.getByRole('grid')).toHaveFocus();
 
     await userEvent.keyboard('{ArrowDown}');
@@ -67,7 +67,7 @@ describe('Two grids on one page', () => {
     expect(currentCellLabel(right)).toBeNull();
 
     // Clicking into the other grid moves focus, and keys now drive it alone
-    fireEvent.click(cell(right, 'A1'));
+    fireEvent.mouseDown(cell(right, 'A1'));
     expect(right.getByRole('grid')).toHaveFocus();
 
     await userEvent.keyboard('{ArrowRight}');
@@ -78,7 +78,7 @@ describe('Two grids on one page', () => {
   it('starts editing only in the focused grid when typing', async () => {
     const { left, right } = renderTwoGrids();
 
-    fireEvent.click(cell(right, 'A1'));
+    fireEvent.mouseDown(cell(right, 'A1'));
     await userEvent.keyboard('h');
 
     const editor = await right.findByRole('textbox', { name: /Cell A1 editor/i });
@@ -95,16 +95,16 @@ describe('Two grids on one page', () => {
     const { left, right } = renderTwoGrids();
 
     // Give each grid an edit of its own
-    fireEvent.click(cell(left, 'A1'));
+    fireEvent.mouseDown(cell(left, 'A1'));
     await userEvent.keyboard('one{Enter}');
     await waitFor(() => expect(cell(left, 'A1')).toHaveAccessibleName('Cell A1: one'));
 
-    fireEvent.click(cell(right, 'A1'));
+    fireEvent.mouseDown(cell(right, 'A1'));
     await userEvent.keyboard('two{Enter}');
     await waitFor(() => expect(cell(right, 'A1')).toHaveAccessibleName('Cell A1: two'));
 
     // Undo with the left grid focused reverts the left edit only
-    fireEvent.click(cell(left, 'B2'));
+    fireEvent.mouseDown(cell(left, 'B2'));
     expect(left.getByRole('grid')).toHaveFocus();
     await userEvent.keyboard('{Control>}z{/Control}');
 
@@ -115,24 +115,25 @@ describe('Two grids on one page', () => {
   it('opens the filter panel only in the grid whose toolbar was used', async () => {
     const { left, right } = renderTwoGrids();
 
-    fireEvent.click(cell(left, 'A1'));
+    fireEvent.mouseDown(cell(left, 'A1'));
     fireEvent.click(left.getByTitle('Create a filter'));
 
     expect(await left.findByText(/^Filter Column 1$/)).toBeInTheDocument();
     expect(right.queryByText(/Filter Column/)).toBeNull();
 
-    // The other grid opens its own panel without touching the first
-    fireEvent.click(cell(right, 'B1'));
+    // Pressing in the other grid dismisses the first panel (it is a press
+    // outside it) and that grid opens its own panel from its own store
+    fireEvent.mouseDown(cell(right, 'B1'));
     fireEvent.click(right.getByTitle('Create a filter'));
 
     expect(await right.findByText(/^Filter Column 2$/)).toBeInTheDocument();
-    expect(left.getByText(/^Filter Column 1$/)).toBeInTheDocument();
+    expect(left.queryByText(/Filter Column/)).toBeNull();
   });
 
   it('does not treat keys typed in the formula bar as grid shortcuts', async () => {
     const { left } = renderTwoGrids();
 
-    fireEvent.click(cell(left, 'A1'));
+    fireEvent.mouseDown(cell(left, 'A1'));
     const formulaInput = left.getByPlaceholderText(/Enter value or formula/i);
     formulaInput.focus();
     await userEvent.keyboard('{ArrowDown}x');

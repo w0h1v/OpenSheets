@@ -39,7 +39,7 @@ describe('Spreadsheet Integration Tests', () => {
       
       // Click on first cell
       const firstCell = screen.getByRole('gridcell', { name: /Cell A1/i });
-      fireEvent.click(firstCell);
+      fireEvent.mouseDown(firstCell);
       
       // Press arrow down
       fireEvent.keyDown(grid(), { key: 'ArrowDown' });
@@ -74,7 +74,7 @@ describe('Spreadsheet Integration Tests', () => {
       render(<TestSpreadsheet />);
       
       const firstCell = screen.getByRole('gridcell', { name: /Cell A1/i });
-      fireEvent.click(firstCell);
+      fireEvent.mouseDown(firstCell);
       
       // Press Tab
       fireEvent.keyDown(grid(), { key: 'Tab' });
@@ -99,7 +99,7 @@ describe('Spreadsheet Integration Tests', () => {
       render(<TestSpreadsheet initialData={initialData} />);
       
       const firstCell = screen.getByRole('gridcell', { name: /Cell A1/i });
-      fireEvent.click(firstCell);
+      fireEvent.mouseDown(firstCell);
       
       // Press Ctrl+ArrowDown
       fireEvent.keyDown(grid(), { key: 'ArrowDown', ctrlKey: true });
@@ -139,7 +139,7 @@ describe('Spreadsheet Integration Tests', () => {
       render(<TestSpreadsheet />);
       
       const cell = screen.getByRole('gridcell', { name: /Cell A1/i });
-      fireEvent.click(cell);
+      fireEvent.mouseDown(cell);
       fireEvent.keyDown(grid(), { key: 'Enter' });
       
       await waitFor(() => {
@@ -188,7 +188,7 @@ describe('Spreadsheet Integration Tests', () => {
       render(<TestSpreadsheet />);
       
       const cell = screen.getByRole('gridcell', { name: /Cell A1/i });
-      fireEvent.click(cell);
+      fireEvent.mouseDown(cell);
       fireEvent.keyDown(grid(), { key: 'a' });
       
       await waitFor(() => {
@@ -207,7 +207,7 @@ describe('Spreadsheet Integration Tests', () => {
       render(<TestSpreadsheet initialData={initialData} />);
       
       const cell = screen.getByRole('gridcell', { name: /Cell A1/i });
-      fireEvent.click(cell);
+      fireEvent.mouseDown(cell);
       
       await waitFor(() => {
         const formulaInput = screen.getByPlaceholderText(/Enter value or formula/i);
@@ -219,7 +219,7 @@ describe('Spreadsheet Integration Tests', () => {
       render(<TestSpreadsheet />);
       
       const cell = screen.getByRole('gridcell', { name: /Cell A1/i });
-      fireEvent.click(cell);
+      fireEvent.mouseDown(cell);
       
       const formulaInput = screen.getByPlaceholderText(/Enter value or formula/i);
       await userEvent.clear(formulaInput);
@@ -237,10 +237,10 @@ describe('Spreadsheet Integration Tests', () => {
       render(<TestSpreadsheet />);
       
       const firstCell = screen.getByRole('gridcell', { name: /Cell A1/i });
-      fireEvent.click(firstCell);
+      fireEvent.mouseDown(firstCell);
       
       const lastCell = screen.getByRole('gridcell', { name: /Cell B2/i });
-      fireEvent.click(lastCell, { shiftKey: true });
+      fireEvent.mouseDown(lastCell, { shiftKey: true });
       
       await waitFor(() => {
         const selectedCells = screen.getAllByRole('gridcell', { selected: true });
@@ -248,11 +248,42 @@ describe('Spreadsheet Integration Tests', () => {
       });
     });
 
+    it('extends the range only while the button is held', async () => {
+      render(<TestSpreadsheet />);
+      const a1 = screen.getByRole('gridcell', { name: /Cell A1/i });
+      const b2 = screen.getByRole('gridcell', { name: /Cell B2/i });
+
+      fireEvent.mouseDown(a1);
+      fireEvent.mouseEnter(b2, { buttons: 1 });
+      await waitFor(() => {
+        expect(screen.getAllByRole('gridcell', { selected: true })).toHaveLength(4);
+      });
+
+      // Once the button is released, a wandering pointer changes nothing
+      fireEvent.mouseUp(window);
+      fireEvent.mouseEnter(screen.getByRole('gridcell', { name: /Cell C3/i }), { buttons: 0 });
+      expect(screen.getAllByRole('gridcell', { selected: true })).toHaveLength(4);
+    });
+
+    it('does not keep selecting after a completed click', async () => {
+      render(<TestSpreadsheet />);
+      const a1 = screen.getByRole('gridcell', { name: /Cell A1/i });
+      fireEvent.mouseDown(a1);
+      fireEvent.mouseUp(a1);
+      fireEvent.click(a1);
+
+      fireEvent.mouseEnter(screen.getByRole('gridcell', { name: /Cell B2/i }), { buttons: 0 });
+      await waitFor(() => {
+        expect(a1).toHaveAttribute('aria-current', 'true');
+      });
+      expect(screen.getAllByRole('gridcell', { selected: true })).toHaveLength(1);
+    });
+
     it('should extend selection with Shift+Arrow', async () => {
       render(<TestSpreadsheet />);
       
       const cell = screen.getByRole('gridcell', { name: /Cell A1/i });
-      fireEvent.click(cell);
+      fireEvent.mouseDown(cell);
       
       fireEvent.keyDown(grid(), { key: 'ArrowRight', shiftKey: true });
       fireEvent.keyDown(grid(), { key: 'ArrowDown', shiftKey: true });
@@ -267,10 +298,10 @@ describe('Spreadsheet Integration Tests', () => {
       render(<TestSpreadsheet />);
       
       const cell1 = screen.getByRole('gridcell', { name: /Cell A1/i });
-      fireEvent.click(cell1);
+      fireEvent.mouseDown(cell1);
       
       const cell2 = screen.getByRole('gridcell', { name: /Cell C3/i });
-      fireEvent.click(cell2, { ctrlKey: true });
+      fireEvent.mouseDown(cell2, { ctrlKey: true });
       
       await waitFor(() => {
         expect(cell1).toHaveAttribute('aria-selected', 'true');
@@ -288,12 +319,12 @@ describe('Spreadsheet Integration Tests', () => {
       
       // Select and copy first cell
       const sourceCell = screen.getByRole('gridcell', { name: /Cell A1/i });
-      fireEvent.click(sourceCell);
+      fireEvent.mouseDown(sourceCell);
       fireEvent.keyDown(grid(), { key: 'c', ctrlKey: true });
       
       // Select and paste to another cell
       const targetCell = screen.getByRole('gridcell', { name: /Cell B2/i });
-      fireEvent.click(targetCell);
+      fireEvent.mouseDown(targetCell);
       
       // Mock clipboard API
       const clipboardData = new DataTransfer();
@@ -313,11 +344,11 @@ describe('Spreadsheet Integration Tests', () => {
       render(<TestSpreadsheet initialData={initialData} />);
       
       const sourceCell = screen.getByRole('gridcell', { name: /Cell A1/i });
-      fireEvent.click(sourceCell);
+      fireEvent.mouseDown(sourceCell);
       fireEvent.keyDown(grid(), { key: 'x', ctrlKey: true });
       
       const targetCell = screen.getByRole('gridcell', { name: /Cell B2/i });
-      fireEvent.click(targetCell);
+      fireEvent.mouseDown(targetCell);
       
       const clipboardData = new DataTransfer();
       clipboardData.setData('text/plain', 'Cut Me');
