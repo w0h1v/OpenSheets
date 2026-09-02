@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
 import { useSpreadsheet } from '../SpreadsheetContext';
-import { ConditionalFormat, SelectionRect } from '../types/spreadsheet';
+import { ConditionalFormat, SelectionRect, CellData, keyOf } from '../types/spreadsheet';
+import { columnToLetter } from '../utils/columnUtils';
+import { CloseIcon } from './icons';
 import styles from './ConditionalFormatting.module.css';
+
+const rangeToA1 = (r: SelectionRect) =>
+  `${columnToLetter(r.startCol)}${r.startRow + 1}:${columnToLetter(r.endCol)}${r.endRow + 1}`;
 
 interface ConditionalFormattingProps {
   isVisible: boolean;
@@ -25,82 +30,52 @@ export const ConditionalFormattingPanel: React.FC<ConditionalFormattingProps> = 
     }
   });
 
-  // Try persisted context first, fall back to enhanced
-  const context = useSpreadsheet();
+  const { state, dispatch } = useSpreadsheet();
 
-  if (!context || !isVisible) {
-    return null;
-  }
-
-  const { state, setCell } = context;
+  const targetRange = (range?: SelectionRect): SelectionRect => range || selectedRange || {
+    startRow: 0,
+    startCol: 0,
+    endRow: Math.min(state.maxRows - 1, 100),
+    endCol: Math.min(state.maxCols - 1, 10),
+  };
 
   const applyConditionalFormat = (rule: ConditionalFormat, range?: SelectionRect) => {
-    const targetRange = range || selectedRange || {
-      startRow: 0,
-      startCol: 0,
-      endRow: Math.min(state.maxRows - 1, 100),
-      endCol: Math.min(state.maxCols - 1, 10)
-    };
-
-    for (let row = targetRange.startRow; row <= targetRange.endRow; row++) {
-      for (let col = targetRange.startCol; col <= targetRange.endCol; col++) {
-        const cellKey = `${row}:${col}`;
-        const existingCell = state.data.get(cellKey);
-        
-        setCell(row, col, {
-          value: existingCell?.value || '',
-          format: {
-            ...existingCell?.format,
-            conditionalFormat: rule
-          }
-        });
+    const target = targetRange(range);
+    const updates: Array<{ row: number; col: number; data: Partial<CellData> }> = [];
+    for (let row = target.startRow; row <= target.endRow; row++) {
+      for (let col = target.startCol; col <= target.endCol; col++) {
+        const existing = state.data.get(keyOf(row, col));
+        updates.push({ row, col, data: { value: existing?.value ?? '', format: { ...existing?.format, conditionalFormat: rule } } });
       }
     }
-    
+    dispatch({ type: 'SET_CELLS', payload: { updates } });
     onClose();
   };
 
-  const predefinedRules = [
+  // Templates are formula rules over the range they are applied to; `value`
+  // stands for the cell being tested (see conditionalFormattingUtils)
+  const rangeText = rangeToA1(targetRange());
+  const predefinedRules: Array<{ name: string; description: string; rule: ConditionalFormat }> = [
     {
-      name: 'Highlight Duplicates',
-      description: 'Highlight duplicate values in red',
-      rule: {
-        type: 'formula' as const,
-        condition: 'equal' as const,
-        value1: 'COUNTIF(range, value) > 1',
-        format: { backgroundColor: '#ff9999', color: '#000000' }
-      }
+      name: 'Duplicates',
+      description: 'Values that appear more than once in the range',
+      rule: { type: 'formula', condition: 'equal', value1: `COUNTIF(${rangeText}, value) > 1`, format: { backgroundColor: '#ff9999', color: '#000000' } },
     },
     {
-      name: 'Top 10 Values',
-      description: 'Highlight top 10 highest values',
-      rule: {
-        type: 'cellValue' as const,
-        condition: 'greaterThan' as const,
-        value1: 'PERCENTILE(range, 0.9)',
-        format: { backgroundColor: '#99ff99', color: '#000000' }
-      }
+      name: 'Above average',
+      description: 'Values greater than the average of the range',
+      rule: { type: 'formula', condition: 'equal', value1: `value > AVERAGE(${rangeText})`, format: { backgroundColor: '#99ff99', color: '#000000' } },
     },
     {
-      name: 'Bottom 10 Values',  
-      description: 'Highlight bottom 10 lowest values',
-      rule: {
-        type: 'cellValue' as const,
-        condition: 'lessThan' as const,
-        value1: 'PERCENTILE(range, 0.1)',
-        format: { backgroundColor: '#ffcccc', color: '#000000' }
-      }
+      name: 'Below average',
+      description: 'Values less than the average of the range',
+      rule: { type: 'formula', condition: 'equal', value1: `value < AVERAGE(${rangeText})`, format: { backgroundColor: '#ffcccc', color: '#000000' } },
     },
     {
-      name: 'Above Average',
-      description: 'Highlight values above average',
-      rule: {
-        type: 'cellValue' as const,
-        condition: 'greaterThan' as const,
-        value1: 'AVERAGE(range)',
-        format: { backgroundColor: '#cce5ff', color: '#000000' }
-      }
-    }
+      name: 'Empty cells',
+      description: 'Cells with nothing in them',
+      rule: { type: 'formula', condition: 'equal', value1: 'value = ""', format: { backgroundColor: '#fff3cd', color: '#000000' } },
+    },
   ];
 
   if (!isVisible) return null;
@@ -110,7 +85,7 @@ export const ConditionalFormattingPanel: React.FC<ConditionalFormattingProps> = 
       <div className={styles.panel}>
         <div className={styles.header}>
           <h3>Conditional Formatting</h3>
-          <button className={styles.closeButton} onClick={onClose}>✕</button>
+          <button className={styles.closeButton} onClick={onClose} title="Close" aria-label="Close"><CloseIcon /></button>
         </div>
 
         <div className={styles.tabs}>

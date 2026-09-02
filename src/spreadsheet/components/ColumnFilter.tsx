@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FilterRule } from '../types/spreadsheet';
+import { useClickOutside } from '../hooks/useClickOutside';
+import { CloseIcon } from './icons';
 import styles from './ColumnFilter.module.css';
 
 interface ColumnFilterProps {
@@ -33,27 +35,15 @@ export const ColumnFilter: React.FC<ColumnFilterProps> = ({
   
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Initialize selected values from existing filters
   useEffect(() => {
     const existingFilter = existingFilters.find(f => f.column === column);
     if (!existingFilter) {
-      // Select all values by default
       const allValues = new Set(columnData.map(item => String(item.value)));
       setSelectedValues(allValues);
     }
   }, [column, existingFilters, columnData]);
 
-  // Handle clicks outside to close
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        onClose();
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [onClose]);
+  useClickOutside(dropdownRef, onClose);
 
   const filteredData = columnData.filter(item =>
     String(item.value).toLowerCase().includes(searchText.toLowerCase())
@@ -82,13 +72,11 @@ export const ColumnFilter: React.FC<ColumnFilterProps> = ({
   const applyValueFilter = () => {
     const newFilters = existingFilters.filter(f => f.column !== column);
     
-    // If not all values are selected, create filter rules
     if (selectedValues.size < columnData.length) {
       const unselectedValues = columnData
         .filter(item => !selectedValues.has(String(item.value)))
         .map(item => item.value);
 
-      // Create "not equals" rules for unselected values
       unselectedValues.forEach(value => {
         newFilters.push({
           column,
@@ -140,7 +128,7 @@ export const ColumnFilter: React.FC<ColumnFilterProps> = ({
     >
       <div className={styles.header}>
         <h3>Filter Column {column + 1}</h3>
-        <button className={styles.closeButton} onClick={onClose}>✕</button>
+        <button className={styles.closeButton} onClick={onClose} title="Close" aria-label="Close"><CloseIcon /></button>
       </div>
 
       <div className={styles.tabs}>
@@ -222,10 +210,10 @@ export const ColumnFilter: React.FC<ColumnFilterProps> = ({
                   onChange={(e) => setCustomRule({...customRule, type: e.target.value as FilterRule['type']})}
                   className={styles.select}
                 >
-                  <option value="text">📝 Text</option>
-                  <option value="number">🔢 Number</option>
-                  <option value="date">📅 Date</option>
-                  <option value="boolean">✓ Boolean</option>
+                  <option value="text">Text</option>
+                  <option value="number">Number</option>
+                  <option value="date">Date</option>
+                  <option value="boolean">Boolean</option>
                 </select>
               </div>
 

@@ -1,6 +1,6 @@
 .dropdown {
-  background: white;
-  border: 1px solid #dadce0;
+  background: var(--os-panel);
+  border: 1px solid var(--os-border);
   border-radius: 4px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   overflow: hidden;
@@ -13,23 +13,23 @@
 
 .searchContainer {
   padding: 8px;
-  border-bottom: 1px solid #e8eaed;
-  background: #f8f9fa;
+  border-bottom: 1px solid var(--os-border);
+  background: var(--os-hover);
 }
 
 .searchInput {
   width: 100%;
   padding: 6px 8px;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--os-border);
   border-radius: 3px;
   font-size: 13px;
   outline: none;
-  background: white;
+  background: var(--os-panel);
 }
 
 .searchInput:focus {
-  border-color: #1a73e8;
-  box-shadow: 0 0 0 1px #1a73e8;
+  border-color: var(--os-accent);
+  box-shadow: 0 0 0 1px var(--os-accent);
 }
 
 .optionsList {
@@ -44,44 +44,44 @@
   padding: 8px 12px;
   cursor: pointer;
   font-size: 13px;
-  color: #3c4043;
+  color: var(--os-text);
   user-select: none;
   transition: background-color 0.1s ease;
 }
 
 .option:hover,
 .option.highlighted {
-  background-color: #f1f3f4;
+  background-color: var(--os-hover);
 }
 
 .option.selected {
-  background-color: #e8f0fe;
-  color: #1a73e8;
+  background-color: var(--os-toolbar-active-bg);
+  color: var(--os-accent);
   font-weight: 500;
 }
 
 .option.highlighted.selected {
-  background-color: #d2e3fc;
+  background-color: var(--os-toolbar-active-bg);
 }
 
 .checkbox {
   width: 16px;
   height: 16px;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--os-border);
   border-radius: 3px;
   margin-right: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 10px;
-  color: #1a73e8;
-  background: white;
+  color: var(--os-accent);
+  background: var(--os-panel);
 }
 
 .checkbox.checked {
-  background-color: #1a73e8;
-  border-color: #1a73e8;
-  color: white;
+  background-color: var(--os-accent);
+  border-color: var(--os-accent);
+  color: var(--os-panel);
 }
 
 .optionText {
@@ -98,7 +98,7 @@
   text-align: left;
   font-family: inherit;
   font-size: inherit;
-  color: #1a73e8;
+  color: var(--os-accent);
   padding: 8px 12px;
   cursor: pointer;
   display: flex;
@@ -106,7 +106,7 @@
 }
 
 .customOption:hover {
-  background-color: #f1f3f4;
+  background-color: var(--os-hover);
 }
 
 .addIcon {
@@ -118,19 +118,19 @@
   justify-content: center;
   font-size: 12px;
   font-weight: bold;
-  color: #1a73e8;
+  color: var(--os-accent);
 }
 
 .separator {
   height: 1px;
-  background-color: #e8eaed;
+  background-color: var(--os-border);
   margin: 4px 0;
 }
 
 .noOptions {
   padding: 16px 12px;
   text-align: center;
-  color: #5f6368;
+  color: var(--os-muted);
   font-size: 13px;
   display: flex;
   flex-direction: column;
@@ -139,8 +139,8 @@
 
 .footer {
   padding: 8px 12px;
-  border-top: 1px solid #e8eaed;
-  background: #f8f9fa;
+  border-top: 1px solid var(--os-border);
+  background: var(--os-hover);
   display: flex;
   justify-content: flex-end;
 }
@@ -149,37 +149,35 @@
   padding: 6px 12px;
   border: none;
   border-radius: 3px;
-  background: #1a73e8;
-  color: white;
+  background: var(--os-accent);
+  color: var(--os-panel);
   font-size: 12px;
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
 
 .doneButton:hover {
-  background: #1557b0;
+  background: var(--os-accent-hov);
 }
 
-/* Scrollbar styling */
 .optionsList::-webkit-scrollbar {
   width: 6px;
 }
 
 .optionsList::-webkit-scrollbar-track {
-  background: #f1f3f4;
+  background: var(--os-hover);
   border-radius: 3px;
 }
 
 .optionsList::-webkit-scrollbar-thumb {
-  background: #dadce0;
+  background: var(--os-border);
   border-radius: 3px;
 }
 
 .optionsList::-webkit-scrollbar-thumb:hover {
-  background: #9aa0a6;
+  background: var(--os-muted);
 }
 
-/* Animation */
 .dropdown {
   animation: dropdownFadeIn 0.15s ease-out;
 }
@@ -195,14 +193,13 @@
   }
 }
 
-/* High contrast mode support */
 @media (prefers-contrast: high) {
   .option.highlighted {
-    background-color: #000;
-    color: #fff;
+    background-color: var(--os-ink);
+    color: var(--os-panel);
   }
   
   .option.selected {
-    outline: 2px solid #000;
+    outline: 2px solid var(--os-ink);
   }
 }

@@ -8,292 +8,161 @@ import {
 } from './types';
 import { compress, decompress } from '../utils/compressionUtils';
 
+// Documents larger than this are compressed before they go into storage
+const COMPRESS_ABOVE = 64 * 1024;
+
+const isQuotaError = (error: unknown) =>
+  error instanceof DOMException && (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED');
+
+/**
+ * Documents in this browser's localStorage, under `opensheets_<id>`, with
+ * named versions kept alongside (the oldest are dropped past maxVersions).
+ */
 export class LocalStorageAdapter implements PersistenceAdapter {
   private readonly prefix = 'opensheets_';
-  private readonly maxStorageSize = 5 * 1024 * 1024; // 5MB limit
-  private syncStatus: SyncStatus = {
-    connected: true,
-    syncing: false,
-    pendingChanges: 0,
-    mode: 'local',
-  };
+  private status: SyncStatus = { connected: true, syncing: false, pendingChanges: 0, mode: 'local' };
+  onSyncStatusChange?: (status: SyncStatus) => void;
 
-  constructor(private enableCompression: boolean = true) {}
+  constructor(private readonly enableCompression = true, private readonly maxVersions = 10) {}
 
   async save(id: string, state: PersistedState): Promise<SaveResult> {
+    const previous = await this.getMetadata(id);
+    const metadata: SpreadsheetMetadata = {
+      ...state.metadata,
+      createdAt: previous?.createdAt ?? state.metadata.createdAt,
+      updatedAt: Date.now(),
+      revision: (previous?.revision ?? 0) + 1,
+    };
+    const payload = JSON.stringify({ ...state, metadata });
     try {
-      const key = this.getKey(id);
-      const serialized = JSON.stringify(state);
-      
-      // Check size before saving
-      if (serialized.length > this.maxStorageSize) {
-        // Try compression
-        if (this.enableCompression) {
-          const compressed = await compress(serialized);
-          if (compressed.length > this.maxStorageSize) {
-            throw new Error('Data too large for LocalStorage even after compression');
-          }
-          localStorage.setItem(key, compressed);
-          localStorage.setItem(`${key}_compressed`, 'true');
-        } else {
-          throw new Error('Data too large for LocalStorage');
-        }
-      } else {
-        localStorage.setItem(key, serialized);
-        localStorage.removeItem(`${key}_compressed`);
+      try {
+        await this.write(this.key(id), payload);
+      } catch (error) {
+        if (!isQuotaError(error)) throw error;
+        // Make room by dropping this document's versions, then try once more
+        await this.dropVersions(id);
+        await this.write(this.key(id), payload);
       }
-
-      // Update metadata
-      const metadata = state.metadata;
-      metadata.updatedAt = Date.now();
-      metadata.revision = (metadata.revision || 0) + 1;
-      
-      this.saveMetadata(id, metadata);
-      
-      // Clean old versions if needed
-      await this.cleanOldVersions(id);
-
-      this.updateSyncStatus({ syncing: false, lastSync: Date.now() });
-
-      return {
-        success: true,
-        timestamp: metadata.updatedAt,
-        revision: metadata.revision,
-      };
+      this.writeMetadata(id, metadata);
+      await this.trimVersions(id);
+      this.setStatus({ syncing: false, lastSync: metadata.updatedAt });
+      return { success: true, timestamp: metadata.updatedAt, revision: metadata.revision };
     } catch (error) {
-      console.error('LocalStorage save failed:', error);
-      
-      // Handle quota exceeded error
-      if (error instanceof DOMException && error.code === 22) {
-        // Try to free up space
-        await this.freeUpSpace();
-        
-        // Retry once
-        try {
-          const key = this.getKey(id);
-          const serialized = JSON.stringify(state);
-          localStorage.setItem(key, serialized);
-          
-          return {
-            success: true,
-            timestamp: Date.now(),
-            revision: state.metadata.revision,
-          };
-        } catch (retryError) {
-          return {
-            success: false,
-            timestamp: Date.now(),
-            error: 'Storage quota exceeded',
-          };
-        }
-      }
-
-      return {
-        success: false,
-        timestamp: Date.now(),
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
+      const message = isQuotaError(error) ? 'Storage quota exceeded' : error instanceof Error ? error.message : 'Save failed';
+      this.setStatus({ syncing: false, error: message });
+      return { success: false, timestamp: Date.now(), error: message };
     }
   }
 
   async load(id: string): Promise<PersistedState | null> {
+    const stored = localStorage.getItem(this.key(id));
+    if (!stored) return null;
+    const compressed = localStorage.getItem(`${this.key(id)}_compressed`) === 'true';
     try {
-      const key = this.getKey(id);
-      const stored = localStorage.getItem(key);
-      
-      if (!stored) {
-        return null;
-      }
-
-      // Check if data is compressed
-      const isCompressed = localStorage.getItem(`${key}_compressed`) === 'true';
-      
-      let data: string;
-      if (isCompressed && this.enableCompression) {
-        data = await decompress(stored);
-      } else {
-        data = stored;
-      }
-
-      return JSON.parse(data);
-    } catch (error) {
-      console.error('LocalStorage load failed:', error);
+      return JSON.parse(compressed ? await decompress(stored) : stored);
+    } catch {
       return null;
     }
   }
 
   async delete(id: string): Promise<void> {
-    const key = this.getKey(id);
-    
-    // Delete main data
-    localStorage.removeItem(key);
-    localStorage.removeItem(`${key}_compressed`);
-    
-    // Delete metadata
-    localStorage.removeItem(`${key}_metadata`);
-    
-    // Delete all versions
-    const versions = await this.listVersions(id);
-    for (const version of versions) {
-      localStorage.removeItem(`${key}_version_${version.id}`);
-    }
-    
-    // Delete version list
-    localStorage.removeItem(`${key}_versions`);
+    const key = this.key(id);
+    for (const version of await this.listVersions(id)) localStorage.removeItem(`${key}_version_${version.id}`);
+    for (const suffix of ['', '_compressed', '_metadata', '_versions']) localStorage.removeItem(`${key}${suffix}`);
   }
 
-  async saveVersion(
-    id: string,
-    state: PersistedState,
-    label?: string
-  ): Promise<Version> {
-    const versionId = `v_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const key = `${this.getKey(id)}_version_${versionId}`;
-    
+  async saveVersion(id: string, state: PersistedState, label?: string): Promise<Version> {
+    const serialized = JSON.stringify(state);
     const version: Version = {
-      id: versionId,
+      id: `v_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
       timestamp: Date.now(),
       label,
       author: state.metadata.lastModifiedBy,
-      size: JSON.stringify(state).length,
+      size: serialized.length,
       revision: state.metadata.revision,
     };
-
-    // Save version data
-    localStorage.setItem(key, JSON.stringify(state));
-    
-    // Update version list
-    const versionList = await this.listVersions(id);
-    versionList.push(version);
-    localStorage.setItem(
-      `${this.getKey(id)}_versions`,
-      JSON.stringify(versionList)
-    );
-
+    localStorage.setItem(`${this.key(id)}_version_${version.id}`, serialized);
+    const versions = await this.listVersions(id);
+    versions.push(version);
+    localStorage.setItem(`${this.key(id)}_versions`, JSON.stringify(versions));
     return version;
   }
 
   async loadVersion(id: string, versionId: string): Promise<PersistedState | null> {
+    const stored = localStorage.getItem(`${this.key(id)}_version_${versionId}`);
+    if (!stored) return null;
     try {
-      const key = `${this.getKey(id)}_version_${versionId}`;
-      const stored = localStorage.getItem(key);
-      
-      if (!stored) {
-        return null;
-      }
-
       return JSON.parse(stored);
-    } catch (error) {
-      console.error('Failed to load version:', error);
+    } catch {
       return null;
     }
   }
 
   async listVersions(id: string): Promise<Version[]> {
     try {
-      const stored = localStorage.getItem(`${this.getKey(id)}_versions`);
-      return stored ? JSON.parse(stored) : [];
+      const stored = localStorage.getItem(`${this.key(id)}_versions`);
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }
   }
 
   async exists(id: string): Promise<boolean> {
-    return localStorage.getItem(this.getKey(id)) !== null;
+    return localStorage.getItem(this.key(id)) !== null;
   }
 
   async getMetadata(id: string): Promise<SpreadsheetMetadata | null> {
     try {
-      const stored = localStorage.getItem(`${this.getKey(id)}_metadata`);
+      const stored = localStorage.getItem(`${this.key(id)}_metadata`);
       return stored ? JSON.parse(stored) : null;
     } catch {
       return null;
     }
   }
 
-  async updateMetadata(
-    id: string,
-    metadata: Partial<SpreadsheetMetadata>
-  ): Promise<void> {
+  async updateMetadata(id: string, metadata: Partial<SpreadsheetMetadata>): Promise<void> {
     const current = await this.getMetadata(id);
-    const updated = { ...current, ...metadata, updatedAt: Date.now() };
-    this.saveMetadata(id, updated as SpreadsheetMetadata);
+    this.writeMetadata(id, { ...current, ...metadata, updatedAt: Date.now() } as SpreadsheetMetadata);
   }
 
   getSyncStatus(): SyncStatus {
-    return this.syncStatus;
+    return this.status;
   }
 
-  // Private helper methods
-
-  private getKey(id: string): string {
+  private key(id: string): string {
     return `${this.prefix}${id}`;
   }
 
-  private saveMetadata(id: string, metadata: SpreadsheetMetadata): void {
-    localStorage.setItem(
-      `${this.getKey(id)}_metadata`,
-      JSON.stringify(metadata)
-    );
-  }
-
-  private updateSyncStatus(updates: Partial<SyncStatus>): void {
-    this.syncStatus = { ...this.syncStatus, ...updates };
-    this.onSyncStatusChange?.(this.syncStatus);
-  }
-
-  private async cleanOldVersions(id: string, maxVersions: number = 10): Promise<void> {
-    const versions = await this.listVersions(id);
-    
-    if (versions.length > maxVersions) {
-      // Sort by timestamp, oldest first
-      versions.sort((a, b) => a.timestamp - b.timestamp);
-      
-      // Remove oldest versions
-      const toRemove = versions.slice(0, versions.length - maxVersions);
-      
-      for (const version of toRemove) {
-        localStorage.removeItem(`${this.getKey(id)}_version_${version.id}`);
-      }
-      
-      // Update version list
-      const remaining = versions.slice(versions.length - maxVersions);
-      localStorage.setItem(
-        `${this.getKey(id)}_versions`,
-        JSON.stringify(remaining)
-      );
+  private async write(key: string, payload: string): Promise<void> {
+    if (this.enableCompression && payload.length > COMPRESS_ABOVE) {
+      localStorage.setItem(key, await compress(payload));
+      localStorage.setItem(`${key}_compressed`, 'true');
+    } else {
+      localStorage.setItem(key, payload);
+      localStorage.removeItem(`${key}_compressed`);
     }
   }
 
-  private async freeUpSpace(): Promise<void> {
-    // Get all OpenSheets keys
-    const keys = Object.keys(localStorage).filter(k => k.startsWith(this.prefix));
-    
-    // Find and remove old versions
-    for (const key of keys) {
-      if (key.includes('_version_')) {
-        localStorage.removeItem(key);
-      }
-    }
-    
-    // Clear old auto-saves
-    const autoSaveKeys = keys.filter(k => k.includes('_autosave'));
-    for (const key of autoSaveKeys) {
-      const data = localStorage.getItem(key);
-      if (data) {
-        try {
-          const parsed = JSON.parse(data);
-          // Remove auto-saves older than 7 days
-          if (Date.now() - parsed.metadata.updatedAt > 7 * 24 * 60 * 60 * 1000) {
-            localStorage.removeItem(key);
-          }
-        } catch {
-          // Invalid data, remove it
-          localStorage.removeItem(key);
-        }
-      }
-    }
+  private writeMetadata(id: string, metadata: SpreadsheetMetadata): void {
+    localStorage.setItem(`${this.key(id)}_metadata`, JSON.stringify(metadata));
   }
 
-  onSyncStatusChange?: (status: SyncStatus) => void;
+  private setStatus(updates: Partial<SyncStatus>): void {
+    this.status = { ...this.status, ...updates };
+    this.onSyncStatusChange?.(this.status);
+  }
+
+  private async trimVersions(id: string): Promise<void> {
+    const versions = (await this.listVersions(id)).sort((a, b) => a.timestamp - b.timestamp);
+    if (versions.length <= this.maxVersions) return;
+    const excess = versions.splice(0, versions.length - this.maxVersions);
+    for (const version of excess) localStorage.removeItem(`${this.key(id)}_version_${version.id}`);
+    localStorage.setItem(`${this.key(id)}_versions`, JSON.stringify(versions));
+  }
+
+  private async dropVersions(id: string): Promise<void> {
+    for (const version of await this.listVersions(id)) localStorage.removeItem(`${this.key(id)}_version_${version.id}`);
+    localStorage.removeItem(`${this.key(id)}_versions`);
+  }
 }

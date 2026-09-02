@@ -1,61 +1,44 @@
-/**
- * Simple compression utilities for reducing storage size
- * Uses browser's native CompressionStream API when available
- * Falls back to basic string compression for older browsers
+/*
+ * Compression for storage adapters: gzip through the platform's
+ * CompressionStream when it exists, otherwise a small LZW encoder. Output
+ * is base64 text in both cases so it can live in localStorage.
  */
 
+const hasStreams = () => typeof CompressionStream !== 'undefined' && typeof DecompressionStream !== 'undefined';
+
+const toBase64 = (bytes: Uint8Array): string => {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+};
+
+const fromBase64 = (text: string): Uint8Array<ArrayBuffer> => {
+  const binary = atob(text);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+};
+
 export async function compress(data: string): Promise<string> {
-  // Check if CompressionStream is available (modern browsers)
-  if ('CompressionStream' in window) {
-    try {
-      const encoder = new TextEncoder();
-      const encoded = encoder.encode(data);
-      
-      const stream = new Response(encoded).body!
-        .pipeThrough(new (window as any).CompressionStream('gzip'));
-      
-      const compressed = await new Response(stream).arrayBuffer();
-      
-      // Convert to base64 for storage
-      return btoa(String.fromCharCode(...new Uint8Array(compressed)));
-    } catch (error) {
-      console.warn('CompressionStream failed, using fallback:', error);
-      return fallbackCompress(data);
-    }
+  if (!hasStreams()) return fallbackCompress(data);
+  try {
+    const stream = new Response(new TextEncoder().encode(data)).body!.pipeThrough(new CompressionStream('gzip'));
+    return toBase64(new Uint8Array(await new Response(stream).arrayBuffer()));
+  } catch {
+    return fallbackCompress(data);
   }
-  
-  // Fallback compression
-  return fallbackCompress(data);
 }
 
 export async function decompress(compressed: string): Promise<string> {
-  // Check if DecompressionStream is available
-  if ('DecompressionStream' in window) {
-    try {
-      // Convert from base64
-      const binaryString = atob(compressed);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      
-      const stream = new Response(bytes).body!
-        .pipeThrough(new (window as any).DecompressionStream('gzip'));
-      
-      const decompressed = await new Response(stream).arrayBuffer();
-      const decoder = new TextDecoder();
-      return decoder.decode(decompressed);
-    } catch (error) {
-      console.warn('DecompressionStream failed, using fallback:', error);
-      return fallbackDecompress(compressed);
-    }
+  if (!hasStreams()) return fallbackDecompress(compressed);
+  try {
+    const stream = new Response(fromBase64(compressed)).body!.pipeThrough(new DecompressionStream('gzip'));
+    return new TextDecoder().decode(await new Response(stream).arrayBuffer());
+  } catch {
+    return fallbackDecompress(compressed);
   }
-  
-  // Fallback decompression
-  return fallbackDecompress(compressed);
 }
 
-// Simple LZ-based compression fallback
 function fallbackCompress(data: string): string {
   if (!data) return '';
   
@@ -87,7 +70,6 @@ function fallbackCompress(data: string): string {
     result.push(dict[word] !== undefined ? dict[word] : word.charCodeAt(0));
   }
   
-  // Convert to string for storage
   return result.map(n => String.fromCharCode(n)).join('');
 }
 

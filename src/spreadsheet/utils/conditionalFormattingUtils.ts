@@ -1,9 +1,6 @@
 import { ConditionalFormat, CellFormat, SparseMatrix, CellData, keyOf } from '../types/spreadsheet';
 import { evaluateFormula } from './formulaUtils';
 
-/**
- * Evaluate if a cell should have conditional formatting applied
- */
 export function evaluateConditionalFormat(
   value: any,
   rule: ConditionalFormat,
@@ -32,9 +29,6 @@ export function evaluateConditionalFormat(
   }
 }
 
-/**
- * Evaluate cell value conditions (numbers, general comparisons)
- */
 function evaluateCellValueCondition(value: any, rule: ConditionalFormat): boolean {
   const cellValue = convertToComparableValue(value);
   const ruleValue = convertToComparableValue(rule.value1);
@@ -73,9 +67,6 @@ function evaluateCellValueCondition(value: any, rule: ConditionalFormat): boolea
   }
 }
 
-/**
- * Evaluate text-specific conditions
- */
 function evaluateTextContainsCondition(value: any, rule: ConditionalFormat): boolean {
   const textValue = String(value).toLowerCase();
   const ruleText = String(rule.value1 || '').toLowerCase();
@@ -110,9 +101,6 @@ function evaluateTextContainsCondition(value: any, rule: ConditionalFormat): boo
   }
 }
 
-/**
- * Evaluate date-specific conditions
- */
 function evaluateDateCondition(value: any, rule: ConditionalFormat): boolean {
   const dateValue = parseDate(value);
   if (!dateValue) return false;
@@ -173,9 +161,6 @@ function evaluateFormulaCondition(
   }
 }
 
-/**
- * Convert value to comparable format (number if possible, string otherwise)
- */
 function convertToComparableValue(value: any): any {
   if (value === null || value === undefined) return 0;
   
@@ -185,9 +170,6 @@ function convertToComparableValue(value: any): any {
   return String(value);
 }
 
-/**
- * Parse date from various formats
- */
 function parseDate(value: any): Date | null {
   if (value instanceof Date) return value;
   
@@ -195,9 +177,6 @@ function parseDate(value: any): Date | null {
   return isNaN(dateValue.getTime()) ? null : dateValue;
 }
 
-/**
- * Parse rule date, handling special keywords like "TODAY()"
- */
 function parseRuleDate(ruleValue: any): Date | null {
   if (!ruleValue) return null;
   
@@ -231,9 +210,6 @@ function parseRuleDate(ruleValue: any): Date | null {
   return parseDate(ruleValue);
 }
 
-/**
- * Apply conditional formatting to a cell's base format
- */
 export function applyConditionalFormatting(
   baseFormat: CellFormat | undefined,
   conditionalFormat: CellFormat,
@@ -251,9 +227,6 @@ export function applyConditionalFormatting(
   };
 }
 
-/**
- * Get all conditional formats that should be applied to a cell
- */
 export function getApplicableConditionalFormats(
   value: any,
   row: number,

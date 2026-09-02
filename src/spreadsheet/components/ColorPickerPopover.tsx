@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
+import { useClickOutside } from '../hooks/useClickOutside';
 import styles from './ColorPicker.module.css';
 
 /*
@@ -40,21 +41,8 @@ export const ColorPickerPopover: React.FC<{
   const [custom, setCustom] = useState(value || '#000000');
   const rootRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
+  const close = useCallback(() => setOpen(false), []);
+  useClickOutside(rootRef, close, open);
 
   const pick = (color: string | undefined) => {
     onChange(color);

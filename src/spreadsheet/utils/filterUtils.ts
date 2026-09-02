@@ -15,11 +15,9 @@ export function applyFilters(
     return hiddenRows;
   }
 
-  // Check each row against all filter rules
   for (let row = 0; row < maxRows; row++) {
     let shouldHide = false;
 
-    // All filter rules must pass (AND logic)
     for (const filter of filters) {
       const cellKey = keyOf(row, filter.column);
       const cellData = data.get(cellKey);
@@ -47,7 +45,6 @@ export function evaluateFilterRule(value: any, rule: FilterRule): boolean {
     return rule.customFunction(value);
   }
 
-  // Handle empty/null values
   const isEmpty = value === null || value === undefined || value === '';
   
   switch (rule.condition) {
@@ -65,7 +62,6 @@ export function evaluateFilterRule(value: any, rule: FilterRule): boolean {
   const stringValue = String(value);
   const ruleValue = String(rule.value || '');
   
-  // Apply case sensitivity for text comparisons
   const compareValue = rule.caseSensitive ? stringValue : stringValue.toLowerCase();
   const compareRuleValue = rule.caseSensitive ? ruleValue : ruleValue.toLowerCase();
 
@@ -178,7 +174,6 @@ export function sortData(
   maxRows: number,
   hiddenRows: Set<number> = new Set()
 ): number[] {
-  // Get all visible row indices with their values
   const rowValues: { row: number; value: any }[] = [];
   
   for (let row = 0; row < maxRows; row++) {
@@ -191,22 +186,18 @@ export function sortData(
     rowValues.push({ row, value });
   }
 
-  // Sort the rows
   rowValues.sort((a, b) => {
     let aVal = a.value;
     let bVal = b.value;
 
-    // Handle numbers
     if (!isNaN(Number(aVal)) && !isNaN(Number(bVal))) {
       aVal = Number(aVal);
       bVal = Number(bVal);
     } 
-    // Handle dates
     else if (isDateString(String(aVal)) && isDateString(String(bVal))) {
       aVal = new Date(aVal).getTime();
       bVal = new Date(bVal).getTime();
     }
-    // Handle strings (case-insensitive)
     else {
       aVal = String(aVal).toLowerCase();
       bVal = String(bVal).toLowerCase();
@@ -245,7 +236,6 @@ export function getColumnUniqueValues(
 
   return Array.from(valueMap.values())
     .sort((a, b) => {
-      // Sort by value, handling different types
       const aVal = a.value;
       const bVal = b.value;
       

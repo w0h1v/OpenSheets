@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { columnToLetter } from '../utils/columnUtils';
 import { evaluateFormula } from '../utils/formulaUtils';
 import { keyOf, CellData, SelectionRect } from '../types/spreadsheet';
+import { CloseIcon, BarChartIcon, LineChartIcon, PieChartIcon } from './icons';
 import styles from './ChartPanel.module.css';
 
 export type ChartType = 'bar' | 'line' | 'pie';
@@ -232,12 +233,12 @@ export const ChartPanel: React.FC<{
         <span className={styles.title}>Chart</span>
         <div className={styles.typeSwitch}>
           {(['bar', 'line', 'pie'] as ChartType[]).map((t) => (
-            <button key={t} className={type === t ? styles.typeActive : ''} onClick={() => changeType(t)}>
-              {t === 'bar' ? '▮▮' : t === 'line' ? '📈' : '◕'}
+            <button key={t} className={type === t ? styles.typeActive : ''} onClick={() => changeType(t)} title={`${t} chart`} aria-label={`${t} chart`}>
+              {t === 'bar' ? <BarChartIcon /> : t === 'line' ? <LineChartIcon /> : <PieChartIcon />}
             </button>
           ))}
         </div>
-        <button className={styles.close} onClick={onClose} title="Close">✕</button>
+        <button className={styles.close} onClick={onClose} title="Close"><CloseIcon /></button>
       </div>
       <svg width={W} height={H} className={styles.svg}>
         <rect x={0} y={0} width={W} height={H} className={styles.bg} />

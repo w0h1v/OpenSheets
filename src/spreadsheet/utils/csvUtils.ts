@@ -1,191 +1,135 @@
-import { CellData, SparseMatrix, keyOf } from '../types/spreadsheet';
+import { CellData, CellValue, SparseMatrix, keyOf, parseKey } from '../types/spreadsheet';
 
-interface CSVOptions {
+export interface CSVOptions {
   delimiter?: string;
   quote?: string;
-  escape?: string;
   lineBreak?: string;
-  includeHeaders?: boolean;
+  /** Write formulas instead of their computed values. */
   includeFormulas?: boolean;
 }
 
-const defaultOptions: CSVOptions = {
-  delimiter: ',',
-  quote: '"',
-  escape: '"',
-  lineBreak: '\n',
-  includeHeaders: true,
-  includeFormulas: false,
+const DEFAULTS: Required<CSVOptions> = { delimiter: ',', quote: '"', lineBreak: '\n', includeFormulas: false };
+
+// Numeric-looking text becomes a number; everything else stays text
+const coerce = (text: string): CellValue => {
+  const trimmed = text.trim();
+  if (trimmed === '') return text;
+  const n = Number(trimmed);
+  return Number.isFinite(n) && String(n) === trimmed ? n : text;
 };
 
+/**
+ * RFC 4180 parsing: quoted fields may contain delimiters, line breaks and
+ * doubled quotes; CR, LF and CRLF all end a record; a line with nothing on
+ * it is skipped.
+ */
 export function parseCSV(
   csvText: string,
   options: CSVOptions = {}
 ): { data: SparseMatrix<CellData>; rows: number; cols: number } {
-  const opts = { ...defaultOptions, ...options };
+  const { delimiter, quote } = { ...DEFAULTS, ...options };
   const data = new Map<string, CellData>();
-  
-  const lines = csvText.split(/\r?\n/);
-  let maxCol = 0;
   let row = 0;
+  let col = 0;
+  let cols = 0;
+  let field = '';
+  let quoted = false;
 
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    
-    const cells = parseCSVLine(line, opts.delimiter!, opts.quote!, opts.escape!);
-    maxCol = Math.max(maxCol, cells.length);
-    
-    cells.forEach((cellValue, col) => {
-      if (cellValue !== '') {
-        // Try to parse as number
-        const numValue = Number(cellValue);
-        const value = !isNaN(numValue) && cellValue.trim() === String(numValue) 
-          ? numValue 
-          : cellValue;
-        
-        data.set(keyOf(row, col), { value });
-      }
-    });
-    
+  const endField = () => {
+    if (field !== '') data.set(keyOf(row, col), { value: coerce(field) });
+    col++;
+    cols = Math.max(cols, col);
+    field = '';
+  };
+  const endRow = () => {
+    if (col === 0 && field.trim() === '') {
+      field = '';
+      return;
+    }
+    endField();
     row++;
-  }
+    col = 0;
+  };
 
-  return { data, rows: row, cols: maxCol };
-}
-
-function parseCSVLine(line: string, delimiter: string, quote: string, escape: string): string[] {
-  const cells: string[] = [];
-  let current = '';
-  let inQuotes = false;
-  let i = 0;
-
-  while (i < line.length) {
-    const char = line[i];
-    const nextChar = line[i + 1];
-
-    if (inQuotes) {
-      if (char === quote) {
-        if (nextChar === quote || nextChar === escape) {
-          // Escaped quote
-          current += quote;
-          i += 2;
-        } else {
-          // End of quoted field
-          inQuotes = false;
-          i++;
-        }
-      } else {
-        current += char;
-        i++;
-      }
+  for (let i = 0; i < csvText.length; i++) {
+    const ch = csvText[i];
+    if (quoted) {
+      if (ch !== quote) field += ch;
+      else if (csvText[i + 1] === quote) { field += quote; i++; }
+      else quoted = false;
+    } else if (ch === quote && field === '') {
+      quoted = true;
+    } else if (ch === delimiter) {
+      endField();
+    } else if (ch === '\n') {
+      endRow();
+    } else if (ch === '\r') {
+      if (csvText[i + 1] === '\n') i++;
+      endRow();
     } else {
-      if (char === quote) {
-        inQuotes = true;
-        i++;
-      } else if (char === delimiter) {
-        cells.push(current);
-        current = '';
-        i++;
-      } else {
-        current += char;
-        i++;
-      }
+      field += ch;
     }
   }
+  if (field !== '' || col > 0) endRow();
 
-  cells.push(current);
-  return cells;
+  return { data, rows: row, cols };
 }
 
-export function exportToCSV(
-  data: SparseMatrix<CellData>,
-  _maxRows: number,
-  _maxCols: number,
-  options: CSVOptions = {}
-): string {
-  const opts = { ...defaultOptions, ...options };
-  const lines: string[] = [];
-
-  // Find actual data bounds
-  let actualMaxRow = 0;
-  let actualMaxCol = 0;
+export function exportToCSV(data: SparseMatrix<CellData>, options: CSVOptions = {}): string {
+  const { delimiter, quote, lineBreak, includeFormulas } = { ...DEFAULTS, ...options };
+  let lastRow = -1;
+  let lastCol = -1;
   data.forEach((_, key) => {
-    const [row, col] = key.split(':').map(Number);
-    actualMaxRow = Math.max(actualMaxRow, row);
-    actualMaxCol = Math.max(actualMaxCol, col);
+    const [row, col] = parseKey(key);
+    lastRow = Math.max(lastRow, row);
+    lastCol = Math.max(lastCol, col);
   });
 
-  // Generate CSV
-  for (let row = 0; row <= actualMaxRow; row++) {
-    const cells: string[] = [];
-    
-    for (let col = 0; col <= actualMaxCol; col++) {
-      const cellData = data.get(keyOf(row, col));
-      let value = '';
-      
-      if (cellData) {
-        if (opts.includeFormulas && cellData.formula) {
-          value = cellData.formula;
-        } else {
-          value = cellData.value?.toString() ?? '';
-        }
-      }
-      
-      // Escape the value if needed
-      if (value.includes(opts.delimiter!) || value.includes(opts.quote!) || value.includes('\n')) {
-        value = opts.quote + value.replace(new RegExp(opts.quote!, 'g'), opts.escape! + opts.quote) + opts.quote;
-      }
-      
-      cells.push(value);
-    }
-    
-    lines.push(cells.join(opts.delimiter!));
-  }
+  const escape = (text: string) =>
+    text.includes(delimiter) || text.includes(quote) || /[\r\n]/.test(text)
+      ? quote + text.split(quote).join(quote + quote) + quote
+      : text;
 
-  return lines.join(opts.lineBreak!);
+  const lines: string[] = [];
+  for (let row = 0; row <= lastRow; row++) {
+    const cells: string[] = [];
+    for (let col = 0; col <= lastCol; col++) {
+      const cell = data.get(keyOf(row, col));
+      const text = !cell ? ''
+        : includeFormulas && cell.formula ? cell.formula
+        : cell.value instanceof Date ? cell.value.toISOString()
+        : String(cell.value ?? '');
+      cells.push(escape(text));
+    }
+    lines.push(cells.join(delimiter));
+  }
+  return lines.join(lineBreak);
 }
 
-export function downloadCSV(
-  data: SparseMatrix<CellData>,
-  maxRows: number,
-  maxCols: number,
-  filename: string = 'spreadsheet.csv',
-  options: CSVOptions = {}
-): void {
-  const csv = exportToCSV(data, maxRows, maxCols, options);
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
+export function downloadCSV(data: SparseMatrix<CellData>, filename = 'spreadsheet.csv', options: CSVOptions = {}): void {
+  const blob = new Blob([exportToCSV(data, options)], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
-  
-  link.setAttribute('href', url);
-  link.setAttribute('download', filename);
-  link.style.visibility = 'hidden';
-  
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.style.display = 'none';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  
   URL.revokeObjectURL(url);
 }
 
 export function importFromCSVFile(file: File): Promise<{ data: SparseMatrix<CellData>; rows: number; cols: number }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    
     reader.onload = (e) => {
       try {
-        const text = e.target?.result as string;
-        const result = parseCSV(text);
-        resolve(result);
+        resolve(parseCSV(String(e.target?.result ?? '')));
       } catch (error) {
         reject(error);
       }
     };
-    
-    reader.onerror = () => {
-      reject(new Error('Failed to read file'));
-    };
-    
+    reader.onerror = () => reject(new Error('Failed to read file'));
     reader.readAsText(file);
   });
 }

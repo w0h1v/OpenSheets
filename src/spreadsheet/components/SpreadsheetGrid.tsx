@@ -391,7 +391,7 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
       { 
         label: 'Export to CSV', 
         onClick: () => {
-          downloadCSV(state.data, state.maxRows, state.maxCols);
+          downloadCSV(state.data);
         } 
       },
       { 

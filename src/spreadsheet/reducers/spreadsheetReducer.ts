@@ -1,4 +1,4 @@
-import { SpreadsheetState, CellData, keyOf, parseKey, SelectionRect, DOCUMENT_FIELDS, DocumentField } from '../types/spreadsheet';
+import { SpreadsheetState, CellData, keyOf, parseKey, SelectionRect, DOCUMENT_FIELDS, DocumentField, DEFAULT_ROW_HEIGHT, DEFAULT_COL_WIDTH } from '../types/spreadsheet';
 import { SpreadsheetAction } from '../types/actions';
 import { stampEditMeta, getEditAuthor, isRemoteApplying } from '../utils/editContext';
 import { updateFormulaReferences } from '../utils/formulaUtils';
@@ -280,17 +280,14 @@ function reduce(
       const newData = new Map<string, CellData>();
       const newRowHeights = [...(state.rowHeights || [])];
       
-      // Shift existing data down
       state.data.forEach((cellData, key) => {
         const [row, col] = parseKey(key);
         if (row >= index) {
-          // Update formulas that reference shifted cells
           const updatedCellData = cellData.formula
             ? { ...cellData, formula: updateFormulaReferences(cellData.formula, 'insertRow', index, count) }
             : cellData;
           newData.set(keyOf(row + count, col), updatedCellData);
         } else {
-          // Update formulas in cells above the insertion point
           const updatedCellData = cellData.formula
             ? { ...cellData, formula: updateFormulaReferences(cellData.formula, 'insertRow', index, count) }
             : cellData;
@@ -298,9 +295,8 @@ function reduce(
         }
       });
       
-      // Insert default heights for new rows
       for (let i = 0; i < count; i++) {
-        newRowHeights.splice(index, 0, 28);
+        newRowHeights.splice(index, 0, DEFAULT_ROW_HEIGHT);
       }
       
       return {
@@ -317,11 +313,9 @@ function reduce(
       const newData = new Map<string, CellData>();
       const newColWidths = [...(state.colWidths || [])];
       
-      // Shift existing data right
       state.data.forEach((cellData, key) => {
         const [row, col] = parseKey(key);
         if (col >= index) {
-          // Update formulas that reference shifted cells
           const updatedCellData = cellData.formula
             ? { ...cellData, formula: updateFormulaReferences(cellData.formula, 'insertColumn', index, count) }
             : cellData;
@@ -335,9 +329,8 @@ function reduce(
         }
       });
       
-      // Insert default widths for new columns
       for (let i = 0; i < count; i++) {
-        newColWidths.splice(index, 0, 100);
+        newColWidths.splice(index, 0, DEFAULT_COL_WIDTH);
       }
       
       return {
@@ -357,10 +350,8 @@ function reduce(
       state.data.forEach((cellData, key) => {
         const [row, col] = parseKey(key);
         if (row >= index && row < index + count) {
-          // Skip deleted rows
           return;
         } else if (row >= index + count) {
-          // Shift rows up
           const updatedCellData = cellData.formula
             ? { ...cellData, formula: updateFormulaReferences(cellData.formula, 'deleteRow', index, count) }
             : cellData;
@@ -374,7 +365,6 @@ function reduce(
         }
       });
       
-      // Remove row heights
       newRowHeights.splice(index, count);
       
       return {
@@ -394,10 +384,8 @@ function reduce(
       state.data.forEach((cellData, key) => {
         const [row, col] = parseKey(key);
         if (col >= index && col < index + count) {
-          // Skip deleted columns
           return;
         } else if (col >= index + count) {
-          // Shift columns left
           const updatedCellData = cellData.formula
             ? { ...cellData, formula: updateFormulaReferences(cellData.formula, 'deleteColumn', index, count) }
             : cellData;
@@ -411,7 +399,6 @@ function reduce(
         }
       });
       
-      // Remove column widths
       newColWidths.splice(index, count);
       
       return {
@@ -465,7 +452,6 @@ function reduce(
       const normalized = normalizeRect(range);
       const newData = new Map(state.data);
       
-      // Get source cell based on direction
       let sourceRow = normalized.startRow;
       let sourceCol = normalized.startCol;
       if (direction === 'up') sourceRow = normalized.endRow;
@@ -476,7 +462,6 @@ function reduce(
       
       if (!sourceCell) return state;
       
-      // Fill the range
       for (let r = normalized.startRow; r <= normalized.endRow; r++) {
         for (let c = normalized.startCol; c <= normalized.endCol; c++) {
           if (r === sourceRow && c === sourceCol) continue;
@@ -485,7 +470,6 @@ function reduce(
           if (type === 'copy') {
             newData.set(key, { ...sourceCell });
           } else if (type === 'series') {
-            // Handle series fill (numbers, dates, etc.)
             const value = sourceCell.value;
             if (typeof value === 'number') {
               let increment = 1;
@@ -500,7 +484,6 @@ function reduce(
                 formula: undefined,
               });
             } else {
-              // For non-numeric, just copy
               newData.set(key, { ...sourceCell });
             }
           }
@@ -514,7 +497,6 @@ function reduce(
       const { range, column, ascending } = action.payload;
       const normalized = normalizeRect(range);
       
-      // Extract data from the range
       const rows: Array<{ index: number; data: (CellData | undefined)[] }> = [];
       for (let r = normalized.startRow; r <= normalized.endRow; r++) {
         const rowData: (CellData | undefined)[] = [];
@@ -524,7 +506,6 @@ function reduce(
         rows.push({ index: r, data: rowData });
       }
       
-      // Sort rows based on the specified column
       rows.sort((a, b) => {
         const aVal = a.data[column - normalized.startCol]?.value;
         const bVal = b.data[column - normalized.startCol]?.value;
@@ -541,7 +522,6 @@ function reduce(
         return ascending ? comparison : -comparison;
       });
       
-      // Create new data map with sorted data
       const newData = new Map(state.data);
       rows.forEach((row, newRowIndex) => {
         const targetRow = normalized.startRow + newRowIndex;
@@ -587,10 +567,6 @@ function reduce(
       return action.payload.reduce(spreadsheetReducer, state);
     }
 
-    case 'UNDO':
-    case 'REDO':
-      // These will be handled by the undo/redo middleware
-      return state;
 
     default:
       return state;

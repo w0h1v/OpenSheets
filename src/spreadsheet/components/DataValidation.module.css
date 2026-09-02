@@ -3,7 +3,7 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: white;
+  background: var(--os-panel);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   width: 400px;
@@ -16,7 +16,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 16px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--os-border);
 }
 
 .header h3 {
@@ -30,7 +30,7 @@
   border: none;
   font-size: 24px;
   cursor: pointer;
-  color: #666;
+  color: var(--os-muted);
   padding: 0;
   width: 32px;
   height: 32px;
@@ -41,7 +41,7 @@
 }
 
 .closeButton:hover {
-  background: #f0f0f0;
+  background: var(--os-hover);
 }
 
 .body {
@@ -57,7 +57,7 @@
   margin-bottom: 4px;
   font-size: 14px;
   font-weight: 500;
-  color: #333;
+  color: var(--os-text);
 }
 
 .field input[type="text"],
@@ -67,7 +67,7 @@
 .field textarea {
   width: 100%;
   padding: 8px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--os-border);
   border-radius: 4px;
   font-size: 14px;
 }
@@ -81,7 +81,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 16px;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--os-border);
 }
 
 .actions {
@@ -91,7 +91,7 @@
 
 .removeButton {
   background: #dc3545;
-  color: white;
+  color: var(--os-panel);
   border: none;
   padding: 8px 16px;
   border-radius: 4px;
@@ -104,8 +104,8 @@
 }
 
 .cancelButton {
-  background: #f0f0f0;
-  color: #333;
+  background: var(--os-hover);
+  color: var(--os-text);
   border: none;
   padding: 8px 16px;
   border-radius: 4px;
@@ -114,12 +114,12 @@
 }
 
 .cancelButton:hover {
-  background: #e0e0e0;
+  background: var(--os-border);
 }
 
 .applyButton {
-  background: #1a73e8;
-  color: white;
+  background: var(--os-accent);
+  color: var(--os-panel);
   border: none;
   padding: 8px 16px;
   border-radius: 4px;
@@ -128,5 +128,5 @@
 }
 
 .applyButton:hover {
-  background: #1557b0;
+  background: var(--os-accent-hov);
 }

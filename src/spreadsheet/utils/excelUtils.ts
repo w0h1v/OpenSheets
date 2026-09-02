@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { CellData, SparseMatrix, keyOf, CellFormat } from '../types/spreadsheet';
+import { CellData, SparseMatrix, keyOf, parseKey, CellFormat } from '../types/spreadsheet';
 import { autoDetectFormat } from './formatUtils';
 
 export interface ExcelImportOptions {
@@ -36,8 +36,7 @@ export async function importFromExcel(
         const data = e.target?.result;
         const workbook = XLSX.read(data, { type: 'binary', cellFormula: true });
         
-        // Select worksheet
-        let worksheet: XLSX.WorkSheet;
+            let worksheet: XLSX.WorkSheet;
         if (options.sheetName) {
           worksheet = workbook.Sheets[options.sheetName];
           if (!worksheet) {
@@ -52,7 +51,6 @@ export async function importFromExcel(
           worksheet = workbook.Sheets[sheetName];
         }
         
-        // Convert to sparse matrix
         const result = convertWorksheetToSparseMatrix(worksheet, options);
         resolve(result);
       } catch (error) {
@@ -86,27 +84,22 @@ function convertWorksheetToSparseMatrix(
       if (cell) {
         const cellData: CellData = { value: '' };
         
-        // Handle value
         if (cell.v !== undefined) {
           cellData.value = cell.v;
         }
         
-        // Handle formula
         if (cell.f && options.preserveFormulas !== false) {
           cellData.formula = '=' + cell.f;
         }
         
-        // Handle formatting
         if (options.includeFormatting && cell.s) {
           cellData.format = convertExcelFormatToOpenSheets(cell.s);
         } else if (options.autoDetectFormats !== false && cellData.value) {
-          // Auto-detect format from value
           const detected = autoDetectFormat(cellData.value);
           cellData.format = detected.format;
           cellData.value = detected.value;
         }
         
-        // Handle cell type
         switch (cell.t) {
           case 'n': // number
             cellData.value = Number(cell.v);
@@ -161,15 +154,11 @@ function convertExcelFormatToOpenSheets(style: any): CellFormat {
 
 export function exportToExcel(
   data: SparseMatrix<CellData>,
-  _maxRows: number,
-  _maxCols: number,
   filename: string = 'spreadsheet.xlsx',
   options: ExcelExportOptions = {}
 ): void {
-  // Create workbook
   const wb = XLSX.utils.book_new();
   
-  // Set workbook properties
   if (options.author || options.title) {
     wb.Props = {
       Title: options.title || 'Spreadsheet',
@@ -178,19 +167,16 @@ export function exportToExcel(
     };
   }
   
-  // Create worksheet data
   const wsData: any[][] = [];
   
-  // Find actual data bounds
   let actualMaxRow = 0;
   let actualMaxCol = 0;
   data.forEach((_, key) => {
-    const [row, col] = key.split(':').map(Number);
+    const [row, col] = parseKey(key);
     actualMaxRow = Math.max(actualMaxRow, row);
     actualMaxCol = Math.max(actualMaxCol, col);
   });
   
-  // Build worksheet array
   for (let row = 0; row <= actualMaxRow; row++) {
     const rowData: any[] = [];
     for (let col = 0; col <= actualMaxCol; col++) {
@@ -208,14 +194,12 @@ export function exportToExcel(
     wsData[row] = rowData;
   }
   
-  // Create worksheet
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   
-  // Apply formulas if requested
   if (options.includeFormulas) {
     data.forEach((cellData, key) => {
       if (cellData.formula) {
-        const [row, col] = key.split(':').map(Number);
+        const [row, col] = parseKey(key);
         const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
         if (ws[cellAddress]) {
           ws[cellAddress].f = cellData.formula.substring(1); // Remove '=' prefix
@@ -224,11 +208,10 @@ export function exportToExcel(
     });
   }
   
-  // Apply formatting if requested
   if (options.includeFormatting) {
     data.forEach((cellData, key) => {
       if (cellData.format) {
-        const [row, col] = key.split(':').map(Number);
+        const [row, col] = parseKey(key);
         const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
         if (ws[cellAddress]) {
           ws[cellAddress].s = convertToExcelFormat(cellData.format);
@@ -237,17 +220,14 @@ export function exportToExcel(
     });
   }
   
-  // Add worksheet to workbook
   XLSX.utils.book_append_sheet(wb, ws, options.sheetName || 'Sheet1');
   
-  // Write file
   XLSX.writeFile(wb, filename);
 }
 
 function convertToExcelFormat(format: CellFormat): any {
   const style: any = {};
   
-  // Font styles
   const font: any = {};
   if (format.bold) font.bold = true;
   if (format.italic) font.italic = true;
@@ -263,14 +243,12 @@ function convertToExcelFormat(format: CellFormat): any {
     style.font = font;
   }
   
-  // Fill/background color
   if (format.backgroundColor) {
     style.fill = {
       fgColor: { rgb: format.backgroundColor.replace('#', '').toUpperCase() }
     };
   }
   
-  // Alignment
   const alignment: any = {};
   if (format.textAlign) {
     alignment.horizontal = format.textAlign;
@@ -289,7 +267,6 @@ function convertToExcelFormat(format: CellFormat): any {
     style.alignment = alignment;
   }
   
-  // Borders
   if (format.borders) {
     const borders: any = {};
     if (format.borders.top) {
@@ -322,7 +299,6 @@ function convertToExcelFormat(format: CellFormat): any {
     }
   }
   
-  // Number format
   if (format.numberFormat && format.formatType !== 'text') {
     style.numFmt = format.numberFormat;
   }

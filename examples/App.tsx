@@ -676,8 +676,8 @@ const MenuBar: React.FC<{
     { label: 'Save version', onClick: () => { const l = prompt('Version label:'); if (l) saveVersion(l); } },
     { separator: true, label: '' },
     { label: 'Import CSV…', onClick: () => csvInputRef.current?.click() },
-    { label: 'Download as CSV', onClick: () => downloadCSV(state.data, state.maxRows, state.maxCols, 'opensheets.csv') },
-    { label: 'Download as Excel', onClick: () => exportToExcel(state.data, state.maxRows, state.maxCols, 'opensheets.xlsx') },
+    { label: 'Download as CSV', onClick: () => downloadCSV(state.data, 'opensheets.csv') },
+    { label: 'Download as Excel', onClick: () => exportToExcel(state.data, 'opensheets.xlsx') },
     { separator: true, label: '' },
     { label: 'Version history', checked: historyOpen, onClick: onToggleHistory },
   ];

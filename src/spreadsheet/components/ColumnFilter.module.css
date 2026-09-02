@@ -1,5 +1,5 @@
 .filterDropdown {
-  background: white;
+  background: var(--os-panel);
   border: 1px solid var(--os-border);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
@@ -45,7 +45,7 @@
 .tabs {
   display: flex;
   border-bottom: 1px solid var(--os-border);
-  background: white;
+  background: var(--os-panel);
 }
 
 .tab {
@@ -66,7 +66,7 @@
 .tab.active {
   color: var(--os-accent);
   border-bottom: 2px solid var(--os-accent);
-  background: white;
+  background: var(--os-panel);
 }
 
 .content {
@@ -176,7 +176,7 @@
   border-radius: 4px;
   font-size: 13px;
   outline: none;
-  background: white;
+  background: var(--os-panel);
 }
 
 .select:focus, .input:focus {
@@ -205,7 +205,7 @@
   border: none;
   border-radius: 4px;
   background: var(--os-accent);
-  color: white;
+  color: var(--os-panel);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -213,7 +213,7 @@
 }
 
 .applyButton:hover {
-  background: #1557b0;
+  background: var(--os-accent-hov);
 }
 
 .applyButton:disabled {
@@ -225,7 +225,7 @@
   padding: 8px 16px;
   border: 1px solid var(--os-border);
   border-radius: 4px;
-  background: white;
+  background: var(--os-panel);
   color: var(--os-text);
   font-size: 13px;
   cursor: pointer;

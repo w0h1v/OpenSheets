@@ -12,7 +12,7 @@
 }
 
 .panel {
-  background: white;
+  background: var(--os-panel);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   min-width: 500px;
@@ -30,15 +30,15 @@
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid #dadce0;
-  background: #f8f9fa;
+  border-bottom: 1px solid var(--os-border);
+  background: var(--os-hover);
 }
 
 .header h3 {
   margin: 0;
   font-size: 16px;
   font-weight: 500;
-  color: #3c4043;
+  color: var(--os-text);
 }
 
 .closeButton {
@@ -47,18 +47,18 @@
   cursor: pointer;
   padding: 8px;
   border-radius: 4px;
-  color: #5f6368;
+  color: var(--os-muted);
   font-size: 16px;
 }
 
 .closeButton:hover {
-  background: #e8eaed;
+  background: var(--os-border);
 }
 
 .tabs {
   display: flex;
-  border-bottom: 1px solid #dadce0;
-  background: white;
+  border-bottom: 1px solid var(--os-border);
+  background: var(--os-panel);
 }
 
 .tab {
@@ -68,18 +68,18 @@
   padding: 12px 16px;
   cursor: pointer;
   font-size: 13px;
-  color: #5f6368;
+  color: var(--os-muted);
   transition: all 0.15s ease;
 }
 
 .tab:hover {
-  background: #f1f3f4;
+  background: var(--os-hover);
 }
 
 .tab.active {
-  color: #1a73e8;
-  border-bottom: 2px solid #1a73e8;
-  background: white;
+  color: var(--os-accent);
+  border-bottom: 2px solid var(--os-accent);
+  background: var(--os-panel);
 }
 
 .content {
@@ -109,35 +109,35 @@
 .formGroup label {
   font-size: 13px;
   font-weight: 500;
-  color: #3c4043;
+  color: var(--os-text);
 }
 
 .select, .input {
   padding: 8px 12px;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--os-border);
   border-radius: 4px;
   font-size: 13px;
   outline: none;
-  background: white;
+  background: var(--os-panel);
 }
 
 .select:focus, .input:focus {
-  border-color: #1a73e8;
-  box-shadow: 0 0 0 1px #1a73e8;
+  border-color: var(--os-accent);
+  box-shadow: 0 0 0 1px var(--os-accent);
 }
 
 .formatSection {
-  background: #f8f9fa;
+  background: var(--os-hover);
   padding: 16px;
   border-radius: 6px;
-  border: 1px solid #e8eaed;
+  border: 1px solid var(--os-border);
 }
 
 .formatSection h4 {
   margin: 0 0 12px 0;
   font-size: 14px;
   font-weight: 500;
-  color: #3c4043;
+  color: var(--os-text);
 }
 
 .formatGrid {
@@ -149,7 +149,7 @@
 
 .colorInput {
   padding: 4px;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--os-border);
   border-radius: 4px;
   width: 50px;
   height: 32px;
@@ -168,7 +168,7 @@
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: #3c4043;
+  color: var(--os-text);
   cursor: pointer;
 }
 
@@ -185,7 +185,7 @@
 
 .previewCell {
   padding: 8px 12px;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--os-border);
   border-radius: 4px;
   text-align: center;
   font-size: 13px;
@@ -195,8 +195,8 @@
   padding: 10px 20px;
   border: none;
   border-radius: 4px;
-  background: #1a73e8;
-  color: white;
+  background: var(--os-accent);
+  color: var(--os-panel);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -205,7 +205,7 @@
 }
 
 .applyButton:hover {
-  background: #1557b0;
+  background: var(--os-accent-hov);
 }
 
 /* Templates Tab */
@@ -216,7 +216,7 @@
 
 .description {
   font-size: 13px;
-  color: #5f6368;
+  color: var(--os-muted);
   margin: 0 0 16px 0;
   line-height: 1.4;
 }
@@ -228,15 +228,15 @@
 }
 
 .templateCard {
-  background: white;
-  border: 1px solid #dadce0;
+  background: var(--os-panel);
+  border: 1px solid var(--os-border);
   border-radius: 6px;
   padding: 16px;
   transition: all 0.15s ease;
 }
 
 .templateCard:hover {
-  border-color: #1a73e8;
+  border-color: var(--os-accent);
   box-shadow: 0 2px 8px rgba(26, 115, 232, 0.1);
 }
 
@@ -251,14 +251,14 @@
   margin: 0;
   font-size: 14px;
   font-weight: 500;
-  color: #3c4043;
+  color: var(--os-text);
 }
 
 .templatePreview {
   width: 40px;
   height: 20px;
   border-radius: 3px;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--os-border);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -268,7 +268,7 @@
 
 .templateDescription {
   font-size: 12px;
-  color: #5f6368;
+  color: var(--os-muted);
   margin: 0 0 12px 0;
   line-height: 1.3;
 }
@@ -276,31 +276,31 @@
 .templateButton {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--os-border);
   border-radius: 4px;
-  background: white;
+  background: var(--os-panel);
   cursor: pointer;
   font-size: 12px;
-  color: #3c4043;
+  color: var(--os-text);
   transition: all 0.15s ease;
 }
 
 .templateButton:hover {
-  background: #f1f3f4;
-  border-color: #1a73e8;
+  background: var(--os-hover);
+  border-color: var(--os-accent);
 }
 
 
 
 /* Trigger Button */
 .triggerButton {
-  border: 1px solid #dadce0;
-  background: white;
+  border: 1px solid var(--os-border);
+  background: var(--os-panel);
   padding: 8px 12px;
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
-  color: #3c4043;
+  color: var(--os-text);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -308,8 +308,8 @@
 }
 
 .triggerButton:hover {
-  background: #f8f9fa;
-  border-color: #1a73e8;
+  background: var(--os-hover);
+  border-color: var(--os-accent);
 }
 
 /* Responsive Design */
@@ -345,15 +345,15 @@
 }
 
 .content::-webkit-scrollbar-track {
-  background: #f1f3f4;
+  background: var(--os-hover);
   border-radius: 3px;
 }
 
 .content::-webkit-scrollbar-thumb {
-  background: #dadce0;
+  background: var(--os-border);
   border-radius: 3px;
 }
 
 .content::-webkit-scrollbar-thumb:hover {
-  background: #9aa0a6;
+  background: var(--os-muted);
 }

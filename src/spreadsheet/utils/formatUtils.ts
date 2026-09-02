@@ -12,7 +12,6 @@ export interface DateFormatOptions {
   dateFormat?: string;
 }
 
-// Predefined format patterns similar to Google Sheets
 export const PREDEFINED_FORMATS = {
   number: {
     automatic: 'General',
@@ -45,7 +44,6 @@ export function autoDetectFormat(value: any): { value: any; format: CellFormat }
 
   const strValue = String(value).trim();
 
-  // Check for date patterns
   if (isDateValue(strValue)) {
     const date = new Date(strValue);
     if (!isNaN(date.getTime())) {
@@ -56,7 +54,6 @@ export function autoDetectFormat(value: any): { value: any; format: CellFormat }
     }
   }
 
-  // Check for time patterns
   if (isTimeValue(strValue)) {
     return {
       value: strValue,
@@ -64,7 +61,6 @@ export function autoDetectFormat(value: any): { value: any; format: CellFormat }
     };
   }
 
-  // Check for percentage
   if (strValue.endsWith('%')) {
     const numValue = parseFloat(strValue.slice(0, -1));
     if (!isNaN(numValue)) {
@@ -75,7 +71,6 @@ export function autoDetectFormat(value: any): { value: any; format: CellFormat }
     }
   }
 
-  // Check for currency
   if (isCurrencyValue(strValue)) {
     const numValue = parseFloat(strValue.replace(/[$,]/g, ''));
     if (!isNaN(numValue)) {
@@ -86,7 +81,6 @@ export function autoDetectFormat(value: any): { value: any; format: CellFormat }
     }
   }
 
-  // Check for number
   if (isNumberValue(strValue)) {
     const numValue = parseFloat(strValue.replace(/,/g, ''));
     if (!isNaN(numValue)) {
@@ -97,7 +91,6 @@ export function autoDetectFormat(value: any): { value: any; format: CellFormat }
     }
   }
 
-  // Default to text
   return { value: strValue, format: { formatType: 'text' } };
 }
 
@@ -163,12 +156,11 @@ function formatCurrency(value: any, format: CellFormat): string {
   const currency = format.currencySymbol || '$';
   const decimalPlaces = format.decimalPlaces ?? 2;
 
-  return num.toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  const magnitude = Math.abs(num).toLocaleString('en-US', {
     minimumFractionDigits: decimalPlaces,
-    maximumFractionDigits: decimalPlaces
-  }).replace('$', currency);
+    maximumFractionDigits: decimalPlaces,
+  });
+  return `${num < 0 ? '-' : ''}${currency}${magnitude}`;
 }
 
 function formatPercentage(value: any, format: CellFormat): string {
@@ -270,32 +262,27 @@ function formatDuration(value: any, _format: CellFormat): string {
 }
 
 /**
- * Apply custom number format string (simplified version of Excel/Sheets format codes)
+ * Apply custom number format string
  */
 function applyCustomNumberFormat(num: number, formatStr: string): string {
-  // Handle basic format codes
   if (formatStr === 'General') {
     return String(num);
   }
 
-  // Replace # and 0 patterns
   const parts = formatStr.split('.');
   const decimalPart = parts[1] || '';
 
   let result = '';
   
-  // Handle integer part
   const intStr = Math.floor(Math.abs(num)).toString();
   const intFormatted = intStr.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   result = intFormatted;
 
-  // Handle decimal part
   if (decimalPart) {
     const decimalDigits = (Math.abs(num) % 1).toFixed(decimalPart.length).substring(2);
     result += '.' + decimalDigits;
   }
 
-  // Handle negative numbers
   if (num < 0) {
     result = '-' + result;
   }
@@ -357,7 +344,6 @@ function applyTimeFormat(date: Date, formatStr: string): string {
   return result;
 }
 
-// Helper functions for detection
 function isDateValue(value: string): boolean {
   const datePatterns = [
     /^\d{1,2}\/\d{1,2}\/\d{4}$/, // MM/DD/YYYY

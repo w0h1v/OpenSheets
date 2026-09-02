@@ -1,8 +1,7 @@
 import React from 'react';
 
 /*
- * 16×16 stroke icons from the "Crisp" design. Paths are copied verbatim
- * from the prototype; keep them in sync with the design handoff.
+ * 16×16 stroke icons. Every icon takes `size` and inherits `currentColor`.
  */
 
 type IconProps = { size?: number };
@@ -104,4 +103,20 @@ export const GridGlyphIcon: React.FC<IconProps> = (p) => (
 
 export const ChevronDownIcon: React.FC<IconProps> = (p) => (
   <Svg {...p} size={8} sw={2}><path d="M4 6.5 8 10l4-3.5" /></Svg>
+);
+
+export const CloseIcon: React.FC<IconProps> = (p) => (
+  <Svg {...p} size={12} sw={1.75}><path d="M3 3l6 6M9 3l-6 6" /></Svg>
+);
+
+export const BarChartIcon: React.FC<IconProps> = (p) => (
+  <Svg {...p}><path d="M3 13V8M8 13V3M13 13V6" /></Svg>
+);
+
+export const LineChartIcon: React.FC<IconProps> = (p) => (
+  <Svg {...p}><path d="M2 12l4-5 3 3 5-6" /></Svg>
+);
+
+export const PieChartIcon: React.FC<IconProps> = (p) => (
+  <Svg {...p}><path d="M8 2v6h6" /><circle cx="8" cy="8" r="6" /></Svg>
 );

@@ -60,7 +60,7 @@ export const DataValidation: React.FC<Props> = ({ row, col, onClose }) => {
   const handleRemove = useCallback(() => {
     dispatch({
       type: 'SET_VALIDATION',
-      payload: { row, col, validation: null as any },
+      payload: { row, col, validation: null },
     });
     onClose();
   }, [row, col, dispatch, onClose]);

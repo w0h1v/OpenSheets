@@ -1,5 +1,5 @@
 import React, { useReducer, useCallback, useMemo, useEffect, useRef, useState } from 'react';
-import { TableProps, SpreadsheetState, CellData, keyOf } from './types/spreadsheet';
+import { TableProps, SpreadsheetState, CellData, keyOf, DEFAULT_ROW_HEIGHT, DEFAULT_COL_WIDTH } from './types/spreadsheet';
 import { SpreadsheetAction } from './types/actions';
 import { spreadsheetReducer } from './reducers/spreadsheetReducer';
 import { useUndoRedo } from './hooks/useUndoRedo';
@@ -87,8 +87,8 @@ export const SpreadsheetProvider: React.FC<React.PropsWithChildren<SpreadsheetPr
     editing: null,
     formulaInput: '',
     readOnly,
-    rowHeights: Array(maxRows).fill(22),
-    colWidths: Array(maxCols).fill(96),
+    rowHeights: Array(maxRows).fill(DEFAULT_ROW_HEIGHT),
+    colWidths: Array(maxCols).fill(DEFAULT_COL_WIDTH),
     validation: new Map(),
   }), [initialData, maxRows, maxCols, readOnly]);
 

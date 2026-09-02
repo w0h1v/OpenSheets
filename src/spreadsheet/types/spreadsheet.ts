@@ -6,6 +6,10 @@ export interface ConditionalFormat {
   format: CellFormat;
 }
 
+/** Default cell geometry, shared by the provider and the reducer. */
+export const DEFAULT_ROW_HEIGHT = 22;
+export const DEFAULT_COL_WIDTH = 96;
+
 /** Who wrote something and when; the higher stamp wins when edits collide. */
 export interface EditStamp {
   ts: number;
@@ -24,7 +28,7 @@ export interface CellData {
   value: CellValue;
   formula?: string;
   format?: CellFormat;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   // LWW edit stamp for convergent multi-user merges: (ts, by) totally
   // orders concurrent writes to the same cell
   editMeta?: EditStamp;
@@ -73,7 +77,6 @@ export interface CellFormat {
   currencySymbol?: string;
   decimalPlaces?: number;
   
-  // Conditional formatting (future use)
   conditionalFormat?: ConditionalFormat;
 }
 
@@ -189,11 +192,9 @@ export interface ValidationRule {
   errorMessage?: string;
   showError?: boolean;
   
-  // Enhanced dropdown features
-  allowCustomValues?: boolean; // Allow entries not in the list
-  showDropdownArrow?: boolean; // Show dropdown arrow indicator
-  searchable?: boolean; // Enable search/filter in dropdown
-  multiSelect?: boolean; // Allow multiple selections (comma-separated)
-  placeholder?: string; // Placeholder text for empty cells
-  sourceRange?: string; // Reference to range for dynamic lists (e.g., "A1:A10")
+  allowCustomValues?: boolean;
+  showDropdownArrow?: boolean;
+  searchable?: boolean;
+  multiSelect?: boolean;
+  placeholder?: string;
 }
