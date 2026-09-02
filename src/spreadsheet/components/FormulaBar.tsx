@@ -1,11 +1,9 @@
 import React, { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { useSpreadsheet } from '../SpreadsheetContext';
+import { useSpreadsheet, useSpreadsheetUi } from '../SpreadsheetContext';
 import { columnToLetter } from '../utils/columnUtils';
 import { normalizeRect } from '../utils/selectionUtils';
 import { parseCellRef, cellsInRange } from '../utils/formulaUtils';
-import {
-  setFormulaHighlights, HIGHLIGHT_PALETTE, FormulaHighlight,
-} from '../utils/formulaHighlightStore';
+import { HIGHLIGHT_PALETTE, FormulaHighlight } from '../utils/formulaHighlightStore';
 import styles from './FormulaBar.module.css';
 
 // Extract A1 ranges and single refs from a formula, in order of appearance
@@ -41,6 +39,7 @@ const refsInFormula = (formula: string): Array<[number, number, number, number]>
 
 export const FormulaBar: React.FC = () => {
   const { state, dispatch, getCell, setCell } = useSpreadsheet();
+  const { formulaHighlights } = useSpreadsheetUi();
   const active = state.selection.active;
   // Track the cell the current bar text belongs to, so a commit always
   // targets the cell that was selected when typing started, even if the
@@ -66,14 +65,14 @@ export const FormulaBar: React.FC = () => {
     if (sig === prevActiveRef.current) return;
     prevActiveRef.current = sig;
     committedRef.current = null;
-    setFormulaHighlights([]);
-  }, [active]);
+    formulaHighlights.set([]);
+  }, [active, formulaHighlights]);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     setLocalValue(e.target.value);
     // Live range highlights while editing a formula
     const refs = refsInFormula(e.target.value);
-    setFormulaHighlights(
+    formulaHighlights.set(
       refs.slice(0, HIGHLIGHT_PALETTE.length).map((r, i): FormulaHighlight => ({
         startRow: r[0], startCol: r[1], endRow: r[2], endCol: r[3],
         color: HIGHLIGHT_PALETTE[i],
@@ -100,7 +99,7 @@ export const FormulaBar: React.FC = () => {
       }
       committedRef.current = null;
       dispatch({ type: 'SET_FORMULA_INPUT', payload: '' });
-      setFormulaHighlights([]);
+      formulaHighlights.set([]);
       // Reset the bar and move the selection down, like Sheets/Excel
       setLocalValue('');
       dispatch({
@@ -119,7 +118,7 @@ export const FormulaBar: React.FC = () => {
     } else if (e.key === 'Escape') {
       // Revert the bar to the active cell's stored content
       committedRef.current = null;
-      setFormulaHighlights([]);
+      formulaHighlights.set([]);
       dispatch({ type: 'SET_FORMULA_INPUT', payload: '' });
       if (active) {
         const cellData = getCell(active.row, active.col);

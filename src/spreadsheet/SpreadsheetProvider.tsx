@@ -3,7 +3,12 @@ import { TableProps, SpreadsheetState, CellData, keyOf } from './types/spreadshe
 import { SpreadsheetAction } from './types/actions';
 import { spreadsheetReducer } from './reducers/spreadsheetReducer';
 import { useUndoRedo } from './hooks/useUndoRedo';
-import { SpreadsheetContextInstance, SpreadsheetContext, SpreadsheetContextValue } from './SpreadsheetContext';
+import {
+  SpreadsheetContextInstance, SpreadsheetContext, SpreadsheetContextValue,
+  SpreadsheetUiContext, SpreadsheetUiStores,
+} from './SpreadsheetContext';
+import { createFilterPanelStore } from './utils/filterPanelStore';
+import { createFormulaHighlightStore } from './utils/formulaHighlightStore';
 import { PersistenceManager } from './persistence/PersistenceManager';
 import type { PersistenceAdapter, SyncStatus, SaveResult } from './persistence/types';
 
@@ -177,7 +182,7 @@ export const SpreadsheetProvider: React.FC<React.PropsWithChildren<SpreadsheetPr
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spreadsheetId, persistence]);
 
-  const { undo, redo, canUndo, canRedo } = useUndoRedo(state, dispatch);
+  const { undo, redo, canUndo, canRedo, handleKeyDown: handleUndoRedoKeyDown } = useUndoRedo(state, dispatch);
 
   // Autosave after edits settle, never mid-edit
   useEffect(() => {
@@ -244,7 +249,16 @@ export const SpreadsheetProvider: React.FC<React.PropsWithChildren<SpreadsheetPr
   const bridgedSetState = useCallback((action: React.SetStateAction<SpreadsheetState>) => {
     dispatch({ type: 'APPLY_SET_STATE', payload: action });
   }, []);
-  const bridgeValue = useMemo(() => ({ state, setState: bridgedSetState, getCell, setCell }), [state, bridgedSetState, getCell, setCell]);
+  const bridgeValue = useMemo(
+    () => ({ state, setState: bridgedSetState, getCell, setCell, handleUndoRedoKeyDown }),
+    [state, bridgedSetState, getCell, setCell, handleUndoRedoKeyDown]
+  );
+
+  // Panel and highlight state is per provider so grids on one page stay independent
+  const [uiStores] = useState<SpreadsheetUiStores>(() => ({
+    filterPanel: createFilterPanelStore(),
+    formulaHighlights: createFormulaHighlightStore(),
+  }));
 
   useEffect(() => {
     if (!onCellChange || state.editing !== null) return;
@@ -293,7 +307,9 @@ export const SpreadsheetProvider: React.FC<React.PropsWithChildren<SpreadsheetPr
   return (
     <SpreadsheetContext.Provider value={value}>
       <SpreadsheetContextInstance.Provider value={bridgeValue}>
-        {children}
+        <SpreadsheetUiContext.Provider value={uiStores}>
+          {children}
+        </SpreadsheetUiContext.Provider>
       </SpreadsheetContextInstance.Provider>
     </SpreadsheetContext.Provider>
   );

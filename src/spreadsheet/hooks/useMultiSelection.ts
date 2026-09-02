@@ -1,7 +1,13 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useRef, useCallback } from 'react';
+import type React from 'react';
 import { SpreadsheetAction } from '../types/actions';
 import { SelectionRect, SpreadsheetState } from '../types/spreadsheet';
 
+/*
+ * Mouse and keyboard range selection. The keyboard handlers are attached to
+ * the grid's focusable container rather than window, so a grid only answers
+ * keys typed while it has focus.
+ */
 export function useMultiSelection(
   state: SpreadsheetState,
   dispatch: React.Dispatch<SpreadsheetAction>
@@ -61,7 +67,7 @@ export function useMultiSelection(
     selectionStart.current = null;
   }, []);
 
-  const handleKeyboardSelection = useCallback((e: KeyboardEvent) => {
+  const handleKeyboardSelection = useCallback((e: React.KeyboardEvent) => {
     const active = state.selection.active;
     if (!active) return;
 
@@ -231,43 +237,32 @@ export function useMultiSelection(
     });
   }, [state.data, state.maxRows, state.maxCols, dispatch]);
 
-  // Track Shift and Ctrl key states
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') shiftPressed.current = true;
-      if (e.key === 'Control' || e.key === 'Meta') ctrlPressed.current = true;
-      
-      // Ctrl+A or Cmd+A to select all
-      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
-        e.preventDefault();
-        selectAll();
-      }
-    };
+  // Tracks Shift and Ctrl key states, selects all on Ctrl/Cmd+A and moves
+  // or extends the selection with the arrow keys
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Shift') shiftPressed.current = true;
+    if (e.key === 'Control' || e.key === 'Meta') ctrlPressed.current = true;
 
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') shiftPressed.current = false;
-      if (e.key === 'Control' || e.key === 'Meta') ctrlPressed.current = false;
-    };
+    if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+      e.preventDefault();
+      selectAll();
+      return;
+    }
 
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    handleKeyboardSelection(e);
+  }, [selectAll, handleKeyboardSelection]);
 
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [selectAll]);
-
-  // Set up keyboard selection handler
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyboardSelection);
-    return () => window.removeEventListener('keydown', handleKeyboardSelection);
-  }, [handleKeyboardSelection]);
+  const handleKeyUp = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Shift') shiftPressed.current = false;
+    if (e.key === 'Control' || e.key === 'Meta') ctrlPressed.current = false;
+  }, []);
 
   return {
     startSelection,
     updateSelection,
     endSelection,
+    handleKeyDown,
+    handleKeyUp,
     isShiftPressed: () => shiftPressed.current,
     isCtrlPressed: () => ctrlPressed.current,
     selectAll,

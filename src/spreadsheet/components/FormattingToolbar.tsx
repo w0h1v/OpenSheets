@@ -1,5 +1,5 @@
 import React from 'react';
-import { useSpreadsheet } from '../SpreadsheetContext';
+import { useSpreadsheet, useSpreadsheetUi } from '../SpreadsheetContext';
 import { keyOf, CellFormat, CellData } from '../types/spreadsheet';
 import { normalizeRect } from '../utils/selectionUtils';
 import { getFormatOptions } from '../utils/formatUtils';
@@ -9,11 +9,11 @@ import {
   WrapTextIcon, BordersIcon, FunctionsIcon, FilterIcon, ChevronDownIcon,
 } from './icons';
 import { ColorPickerPopover } from './ColorPickerPopover';
-import { setFilterPanelColumn } from '../utils/filterPanelStore';
 import styles from './FormattingToolbar.module.css';
 
 export const FormattingToolbar: React.FC = () => {
   const context = useSpreadsheet();
+  const { filterPanel } = useSpreadsheetUi();
 
   if (!context) {
     return <div className={styles.toolbar} />;
@@ -265,7 +265,7 @@ export const FormattingToolbar: React.FC = () => {
       <button
         className={`${styles.iconButton} ${filtersActive ? styles.active : ''}`}
         disabled={!active}
-        onClick={() => setFilterPanelColumn(active ? active.col : null)}
+        onClick={() => filterPanel.set(active ? active.col : null)}
         title="Create a filter"
       >
         <FilterIcon />
