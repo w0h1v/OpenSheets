@@ -1,5 +1,5 @@
 import { letterToColumn, columnToLetter } from './columnUtils';
-import { getSheetData } from './sheetRegistry';
+import { evaluateFormula as evaluateWithEngine } from '../formula/evaluator';
 
 export const parseCellRef = (ref: string): [number, number] => {
   const match = ref.match(/(\$?)([A-Z]+)(\$?)(\d+)/);
@@ -78,170 +78,16 @@ export const updateFormulaReferences = (
   });
 };
 
-const MAX_FORMULA_DEPTH = 32;
-
+/**
+ * Evaluates a formula with the built-in parser/interpreter. The accessor may
+ * return raw values or CellData objects; formula cells are evaluated
+ * recursively with cycle detection. See src/spreadsheet/formula/evaluator.ts
+ * for the value semantics.
+ */
 export const evaluateFormula = (
   formula: string,
   getCellValue: (r: number, c: number) => any
-): any => evaluateFormulaDepth(formula, getCellValue, 0);
+): any => evaluateWithEngine(formula, getCellValue);
 
-// Resolves the value of a referenced cell. Accepts either a raw value or a
-// CellData object from context getCell(); formula cells are evaluated
-// recursively (with a depth cap that surfaces as #CYCLE!)
-const evaluateFormulaDepth = (
-  formula: string,
-  getCellValue: (r: number, c: number) => any,
-  depth: number
-): any => {
-  if (!formula.startsWith('=')) return formula;
-  if (depth > MAX_FORMULA_DEPTH) return '#CYCLE!';
-  const cellValueOf = (v: any): any => {
-    if (v === null || typeof v !== 'object' || Array.isArray(v) || !('value' in v)) {
-      return v;
-    }
-    const cell = v as { value?: any; formula?: string };
-    if (cell.formula && String(cell.formula).startsWith('=')) {
-      return evaluateFormulaDepth(cell.formula, getCellValue, depth + 1);
-    }
-    return cell.value;
-  };
-  const valueFromSheet = (sheetName: string | null, row: number, col: number): any => {
-    if (!sheetName) return cellValueOf(getCellValue(row, col));
-    const data = getSheetData(sheetName);
-    return data ? cellValueOf(data.get(`${row}:${col}`)) : undefined;
-  };
-  let expr = formula.slice(1);
-
-  // Sheet-qualified ranges first (Sheet1!A1:B2); quoted names allow spaces
-  expr = expr.replace(/(?:'[^']+'|[A-Za-z0-9_ ]+)!(\$?[A-Z]+\$?\d+):(\$?[A-Z]+\$?\d+)/g, (match) => {
-    const bang = match.lastIndexOf('!');
-    const sheetName = match.slice(0, bang).replace(/^'|'$/g, '');
-    const [start, end] = match.slice(bang + 1).split(':');
-    const cells = cellsInRange(start, end);
-    const values = cells
-      .map(([r, c]) => valueFromSheet(sheetName, r, c))
-      .filter((v) => v !== undefined && v !== null);
-    return JSON.stringify(values);
-  });
-
-  // Sheet-qualified single refs (Sheet1!A1)
-  expr = expr.replace(/(?:'[^']+'|[A-Za-z0-9_ ]+)!\$?[A-Z]+\$?\d+/g, (match) => {
-    const bang = match.lastIndexOf('!');
-    const sheetName = match.slice(0, bang).replace(/^'|'$/g, '');
-    const ref = match.slice(bang + 1);
-    const [r, c] = parseCellRef(ref);
-    const v = valueFromSheet(sheetName, r, c);
-    return JSON.stringify(v ?? 0);
-  });
-
-  // Ranges must be replaced first so their cell refs are not each
-  // substituted as single values (which would corrupt A1:A3)
-  expr = expr.replace(/(\$?[A-Z]+\$?\d+):(\$?[A-Z]+\$?\d+)/g, (match) => {
-    const [start, end] = match.split(':');
-    const cells = cellsInRange(start, end);
-    const values = cells
-      .map(([r, c]) => cellValueOf(getCellValue(r, c)))
-      .filter((v) => v !== undefined && v !== null);
-    return JSON.stringify(values);
-  });
-
-  // Single cell references
-  expr = expr.replace(/(\$?)([A-Z]+)(\$?)(\d+)/g, (match) => {
-    const [r, c] = parseCellRef(match);
-    const value = cellValueOf(getCellValue(r, c));
-    return JSON.stringify(value ?? 0);
-  });
-
-  // Split function arguments on top-level commas only, so JSON arrays
-  // produced by range substitution (e.g. [10,20,30]) stay intact
-  const splitArgs = (args: string): string[] => {
-    const parts: string[] = [];
-    let depth = 0;
-    let inString = false;
-    let current = '';
-    for (const ch of args) {
-      if (ch === '"') inString = !inString;
-      if (!inString && (ch === '[' || ch === '(')) depth++;
-      if (!inString && (ch === ']' || ch === ')')) depth--;
-      if (ch === ',' && depth === 0 && !inString) {
-        parts.push(current);
-        current = '';
-      } else {
-        current += ch;
-      }
-    }
-    if (current.trim() !== '') parts.push(current);
-    return parts;
-  };
-
-  // Handle functions (args contain no nested parentheses at this point;
-  // ranges have already become JSON arrays)
-  expr = expr.replace(/(SUM|AVERAGE|COUNT|MIN|MAX|IF|CONCAT|LEN|ROUND|ABS|TODAY|NOW)\(([^()]*)\)/gi, (match, fnName, args) => {
-    const values: any[] = [];
-
-    for (const part of splitArgs(args)) {
-      const trimmed = part.trim();
-      try {
-        const parsed = JSON.parse(trimmed);
-        if (Array.isArray(parsed)) {
-          values.push(...parsed);
-        } else {
-          values.push(parsed);
-        }
-      } catch {
-        // If not JSON, treat as literal value
-        values.push(trimmed);
-      }
-    }
-
-    const flat = values.flat();
-    switch (fnName.toUpperCase()) {
-      case 'SUM':
-        return String(flat.reduce((a, b) => Number(a) + Number(b), 0));
-      case 'AVERAGE': {
-        const nums = flat.map(Number).filter((n) => !isNaN(n));
-        return String(nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0);
-      }
-      case 'COUNT':
-        return String(flat.filter((v) => v !== null && v !== undefined && v !== '').length);
-      case 'MIN':
-        return String(Math.min(...flat.map(Number).filter((n) => !isNaN(n))));
-      case 'MAX':
-        return String(Math.max(...flat.map(Number).filter((n) => !isNaN(n))));
-      case 'IF':
-        return String(values[0] ? values[1] : values[2]);
-      case 'CONCAT':
-        return String(flat.join(''));
-      case 'LEN':
-        return String(String(values[0]).length);
-      case 'ROUND':
-        return String(Math.round(Number(values[0])));
-      case 'ABS':
-        return String(Math.abs(Number(values[0])));
-      case 'TODAY': {
-        const d = new Date();
-        d.setHours(0, 0, 0, 0);
-        return JSON.stringify(d.toISOString());
-      }
-      case 'NOW':
-        return JSON.stringify(new Date().toISOString());
-      default:
-        return match;
-    }
-  });
-
-  try {
-    // eslint-disable-next-line no-new-func
-    const result = Function(`"use strict"; return (${expr})`)();
-    if (typeof result === 'number' && !isFinite(result)) {
-      return '#ERROR';
-    }
-    // TODAY()/NOW() come back as ISO strings; hand the caller a real Date
-    if (typeof result === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(result)) {
-      return new Date(result);
-    }
-    return result;
-  } catch {
-    return `#ERROR`;
-  }
-};
+export { FORMULA_FUNCTIONS } from '../formula/functions';
+export type { FormulaFunctionInfo } from '../formula/functions';
