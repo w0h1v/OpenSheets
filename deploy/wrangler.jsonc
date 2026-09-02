@@ -1,0 +1,37 @@
+// Cloudflare deployment of opensheets.dev: one Worker serves the landing
+// page from ../site as static assets and proxies demo.opensheets.dev to a
+// container running the demo server (../Dockerfile). Deploy with
+// `npm run deploy` from this directory; see README.md here.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "opensheets",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-08-01",
+  "account_id": "d53a290c39f0a6f53360efc5ff07f999",
+  "workers_dev": false,
+  "routes": [
+    { "pattern": "opensheets.dev", "custom_domain": true },
+    { "pattern": "www.opensheets.dev", "custom_domain": true },
+    { "pattern": "demo.opensheets.dev", "custom_domain": true }
+  ],
+  "assets": {
+    "directory": "../site",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "run_worker_first": true
+  },
+  "containers": [
+    {
+      "class_name": "DemoContainer",
+      "image": "../Dockerfile",
+      "max_instances": 1,
+      "instance_type": "lite"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "DEMO", "class_name": "DemoContainer" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DemoContainer"] }],
+  "triggers": { "crons": ["0 9 * * *"] },
+  "observability": { "enabled": true }
+}

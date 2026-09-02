@@ -76,7 +76,7 @@
     "test:coverage": "jest --coverage",
     "test:relay": "node --test server/relayCore.test.mjs",
     "test:package": "node scripts/smoke-package.mjs",
-    "lint": "eslint src examples server scripts --ext .ts,.tsx,.mjs",
+    "lint": "eslint src examples server scripts deploy/worker.mjs --ext .ts,.tsx,.mjs",
     "typecheck": "tsc --noEmit",
     "dev": "vite serve examples",
     "build:examples": "vite build examples",

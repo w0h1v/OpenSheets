@@ -1,0 +1,13 @@
+{
+  "name": "opensheets-deploy",
+  "private": true,
+  "description": "Cloudflare deployment of opensheets.dev (Worker + container); see README.md",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "logs": "wrangler tail"
+  },
+  "devDependencies": {
+    "@cloudflare/containers": "0.3.7",
+    "wrangler": "4.128.0"
+  }
+}

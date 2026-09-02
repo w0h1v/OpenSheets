@@ -1,0 +1,28 @@
+name: Bug report
+description: Something does not work the way the documentation says it should.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: opensheets version
+      placeholder: e.g. 2.1.0, or a commit hash if built from source
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead. A minimal reproduction (a few lines of code, or steps in the live demo) makes the difference.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: browser and version, React version, bundler
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Console output, screenshots, or a link to a reproduction.

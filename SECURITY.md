@@ -15,11 +15,14 @@ Only the latest published minor release receives security fixes.
 
 ## Scope notes
 
-- The collaboration relay (`opensheets/server`) is a demo-grade server: it
-  hashes passwords and session tokens, but it has no rate limiting and its
-  permission checks are cooperative (enforced by the client). Do not expose
-  it to the public internet without putting your own authentication and
-  rate limiting in front of it.
+- The collaboration relay (`opensheets/server`) hashes passwords (scrypt)
+  and session tokens, checks the Origin of WebSocket upgrades, rate-limits
+  connections, messages and account endpoints, caps sheet and message sizes,
+  and enforces protected-range ownership on the server. It has no document
+  access control beyond that: every connected client can read and write
+  every sheet on the relay unless you supply an `authorize` hook. Treat a
+  public deployment as a shared playground, or put your own authorization
+  in front of it.
 - Excel support (`opensheets/excel`) depends on the optional `xlsx` peer
   dependency. Install it from the SheetJS CDN build; the copy on the npm
   registry is frozen at 0.18.5 and has open advisories.

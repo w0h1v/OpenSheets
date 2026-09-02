@@ -25,15 +25,13 @@ hook.
 
 ### Runtime dependencies of the published package
 
-The library ships three runtime dependencies. Everything else is either a
-peer dependency the consumer already has (React) or an optional peer behind a
+The library ships one runtime dependency. Everything else is either a peer
+dependency the consumer already has (React) or an optional peer behind a
 subpath entry.
 
 | Package | Why | Licence | Notes |
 | --- | --- | --- | --- |
 | `@tanstack/react-virtual` | row/column virtualization | MIT | |
-| `immer` | immutable state updates | MIT | |
-| `react-hotkeys-hook` | keyboard shortcuts | MIT | |
 
 Optional peers (only installed by consumers who use the matching subpath):
 

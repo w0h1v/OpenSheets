@@ -169,10 +169,14 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
           // the server; clients with data keep theirs (LWW stamps reconcile)
           const local = getStateRef.current().data;
           if (local.size === 0 && msg.data.length > 0) {
-            const updates = (msg.data as Array<[string, CellData]>).map(([key, cell]) => {
-              const [row, col] = key.split(':').map(Number);
-              return { row, col, data: cell };
-            });
+            const { maxRows, maxCols } = getStateRef.current();
+            const updates = (msg.data as Array<[string, CellData]>)
+              .map(([key, cell]) => {
+                const [row, col] = key.split(':').map(Number);
+                return { row, col, data: cell };
+              })
+              .filter((u) => Number.isInteger(u.row) && Number.isInteger(u.col) && u.row >= 0 && u.col >= 0
+                && u.row < maxRows && u.col < maxCols && typeof u.data === 'object' && u.data !== null);
             beginRemoteApply();
             dispatchRef.current({ type: 'SET_CELLS', payload: { updates } });
             endRemoteApply();
@@ -213,9 +217,12 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
         if (msg.type === 'cells' && msg.sheetId === sheetId) {
           const incoming: Array<{ row: number; col: number; data: Partial<CellData> }> = msg.updates;
           if (Array.isArray(incoming) && incoming.length) {
-            // Convergent LWW: drop writes that lose to our local edit stamp
-            const current = getStateRef.current().data;
+            // Only well-formed updates inside this grid, and only writes that
+            // beat our local edit stamp (convergent LWW)
+            const { data: current, maxRows, maxCols } = getStateRef.current();
             const updates = incoming.filter((u) => {
+              if (!u || !Number.isInteger(u.row) || !Number.isInteger(u.col) || u.row < 0 || u.col < 0) return false;
+              if (u.row >= maxRows || u.col >= maxCols || typeof u.data !== 'object' || u.data === null) return false;
               const local = current.get(keyOf(u.row, u.col));
               return editStampWins(u.data.editMeta, local?.editMeta);
             });

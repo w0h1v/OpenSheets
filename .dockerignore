@@ -1,0 +1,14 @@
+.git
+.github
+.claude
+node_modules
+dist
+examples/dist
+examples/data
+coverage
+site
+deploy/*
+!deploy/container
+deploy/container/node_modules
+*.tgz
+*.log

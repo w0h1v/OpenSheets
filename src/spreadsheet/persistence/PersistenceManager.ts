@@ -17,6 +17,44 @@ interface PersistenceManagerConfig {
 
 const PERSISTED_VERSION = '2.0.0';
 
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+const numberArray = (v: unknown, max: number): number[] | undefined =>
+  Array.isArray(v) && v.length <= max && v.every((n) => typeof n === 'number' && Number.isFinite(n) && n >= 0) ? v : undefined;
+const rectInside = (r: unknown, maxRows: number, maxCols: number) =>
+  isRecord(r) && [r.startRow, r.endRow].every((n) => Number.isInteger(n) && (n as number) >= 0 && (n as number) < maxRows)
+  && [r.startCol, r.endCol].every((n) => Number.isInteger(n) && (n as number) >= 0 && (n as number) < maxCols);
+const entriesInside = <T>(v: unknown, maxRows: number, maxCols: number, cell: (x: unknown) => boolean): Array<[string, T]> =>
+  (Array.isArray(v) ? v : []).filter((e): e is [string, T] => {
+    if (!Array.isArray(e) || e.length !== 2 || typeof e[0] !== 'string') return false;
+    const [row, col] = e[0].split(':').map(Number);
+    return Number.isInteger(row) && Number.isInteger(col) && row >= 0 && col >= 0 && row < maxRows && col < maxCols && cell(e[1]);
+  });
+
+/**
+ * Storage is not trusted: anything with access to the origin could have
+ * written it. Only well-formed entries inside the grid survive loading.
+ */
+function sanitizePersisted(raw: PersistedState, maxRows: number, maxCols: number): PersistedState {
+  const rects = (v: unknown) => (Array.isArray(v) ? v.filter((r) => rectInside(r, maxRows, maxCols)) : undefined);
+  const smallInt = (v: unknown) => (Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 1000 ? (v as number) : undefined);
+  return {
+    ...raw,
+    data: entriesInside(raw.data, maxRows, maxCols, isRecord),
+    rowHeights: numberArray(raw.rowHeights, maxRows) ?? [],
+    colWidths: numberArray(raw.colWidths, maxCols) ?? [],
+    validation: raw.validation ? entriesInside(raw.validation, maxRows, maxCols, isRecord) : undefined,
+    comments: raw.comments ? entriesInside(raw.comments, maxRows, maxCols, isRecord) : undefined,
+    frozenRows: smallInt(raw.frozenRows),
+    frozenCols: smallInt(raw.frozenCols),
+    merges: rects(raw.merges),
+    filters: Array.isArray(raw.filters) ? raw.filters.filter(isRecord) : undefined,
+    protectedRanges: Array.isArray(raw.protectedRanges)
+      ? raw.protectedRanges.filter((p) => isRecord(p) && typeof p.id === 'string' && typeof p.owner === 'string' && rectInside(p.range, maxRows, maxCols))
+      : undefined,
+    docMeta: isRecord(raw.docMeta) ? raw.docMeta : undefined,
+  };
+}
+
 /**
  * Serializes spreadsheet state through a PersistenceAdapter and back. One
  * instance per spreadsheet id; the provider decides when to save.
@@ -57,7 +95,8 @@ export class PersistenceManager {
     };
   }
 
-  private fromPersisted(persisted: PersistedState): SpreadsheetState {
+  private fromPersisted(raw: PersistedState): SpreadsheetState {
+    const persisted = sanitizePersisted(raw, this.config.maxRows ?? 1000, this.config.maxCols ?? 100);
     return {
       data: new Map(persisted.data),
       maxRows: this.config.maxRows ?? 1000,

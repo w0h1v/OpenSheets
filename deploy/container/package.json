@@ -1,0 +1,9 @@
+{
+  "name": "opensheets-demo-container",
+  "private": true,
+  "description": "Runtime dependencies of the demo server image (see ../../Dockerfile)",
+  "dependencies": {
+    "redis": "6.2.1",
+    "ws": "8.21.3"
+  }
+}
