@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, memo, useSyncExternalStore } from 'react';
 import { useSpreadsheetBase } from '../SpreadsheetContext';
-import type { CellValue } from '../types/spreadsheet';
+import { DEFAULT_COL_WIDTH, type CellValue } from '../types/spreadsheet';
 import { evaluateFormula } from '../utils/formulaUtils';
 import { isCellInSelection } from '../utils/selectionUtils';
 import { formatCellValue } from '../utils/formatUtils';
@@ -107,7 +107,7 @@ export const CellRenderer: React.FC<Props> = memo(({ row, col }) => {
 
   // Memoize expensive calculations
   const displayValue = useMemo(() => {
-    if (!cellData) return { text: '', isNumeric: false };
+    if (!cellData) return { value: undefined, text: '', isNumeric: false };
     
     let value: any;
     if (cellData.formula && cellData.formula.startsWith('=')) {
@@ -118,14 +118,14 @@ export const CellRenderer: React.FC<Props> = memo(({ row, col }) => {
     
     // Apply formatting to the value
     const text = formatCellValue(value, cellData.format);
-    return { text, isNumeric: typeof value === 'number' };
+    return { value, text, isNumeric: typeof value === 'number' };
     // crossSheetVersion re-evaluates =Sheet1!A1-style formulas live
   }, [cellData, getCell, crossSheetVersion]);
 
   // Numbers too wide for the column render as #### instead of spilling
   const showsHashes = useMemo(() => {
     if (!displayValue.isNumeric || !displayValue.text) return false;
-    const colWidth = state.colWidths?.[col] || 96;
+    const colWidth = state.colWidths?.[col] || DEFAULT_COL_WIDTH;
     // tabular-nums at 12px: ~7.2px per digit is a safe estimate
     const fits = displayValue.text.length * 7.2 <= colWidth - 12;
     return !fits;
@@ -143,10 +143,11 @@ export const CellRenderer: React.FC<Props> = memo(({ row, col }) => {
   const cellStyle = useMemo(() => {
     let baseFormat = cellData?.format || {};
     
-    // Apply conditional formatting if present
-    if (cellData?.format?.conditionalFormat && cellData.value !== undefined && cellData.value !== '') {
+    // Conditional rules see the computed value, so formula cells qualify too
+    const shown = displayValue.value;
+    if (cellData?.format?.conditionalFormat && shown !== undefined && shown !== null && shown !== '') {
       const shouldApplyConditional = evaluateConditionalFormat(
-        cellData.value,
+        shown,
         cellData.format.conditionalFormat,
         row,
         col,
@@ -194,7 +195,7 @@ export const CellRenderer: React.FC<Props> = memo(({ row, col }) => {
     if (coveringMerge && coveringMerge.startRow === row && coveringMerge.startCol === col) {
       let spanW = 0;
       for (let c = coveringMerge.startCol; c <= coveringMerge.endCol; c++) {
-        spanW += state.colWidths?.[c] || 96;
+        spanW += state.colWidths?.[c] || DEFAULT_COL_WIDTH;
       }
       let spanH = 0;
       for (let r = coveringMerge.startRow; r <= coveringMerge.endRow; r++) {
@@ -226,7 +227,7 @@ export const CellRenderer: React.FC<Props> = memo(({ row, col }) => {
     }
 
     return style;
-  }, [cellData?.format, isSelected, isActive, displayValue.isNumeric, displayValue.text, getCell, row, col, coveringMerge, state.colWidths, state.rowHeights]);
+  }, [cellData?.format, isSelected, isActive, displayValue.value, displayValue.isNumeric, displayValue.text, getCell, row, col, coveringMerge, state.colWidths, state.rowHeights]);
 
   // Get validation rule for this cell
   const validation = useMemo(() => {
@@ -364,7 +365,7 @@ export const CellRenderer: React.FC<Props> = memo(({ row, col }) => {
         aria-haspopup={hasDropdown ? 'listbox' : undefined}
         aria-expanded={hasDropdown ? showDropdown : undefined}
       >
-        {showsHashes ? '#'.repeat(Math.max(1, Math.floor(((state.colWidths?.[col] || 96) - 12) / 7.2))) : displayValue.text}
+        {showsHashes ? '#'.repeat(Math.max(1, Math.floor(((state.colWidths?.[col] || DEFAULT_COL_WIDTH) - 12) / 7.2))) : displayValue.text}
         {cellComment && (
           <CommentIndicator
             comment={cellComment}

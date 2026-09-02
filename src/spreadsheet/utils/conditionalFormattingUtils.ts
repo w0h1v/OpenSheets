@@ -210,42 +210,6 @@ function parseRuleDate(ruleValue: any): Date | null {
   return parseDate(ruleValue);
 }
 
-export function applyConditionalFormatting(
-  baseFormat: CellFormat | undefined,
-  conditionalFormat: CellFormat,
-  shouldApply: boolean
-): CellFormat {
-  if (!shouldApply) {
-    return baseFormat || {};
-  }
-
-  return {
-    ...baseFormat,
-    ...conditionalFormat,
-    // Merge specific properties that might need special handling
-    borders: conditionalFormat.borders || baseFormat?.borders,
-  };
-}
-
-export function getApplicableConditionalFormats(
-  value: any,
-  row: number,
-  col: number,
-  data: SparseMatrix<CellData>,
-  conditionalFormats: ConditionalFormat[],
-  getCell?: (r: number, c: number) => CellData | undefined
-): CellFormat[] {
-  const applicableFormats: CellFormat[] = [];
-
-  for (const rule of conditionalFormats) {
-    if (evaluateConditionalFormat(value, rule, row, col, data, getCell)) {
-      applicableFormats.push(rule.format);
-    }
-  }
-
-  return applicableFormats;
-}
-
 /**
  * Combine multiple conditional formats with priority (later formats override earlier ones)
  */

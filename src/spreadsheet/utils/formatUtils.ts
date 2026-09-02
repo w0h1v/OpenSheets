@@ -98,7 +98,7 @@ export function autoDetectFormat(value: any): { value: any; format: CellFormat }
  * Format a value according to the specified format
  */
 export function formatCellValue(value: any, format?: CellFormat): string {
-  if (value === null || value === undefined) {
+  if (value === null || value === undefined || value === '') {
     return '';
   }
 
