@@ -88,15 +88,56 @@ export { useSpreadsheet, useCollaboration, exportToCSV };
   // A CommonJS-mode consumer of the dual entries, and an ESM consumer of the
   // ESM-only server subpath (a Node server file), type-checked under both
   // resolution modes bundlers and Node use
-  await writeFile(join(dir, 'consumer.ts'), `
-import { SpreadsheetProvider, SpreadsheetGrid, useCollaboration, type CellData, type SpreadsheetState, type Identity } from 'opensheets';
+  // The README's own snippets, compiled against the packed types
+  await writeFile(join(dir, 'consumer.tsx'), `
+import React, { useRef } from 'react';
+import {
+  SpreadsheetProvider, SpreadsheetGrid, FormulaBar, FormattingToolbar, useSpreadsheet, useCollaboration, keyOf,
+  configureCollaboration, subscribeCollab, getCollabUsers, getIdentity, FORMULA_FUNCTIONS,
+  type CellData, type SpreadsheetState, type Identity, type PersistenceAdapter,
+} from 'opensheets';
 import type { FormulaEngine } from 'opensheets/hyperformula';
-import type { exportToExcel } from 'opensheets/excel';
+import type { exportToExcel, importFromExcel, getWorksheetNames } from 'opensheets/excel';
+
+export function Sheet() {
+  return (
+    <SpreadsheetProvider spreadsheetId="quarterly" persistence="local">
+      <FormattingToolbar />
+      <FormulaBar />
+      <SpreadsheetGrid />
+    </SpreadsheetProvider>
+  );
+}
+
+export function TotalOfA1() {
+  const { state, dispatch, undo, canUndo, save, dirty } = useSpreadsheet();
+  const a1 = state.data.get(keyOf(0, 0));
+  return (
+    <div>
+      <span>A1 is {String(a1?.value ?? '')}</span>
+      <button onClick={() => dispatch({ type: 'SET_CELL', payload: { row: 0, col: 0, data: { value: 42 } } })}>Set A1</button>
+      <button onClick={undo} disabled={!canUndo}>Undo</button>
+      <button onClick={save} disabled={!dirty}>Save</button>
+    </div>
+  );
+}
+
+export function CollabLayer({ sheetId }: { sheetId: string }) {
+  const { state, dispatch } = useSpreadsheet();
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  useCollaboration({ sheetId, getState: () => stateRef.current, dispatch });
+  return null;
+}
+
+configureCollaboration({ relayUrl: 'wss://relay.example.com/collab', authUrl: 'https://relay.example.com/auth' });
+const unsubscribe = subscribeCollab(() => getCollabUsers());
 const c: CellData = { value: 1 };
 const s: Partial<SpreadsheetState> = { data: new Map() };
-const id: Identity = { id: 'guest-x', name: 'x', color: '#000000', authenticated: false };
-export { SpreadsheetProvider, SpreadsheetGrid, useCollaboration, c, s, id };
-export type { FormulaEngine, exportToExcel };
+const id: Identity = getIdentity();
+const names: string[] = FORMULA_FUNCTIONS.map((f) => f.name);
+export { unsubscribe, c, s, id, names };
+export type { FormulaEngine, exportToExcel, importFromExcel, getWorksheetNames, PersistenceAdapter };
 `);
   await writeFile(join(dir, 'server-consumer.mts'), `
 import { createRelay, createBus, createAccountStore, type RelayBus } from 'opensheets/server';
@@ -109,7 +150,7 @@ export const key = keyOf(0, 0);
     await check(`types resolve (moduleResolution: ${resolution})`, async () => {
       node([join(dir, 'node_modules/typescript/bin/tsc'), '--noEmit', '--strict', '--skipLibCheck', '--esModuleInterop', '--jsx', 'react',
         '--target', 'es2020', '--lib', 'es2020,dom', '--types', 'node', '--module', resolution === 'node16' ? 'node16' : 'esnext', '--moduleResolution', resolution,
-        'consumer.ts', 'server-consumer.mts'], dir);
+        'consumer.tsx', 'server-consumer.mts'], dir);
       return '';
     });
   }
