@@ -345,8 +345,22 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
       }
       window.removeEventListener('beforeunload', onBeforeUnload);
       const live = wsRef.current;
-      if (live && live.readyState === WebSocket.OPEN) live.send(JSON.stringify({ type: 'bye' }));
-      live?.close();
+      if (live) {
+        const bye = () => {
+          live.send(JSON.stringify({ type: 'bye' }));
+          live.close();
+        };
+        if (live.readyState === WebSocket.OPEN) {
+          bye();
+        } else if (live.readyState === WebSocket.CONNECTING) {
+          // Browsers warn when a socket is closed mid-handshake; let it
+          // open, say goodbye, then close
+          live.onmessage = null;
+          live.onopen = bye;
+        } else {
+          live.close();
+        }
+      }
       wsRef.current = null;
       setCollabUsers([]);
     };
