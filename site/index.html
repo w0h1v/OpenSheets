@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenSheets — a spreadsheet component for React</title>
+  <meta name="description" content="OpenSheets is an MIT-licensed spreadsheet component for React with a built-in formula evaluator, CSV and XLSX import and export, and an optional WebSocket collaboration relay.">
+  <link rel="canonical" href="https://opensheets.dev/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="OpenSheets">
+  <meta property="og:description" content="An MIT-licensed spreadsheet component for React, with a built-in formula evaluator and an optional collaboration relay.">
+  <meta property="og:url" content="https://opensheets.dev/">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/site.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="/" aria-label="OpenSheets home">
+        <span class="mark" aria-hidden="true">
+          <!-- GridGlyphIcon from src/spreadsheet/components/icons.tsx -->
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="2" width="12" height="12" rx="1.5"/>
+            <path d="M2 6.5h12M6.5 2v12"/>
+          </svg>
+        </span>
+        <span>OpenSheets</span>
+      </a>
+      <nav class="site-nav" aria-label="Site">
+        <ul>
+          <li><a href="https://demo.opensheets.dev">Demo</a></li>
+          <li><a href="https://github.com/w0h1v/OpenSheets">GitHub</a></li>
+          <li><a href="#use-it">Use it</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <!-- ===== Hero ===== -->
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="wrap">
+        <h1 id="hero-title">OpenSheets</h1>
+        <p class="lead">An MIT-licensed spreadsheet component for React, with a built-in formula evaluator and an optional collaboration relay.</p>
+
+        <div class="actions">
+          <a class="btn btn-primary" href="https://demo.opensheets.dev">Open the live demo</a>
+          <a class="btn btn-secondary" href="https://github.com/w0h1v/OpenSheets">View on GitHub</a>
+        </div>
+
+        <div class="install-block">
+          <div class="install">
+            <code id="install-cmd">npm install opensheets</code>
+            <button type="button" class="copy" data-copy="install-cmd">
+              <svg class="icon-copy" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="5.5" y="2.5" width="8" height="9.5" rx="1.5"/>
+                <path d="M3.5 5.5v7a1 1 0 0 0 1 1h6"/>
+              </svg>
+              <svg class="icon-check" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 8.5l3 3 7-7"/>
+              </svg>
+              <span class="copy-label">Copy</span>
+            </button>
+          </div>
+          <p id="copy-status" class="sr-only" aria-live="polite"></p>
+          <p class="fine">The <a href="https://www.npmjs.com/package/opensheets">package on npm</a> is published from GitHub releases with npm provenance.</p>
+        </div>
+
+        <div class="callout" role="note">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="8" cy="8" r="6"/>
+            <path d="M8 7v4M8 5.2v.1"/>
+          </svg>
+          <p>The live demo is a shared playground. Anyone can open it and edit, and it resets every night, so nothing you put there will last.</p>
+        </div>
+
+        <!-- Screenshot slot 1 of 3: drop assets/screenshot-grid.png (16:10) in place; the box keeps its ratio regardless of the file's size -->
+        <figure class="shot">
+          <div class="shot-frame">
+            <img src="/assets/screenshot-grid.png" width="1600" height="1000" loading="lazy" alt="The OpenSheets grid in the demo app, with a formatting toolbar and formula bar above, a sheet of numbers with frozen header rows, and sheet tabs along the bottom.">
+          </div>
+          <figcaption>The grid, formula bar and toolbar as they appear in the demo.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ===== Features ===== -->
+    <section class="section" id="features" aria-labelledby="features-title">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="features-title">What it does</h2>
+          <p>The core package, with no optional entries installed.</p>
+        </div>
+
+        <ul class="cards">
+          <li class="card">
+            <h3>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M2 6h12M2 10h12M6 2v12M10 2v12"/></svg>
+              Grid
+            </h3>
+            <p>Rows and columns are virtualized, so large sheets stay responsive. Frozen rows and columns, merged cells, column and row resizing, and insert or delete of rows and columns with formula references updated.</p>
+          </li>
+          <li class="card">
+            <h3>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 13h2.5L13 5.5 10.5 3 3 10.5zM9 4.5l2.5 2.5"/></svg>
+              Editing
+            </h3>
+            <p>Edit in the cell or in the formula bar. Keyboard navigation, multi-range selection, copy and paste, a fill handle for copies and series, sort, and document-scoped undo and redo.</p>
+          </li>
+          <li class="card">
+            <h3>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 3.5h-8l4 4.5-4 4.5h8"/></svg>
+              Formulas
+            </h3>
+            <p>A built-in evaluator with cell references, ranges, absolute references and cross-sheet references, and a fixed set of functions: SUM, AVERAGE, COUNT, MIN, MAX, IF, AND, OR, text functions such as LEN, UPPER, LEFT and MID, and the date functions TODAY and NOW, among others. Formulas recalculate live, including across sheets.</p>
+          </li>
+          <li class="card">
+            <h3>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 13 8 3l5 10M4.75 9h6.5"/></svg>
+              Formatting
+            </h3>
+            <p>Fonts, bold, italic, underline, strikethrough, text and fill colours, alignment, wrapping and borders. Number formats such as currency, percent and dates, plus conditional formatting rules and templates.</p>
+          </li>
+          <li class="card">
+            <h3>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3h11l-4 5v4.5l-3-1.5V8z"/></svg>
+              Data
+            </h3>
+            <p>Per-column filters and sorting, data validation with dropdowns, comments with replies, find and replace, and bar, line and pie charts rendered as SVG.</p>
+          </li>
+          <li class="card">
+            <h3>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2h5l3 3v9H4zM9 2v3h3"/></svg>
+              Files
+            </h3>
+            <p>CSV import and export out of the box. XLSX import and export through the optional SheetJS entry, <code>opensheets/excel</code>.</p>
+          </li>
+          <li class="card">
+            <h3>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="8" cy="4" rx="5.5" ry="2"/><path d="M2.5 4v8c0 1.1 2.46 2 5.5 2s5.5-.9 5.5-2V4M2.5 8c0 1.1 2.46 2 5.5 2s5.5-.9 5.5-2"/></svg>
+              Persistence
+            </h3>
+            <p>A localStorage adapter with version history is included. Anything that implements the <code>PersistenceAdapter</code> interface can take its place.</p>
+          </li>
+          <li class="card">
+            <h3>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor" stroke="none"/></svg>
+              Theming
+            </h3>
+            <p>Every colour is a CSS custom property, with light and dark themes included. This page uses the same tokens.</p>
+          </li>
+          <li class="card">
+            <h3>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="12" height="8" rx="1.5"/><path d="M4.5 7h1M7.5 7h1M10.5 7h1M5.5 9.5h5"/></svg>
+              Accessibility
+            </h3>
+            <p>The grid uses ARIA grid semantics and can be operated entirely from the keyboard.</p>
+          </li>
+        </ul>
+
+        <!-- Screenshot slot 2 of 3: drop assets/screenshot-formatting.png (16:10) in place -->
+        <figure class="shot">
+          <div class="shot-frame">
+            <img src="/assets/screenshot-formatting.png" width="1600" height="1000" loading="lazy" alt="A sheet with bold headers, currency and percent number formats, a fill colour on one column, and the conditional formatting panel open on the right.">
+          </div>
+          <figcaption>Number formats, colours and a conditional formatting rule.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ===== Collaboration ===== -->
+    <section class="section" id="collaboration" aria-labelledby="collab-title">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="collab-title">Collaboration</h2>
+          <p>The relay ships in the package as <code>opensheets/server</code>. On the client, one hook connects a spreadsheet to it; on the server, you mount the relay in your own Node HTTP server.</p>
+        </div>
+
+        <div class="flow" role="img" aria-label="Browser tabs connect over a WebSocket to a relay instance. Several relay instances can share state through Redis.">
+          <div class="flow-box">
+            <strong>Browser tabs</strong>
+            <span>each tab is a client; sign in to be one person across tabs</span>
+          </div>
+          <svg class="flow-arrow" width="20" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8h12M11 5l3 3-3 3M5 5 2 8l3 3"/></svg>
+          <div class="flow-box">
+            <strong>Relay</strong>
+            <span><code>opensheets/server</code>: WebSocket relay, presence, accounts</span>
+          </div>
+          <svg class="flow-arrow" width="20" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8h12M11 5l3 3-3 3M5 5 2 8l3 3"/></svg>
+          <div class="flow-box is-optional">
+            <strong>Redis (optional)</strong>
+            <span>shared state when running several relay instances</span>
+          </div>
+        </div>
+
+        <dl class="collab-list">
+          <div>
+            <dt>WebSocket relay</dt>
+            <dd>Cell edits and selections travel through a WebSocket relay; every connected tab sees them.</dd>
+          </div>
+          <div>
+            <dt>Accounts</dt>
+            <dd>People can create an account and sign in. Without one, a tab collaborates as a guest.</dd>
+          </div>
+          <div>
+            <dt>Presence per person</dt>
+            <dd>Presence is tracked per person, not per tab, so a second tab does not show up as a second collaborator.</dd>
+          </div>
+          <div>
+            <dt>Protected ranges</dt>
+            <dd>A range can be protected so that other collaborators do not edit it.</dd>
+          </div>
+          <div>
+            <dt>Offline queue</dt>
+            <dd>Edits made while disconnected are queued; the client reconnects on its own and sends them.</dd>
+          </div>
+          <div>
+            <dt>Last-write-wins merge</dt>
+            <dd>Concurrent edits to the same cell merge last-write-wins, so every client ends up with the same sheet.</dd>
+          </div>
+          <div>
+            <dt>Several instances</dt>
+            <dd>One instance keeps its state in memory. To run several, point them at one Redis; any instance can then serve any client.</dd>
+          </div>
+        </dl>
+
+        <!-- Screenshot slot 3 of 3: drop assets/screenshot-collab.png (16:10) in place -->
+        <figure class="shot">
+          <div class="shot-frame">
+            <img src="/assets/screenshot-collab.png" width="1600" height="1000" loading="lazy" alt="Two people editing the same sheet: coloured selection outlines with name labels on different cells, and avatars for both collaborators in the header.">
+          </div>
+          <figcaption>Two collaborators on one sheet, each with their own selection colour.</figcaption>
+        </figure>
+
+        <p class="caveat">The relay hashes passwords and session tokens, but it has no rate limiting and its permission checks are enforced by the client. Put your own authentication and rate limiting in front of it before exposing it to the public internet; the details are in the <a href="https://github.com/w0h1v/OpenSheets/blob/main/SECURITY.md">security policy</a>.</p>
+      </div>
+    </section>
+
+    <!-- ===== Use it ===== -->
+    <section class="section" id="use-it" aria-labelledby="use-title">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="use-title">Use it in your app</h2>
+          <p>Install the package, import the two stylesheets once, and wrap the grid in a provider.</p>
+        </div>
+
+        <pre class="code" tabindex="0" role="region" aria-label="Example React component using OpenSheets"><code><span class="k">import</span> { SpreadsheetProvider, SpreadsheetGrid, FormulaBar, FormattingToolbar } <span class="k">from</span> <span class="s">'opensheets'</span>;
+<span class="k">import</span> <span class="s">'opensheets/styles.css'</span>;
+<span class="k">import</span> <span class="s">'opensheets/styles/tokens.css'</span>;
+
+<span class="k">export</span> <span class="k">function</span> Sheet() {
+  <span class="k">return</span> (
+    &lt;<span class="t">SpreadsheetProvider</span> <span class="a">spreadsheetId</span>=<span class="s">"quarterly"</span> <span class="a">persistence</span>=<span class="s">"local"</span>&gt;
+      &lt;<span class="t">FormattingToolbar</span> /&gt;
+      &lt;<span class="t">FormulaBar</span> /&gt;
+      &lt;<span class="t">SpreadsheetGrid</span> /&gt;
+    &lt;/<span class="t">SpreadsheetProvider</span>&gt;
+  );
+}</code></pre>
+
+        <ul class="entries">
+          <li><strong><code>opensheets/excel</code></strong> adds XLSX import and export. It needs the <code>xlsx</code> peer dependency (SheetJS).</li>
+          <li><strong><code>opensheets/hyperformula</code></strong> swaps in a formula engine backed by HyperFormula, which is GPL-3.0-only. It is opt in; the core does not need it.</li>
+          <li><strong><code>opensheets/server</code></strong> is the collaboration relay. It needs <code>ws</code>, and <code>redis</code> if you run several instances.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ===== How it is built ===== -->
+    <section class="section" id="built" aria-labelledby="built-title">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="built-title">How it is built</h2>
+        </div>
+
+        <ul class="facts">
+          <li>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3 3 7-7"/></svg>
+            <span><strong>MIT licence.</strong> The optional HyperFormula entry is the only part with a different licence, and it is kept out of the core.</span>
+          </li>
+          <li>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3 3 7-7"/></svg>
+            <span><strong>One runtime dependency</strong>, for row and column virtualization. React is a peer dependency.</span>
+          </li>
+          <li>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3 3 7-7"/></svg>
+            <span><strong>ESM and CommonJS builds</strong>, with TypeScript types.</span>
+          </li>
+          <li>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3 3 7-7"/></svg>
+            <span><strong>Releases come only from CI.</strong> A GitHub release triggers the publish, with npm provenance linking the tarball to the commit and workflow run.</span>
+          </li>
+          <li>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3 3 7-7"/></svg>
+            <span><strong>Pinned dependencies</strong> through a committed lockfile, and dependency install scripts never run.</span>
+          </li>
+          <li>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3 3 7-7"/></svg>
+            <span><strong>Tests run on every push</strong> to the main branch and on every pull request, along with type checking and lint.</span>
+          </li>
+        </ul>
+
+        <p class="facts-note">The dependency and release policy is written down in <a href="https://github.com/w0h1v/OpenSheets/blob/main/docs/SUPPLY-CHAIN.md">docs/SUPPLY-CHAIN.md</a>.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>OpenSheets is released under the <a href="https://github.com/w0h1v/OpenSheets/blob/main/LICENSE">MIT licence</a>.</p>
+      <ul>
+        <li><a href="https://github.com/w0h1v/OpenSheets">GitHub</a></li>
+        <li><a href="https://github.com/w0h1v/OpenSheets/blob/main/SECURITY.md">Security policy</a></li>
+        <li><a href="https://demo.opensheets.dev">Live demo</a></li>
+      </ul>
+    </div>
+  </footer>
+
+  <script src="/site.js"></script>
+</body>
+</html>
