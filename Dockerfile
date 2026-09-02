@@ -25,3 +25,6 @@ RUN mkdir -p /data && chown node:node /data
 USER node
 EXPOSE 8080
 CMD ["node", "examples/server.mjs"]
+
+LABEL org.opencontainers.image.source="https://github.com/w0h1v/OpenSheets" \
+      org.opencontainers.image.description="OpenSheets demo: the built demo app and its collaboration relay"
