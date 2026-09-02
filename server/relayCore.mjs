@@ -1,4 +1,4 @@
-import { randomBytes, pbkdf2, timingSafeEqual, createHash } from 'node:crypto';
+import { randomBytes, scrypt, timingSafeEqual, createHash } from 'node:crypto';
 import { promisify } from 'node:util';
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
@@ -20,37 +20,81 @@ import { WebSocketServer, WebSocket } from 'ws';
  *     serve any client and a client only ever talks to one instance.
  *
  * Identity model:
- *   - An *account* is a person: id, name, color. Accounts have pbkdf2-hashed
+ *   - An *account* is a person: id, name, color. Accounts have scrypt-hashed
  *     passwords; sessions are random tokens whose sha256 is stored on the
  *     account (tokens survive restarts, storage never holds a usable token).
  *     Accounts live in a JSON file (single instance) or a Redis hash.
- *   - A *client* is one browser tab: it sends a per-tab clientId in `hello`
- *     along with its session token. The server derives the identity from
- *     the token (the client's own claim is ignored) or, with no valid token,
- *     builds a guest identity whose id is always prefixed `guest-` so a
- *     guest can never impersonate an account.
+ *   - A *client* is one browser tab. The server assigns its id and a resume
+ *     secret in the roster reply; a tab may resume its own slot on reconnect
+ *     by presenting both, and nothing else can take a slot over. The token
+ *     decides who a client is; with no valid token the server builds a guest
+ *     identity whose id is always prefixed `guest-`, so a guest can never
+ *     impersonate an account.
  *   - Echo suppression and socket takeover are per client; join/leave
  *     presence is per account (a person's second tab joins silently and
  *     the "left" toast fires only when their last tab goes).
  *
- * Wire protocol (client -> server): hello{clientId, token?, user?},
- * sync{sheetId}, cells{sheetId, updates}, selection{...}, sheets{...}, bye.
- * Server -> client: roster{users, you, clientId}, snapshot{sheetId, data},
- * join{user}, leave{user}, and every relayed message with {user, clientId}
- * attached by the server.
+ * Abuse controls (see DEFAULT_LIMITS): WebSocket upgrades are accepted only
+ * from allowed origins, connections and auth requests are rate limited per
+ * IP, every socket has a message budget, and messages, sheets, cells and
+ * presence entries are capped. Row/column indexes and edit timestamps are
+ * validated before anything is stored or relayed.
+ *
+ * Wire protocol (client -> server): hello{token?, user?, clientId?,
+ * clientSecret?}, sync{sheetId}, cells{sheetId, updates}, selection{...},
+ * sheets{...}, bye. Server -> client: roster{users, you, clientId,
+ * clientSecret}, snapshot{sheetId, data}, join{user}, leave{user}, and every
+ * relayed message with {user, clientId} attached by the server.
  */
 
 /** Default location of accounts.json: a `data` folder under the process cwd (the demo servers pass their own). */
 export const DEFAULT_DATA_DIR = join(process.cwd(), 'data');
 
-const PBKDF2_ITERATIONS = 60_000;
-const CHANNEL = 'collab';
-const MAX_BODY_BYTES = 64 * 1024;
-const RESERVED_TYPES = new Set(['roster', 'snapshot', 'join', 'leave']);
+export const DEFAULT_LIMITS = Object.freeze({
+  /** Largest WebSocket frame accepted. */
+  maxFrameBytes: 256 * 1024,
+  /** Largest JSON body accepted on /auth/*. */
+  maxBodyBytes: 16 * 1024,
+  /** Cell updates in one `cells` message. */
+  maxUpdatesPerMessage: 2000,
+  /** Serialized size of one cell's data. */
+  maxCellBytes: 16 * 1024,
+  /** Cells stored per sheet snapshot. */
+  maxCellsPerSheet: 200_000,
+  /** Sheets held by the in-memory bus (Redis snapshots expire instead). */
+  maxSheets: 2000,
+  /** Snapshot lifetime in Redis, refreshed on every write. */
+  snapshotTtlSeconds: 30 * 24 * 3600,
+  /** Grid bounds (Excel's). */
+  maxRows: 1_048_576,
+  maxCols: 16_384,
+  /** Sustained and burst message budget per socket. */
+  messagesPerSecond: 40,
+  messageBurst: 120,
+  /** Open sockets per client IP. */
+  connectionsPerIp: 25,
+  /** Presence entries per bus. */
+  maxPresence: 10_000,
+  /** /auth/* requests per IP per minute. */
+  authRequestsPerMinute: 30,
+  /** Failed logins for one name from one IP before a lockout, and its length. */
+  loginFailuresBeforeLock: 10,
+  loginLockMs: 15 * 60_000,
+  /** Registrations per IP per hour. */
+  registrationsPerHour: 20,
+  /** Edit timestamps further in the future than this are pulled back to now. */
+  futureSkewMs: 60_000,
+});
 
-const pbkdf2Async = promisify(pbkdf2);
+const CHANNEL = 'collab';
+const RESERVED_TYPES = new Set(['roster', 'snapshot', 'join', 'leave']);
+const SHEET_ID_RE = /^[\w.-]{1,64}$/;
+const SCRYPT = { N: 2 ** 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
+
+const scryptAsync = promisify(scrypt);
 const sha256 = (s) => createHash('sha256').update(s).digest('hex');
 const isClear = (data) => !data || data.value === '' || data.value === undefined;
+const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 // Deterministic display color per id; mirrors COLLAB_PALETTE on the client
 export const ACCOUNT_COLORS = [
@@ -61,10 +105,50 @@ export const colorFor = (id) =>
   ACCOUNT_COLORS[[...String(id)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % ACCOUNT_COLORS.length];
 
 // ---------------------------------------------------------------------------
+// Rate limiting
+// ---------------------------------------------------------------------------
+
+/** Token bucket: `rate` tokens per second up to `burst`. */
+class Bucket {
+  constructor(rate, burst) {
+    this.rate = rate;
+    this.burst = burst;
+    this.tokens = burst;
+    this.at = Date.now();
+  }
+  take(n = 1) {
+    const now = Date.now();
+    this.tokens = Math.min(this.burst, this.tokens + ((now - this.at) / 1000) * this.rate);
+    this.at = now;
+    if (this.tokens < n) return false;
+    this.tokens -= n;
+    return true;
+  }
+}
+
+/** Per-key buckets that forget idle keys. */
+class BucketTable {
+  constructor(rate, burst) {
+    this.rate = rate;
+    this.burst = burst;
+    this.buckets = new Map();
+  }
+  take(key, n = 1) {
+    let b = this.buckets.get(key);
+    if (!b) this.buckets.set(key, (b = new Bucket(this.rate, this.burst)));
+    return b.take(n);
+  }
+  sweep() {
+    const cutoff = Date.now() - 10 * 60_000;
+    for (const [key, b] of this.buckets) if (b.at < cutoff) this.buckets.delete(key);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Presence bookkeeping shared by both buses. Entries: { clientId, session,
-// user }. `session` is a per-socket nonce so a stale socket closing after a
-// takeover (refresh, or the same tab landing on another instance) can never
-// remove the live entry.
+// secretHash, user }. `session` is a per-socket nonce so a stale socket
+// closing after a takeover can never remove the live entry; `secretHash`
+// is what a reconnecting tab must prove it knows to resume the slot.
 // ---------------------------------------------------------------------------
 
 function joinOutcome(entries, clientId, user) {
@@ -86,22 +170,22 @@ function leaveOutcome(entries, clientId, session) {
   return { last, user: prev.user };
 }
 
+const publicEntry = ({ clientId, user }) => ({ clientId, user });
+
 // Merge a batch of cell updates so a later write to the same cell wins
 function mergeUpdates(updates) {
   const merged = new Map(); // key -> cell | null (null = clear)
-  for (const u of updates) {
-    if (!u || !Number.isInteger(u.row) || !Number.isInteger(u.col)) continue;
-    merged.set(`${u.row}:${u.col}`, isClear(u.data) ? null : u.data);
-  }
+  for (const u of updates) merged.set(`${u.row}:${u.col}`, isClear(u.data) ? null : u.data);
   return merged;
 }
 
 export class MemoryBus {
-  constructor() {
+  constructor(limits = DEFAULT_LIMITS) {
     this.kind = 'memory';
+    this.limits = limits;
     this.handlers = new Map(); // channel -> Set<fn>
     this.snapshots = new Map(); // sheetId -> Map<key, cell>
-    this.presence = new Map(); // clientId -> { clientId, session, user }
+    this.presence = new Map(); // clientId -> entry
   }
   async init() {}
   async close() {}
@@ -118,17 +202,33 @@ export class MemoryBus {
     const snap = this.snapshots.get(sheetId);
     return snap && snap.size ? new Map(snap) : null;
   }
+  /** Stores what fits within the caps and returns the updates that were stored. */
   async applyCellUpdates(sheetId, updates) {
     let snap = this.snapshots.get(sheetId);
-    if (!snap) this.snapshots.set(sheetId, (snap = new Map()));
-    for (const [key, cell] of mergeUpdates(updates)) {
-      if (cell === null) snap.delete(key);
-      else snap.set(key, cell);
+    if (!snap) {
+      if (this.snapshots.size >= this.limits.maxSheets) return [];
+      this.snapshots.set(sheetId, (snap = new Map()));
     }
+    const accepted = [];
+    for (const [key, cell] of mergeUpdates(updates)) {
+      if (cell === null) {
+        snap.delete(key);
+      } else {
+        if (!snap.has(key) && snap.size >= this.limits.maxCellsPerSheet) continue;
+        snap.set(key, cell);
+      }
+      accepted.push(key);
+    }
+    const kept = new Set(accepted);
+    return updates.filter((u) => kept.has(`${u.row}:${u.col}`));
   }
-  async presenceJoin(clientId, session, user) {
+  async presenceGet(clientId) {
+    return this.presence.get(clientId) || null;
+  }
+  async presenceJoin(clientId, session, user, secretHash) {
+    if (!this.presence.has(clientId) && this.presence.size >= this.limits.maxPresence) return null;
     const outcome = joinOutcome(Array.from(this.presence.values()), clientId, user);
-    this.presence.set(clientId, { clientId, session, user });
+    this.presence.set(clientId, { clientId, session, secretHash, user });
     return outcome;
   }
   async presenceLeave(clientId, session) {
@@ -137,7 +237,7 @@ export class MemoryBus {
     return outcome;
   }
   async presenceList() {
-    return Array.from(this.presence.values(), ({ clientId, user }) => ({ clientId, user }));
+    return Array.from(this.presence.values(), publicEntry);
   }
 }
 
@@ -148,6 +248,7 @@ export class RedisBus {
     this.prefix = options.prefix || 'opensheets:';
     this.heartbeatMs = options.heartbeatMs || 10_000;
     this.staleMs = options.staleMs || 30_000;
+    this.limits = options.limits || DEFAULT_LIMITS;
     this.handlers = new Map(); // channel -> Set<fn>
     this.local = new Map(); // clientId -> entry owned by this instance
   }
@@ -226,18 +327,32 @@ export class RedisBus {
   // Per-cell HSET/HDEL in one transaction: concurrent instances editing
   // different cells of the same sheet never clobber each other
   async applyCellUpdates(sheetId, updates) {
+    const hash = this.key('snapshot', sheetId);
+    const merged = mergeUpdates(updates);
     const sets = {};
     const dels = [];
-    for (const [key, cell] of mergeUpdates(updates)) {
-      if (cell === null) dels.push(key);
-      else sets[key] = JSON.stringify(cell);
+    const size = await this.client.hLen(hash);
+    let added = 0;
+    for (const [key, cell] of merged) {
+      if (cell === null) {
+        dels.push(key);
+      } else {
+        if (size + added >= this.limits.maxCellsPerSheet) {
+          merged.delete(key);
+          continue;
+        }
+        sets[key] = JSON.stringify(cell);
+        added++;
+      }
     }
-    if (!dels.length && !Object.keys(sets).length) return;
-    const hash = this.key('snapshot', sheetId);
-    const multi = this.client.multi();
-    if (Object.keys(sets).length) multi.hSet(hash, sets);
-    if (dels.length) multi.hDel(hash, dels);
-    await multi.exec();
+    if (dels.length || Object.keys(sets).length) {
+      const multi = this.client.multi();
+      if (Object.keys(sets).length) multi.hSet(hash, sets);
+      if (dels.length) multi.hDel(hash, dels);
+      multi.expire(hash, this.limits.snapshotTtlSeconds);
+      await multi.exec();
+    }
+    return updates.filter((u) => merged.has(`${u.row}:${u.col}`));
   }
 
   async readPresence() {
@@ -249,7 +364,7 @@ export class RedisBus {
       let entry;
       try { entry = JSON.parse(raw); } catch { stale.push(clientId); continue; }
       if (now - (entry.ts || 0) > this.staleMs) stale.push(clientId);
-      else live.push({ clientId, session: entry.session, user: entry.user });
+      else live.push({ clientId, session: entry.session, secretHash: entry.secretHash, user: entry.user });
     }
     if (stale.length) await this.client.hDel(this.key('presence'), stale).catch(() => {});
     return live;
@@ -268,9 +383,15 @@ export class RedisBus {
     await this.client.hSet(this.key('presence'), fields);
   }
 
-  async presenceJoin(clientId, session, user) {
-    const outcome = joinOutcome(await this.readPresence(), clientId, user);
-    await this.writePresence({ clientId, session, user });
+  async presenceGet(clientId) {
+    return (await this.readPresence()).find((e) => e.clientId === clientId) || null;
+  }
+
+  async presenceJoin(clientId, session, user, secretHash) {
+    const entries = await this.readPresence();
+    if (!entries.some((e) => e.clientId === clientId) && entries.length >= this.limits.maxPresence) return null;
+    const outcome = joinOutcome(entries, clientId, user);
+    await this.writePresence({ clientId, session, secretHash, user });
     return outcome;
   }
 
@@ -284,13 +405,13 @@ export class RedisBus {
   }
 
   async presenceList() {
-    return (await this.readPresence()).map(({ clientId, user }) => ({ clientId, user }));
+    return (await this.readPresence()).map(publicEntry);
   }
 }
 
 /** Picks the bus from the environment: REDIS_URL => RedisBus, else MemoryBus. */
-export function createBus(env = process.env) {
-  return env.REDIS_URL ? new RedisBus(env.REDIS_URL) : new MemoryBus();
+export function createBus(env = process.env, limits = DEFAULT_LIMITS) {
+  return env.REDIS_URL ? new RedisBus(env.REDIS_URL, { limits }) : new MemoryBus(limits);
 }
 
 // ---------------------------------------------------------------------------
@@ -298,7 +419,7 @@ export function createBus(env = process.env) {
 // ---------------------------------------------------------------------------
 
 const hashPassword = async (password, salt) =>
-  (await pbkdf2Async(password, salt, PBKDF2_ITERATIONS, 32, 'sha256')).toString('hex');
+  (await scryptAsync(password, salt, 32, SCRYPT)).toString('hex');
 
 const verifyPassword = async (password, salt, expected) => {
   const actual = Buffer.from(await hashPassword(password, salt), 'hex');
@@ -335,6 +456,10 @@ export class FileAccountBackend {
     return Array.from(this.accounts.values());
   }
 
+  async count() {
+    return this.accounts.size;
+  }
+
   // Serialized atomic writes: temp file + rename so a crash mid-write never
   // leaves a truncated accounts file
   put(account) {
@@ -362,6 +487,9 @@ export class RedisAccountBackend {
     }
     return out;
   }
+  async count() {
+    return this.client.hLen(this.key);
+  }
   async put(account) {
     await this.client.hSet(this.key, account.id, JSON.stringify(account));
   }
@@ -369,8 +497,9 @@ export class RedisAccountBackend {
 
 export class AccountStore {
   /** @param backend a data directory (file backend) or an account backend */
-  constructor(backend = DEFAULT_DATA_DIR) {
+  constructor(backend = DEFAULT_DATA_DIR, { maxAccounts = 100_000 } = {}) {
     this.backend = typeof backend === 'string' ? new FileAccountBackend(backend) : backend;
+    this.maxAccounts = maxAccounts;
   }
 
   async init() {
@@ -385,7 +514,9 @@ export class AccountStore {
   async register(name, password) {
     name = String(name || '').trim();
     if (!NAME_RE.test(name)) throw new AuthError('Name must be 2-24 letters, digits, spaces, _ . or -');
-    if (String(password || '').length < 6) throw new AuthError('Password must be at least 6 characters');
+    if (String(password || '').length < 8) throw new AuthError('Password must be at least 8 characters');
+    if (String(password).length > 256) throw new AuthError('Password is too long');
+    if ((await this.backend.count()) >= this.maxAccounts) throw new AuthError('Registration is closed', 503);
     if (await this.findByName(name)) throw new AuthError('That name is already taken', 409);
     const salt = randomBytes(16).toString('hex');
     const account = {
@@ -404,8 +535,8 @@ export class AccountStore {
     // Verify against a dummy hash when the name is unknown so the timing
     // doesn't reveal which names exist
     const ok = account
-      ? await verifyPassword(String(password || ''), account.salt, account.hash)
-      : (await hashPassword(String(password || ''), 'no-such-account'), false);
+      ? await verifyPassword(String(password || '').slice(0, 256), account.salt, account.hash)
+      : (await hashPassword(String(password || '').slice(0, 256), 'no-such-account'), false);
     if (!ok) throw new AuthError('Invalid name or password', 401);
     return this.issueSession(account);
   }
@@ -432,7 +563,7 @@ export class AccountStore {
   }
 
   async byToken(token) {
-    if (typeof token !== 'string' || !token) return null;
+    if (typeof token !== 'string' || !token || token.length > 128) return null;
     const digest = sha256(token);
     const account = (await this.backend.all()).find((a) => a.sessions.includes(digest));
     return account ? this.publicUser(account) : null;
@@ -448,12 +579,12 @@ export function createAccountStore(bus, dataDir = DEFAULT_DATA_DIR) {
 // Relay
 // ---------------------------------------------------------------------------
 
-const readJson = (req) => new Promise((resolve, reject) => {
+const readJson = (req, maxBytes) => new Promise((resolve, reject) => {
   let size = 0;
   const chunks = [];
   req.on('data', (chunk) => {
     size += chunk.length;
-    if (size > MAX_BODY_BYTES) {
+    if (size > maxBytes) {
       reject(new AuthError('Request body too large', 413));
       req.destroy();
       return;
@@ -464,7 +595,7 @@ const readJson = (req) => new Promise((resolve, reject) => {
     try {
       const text = Buffer.concat(chunks).toString('utf8');
       const body = text ? JSON.parse(text) : {};
-      resolve(body && typeof body === 'object' ? body : {});
+      resolve(isObject(body) ? body : {});
     } catch {
       reject(new AuthError('Invalid JSON body'));
     }
@@ -481,12 +612,60 @@ const guestFrom = (claim) => {
 };
 
 const sanitizeClientId = (value) =>
-  (typeof value === 'string' ? value.replace(/[^\w-]/g, '').slice(0, 40) : '') || null;
+  (typeof value === 'string' && /^c-[0-9a-f]{18}$/.test(value)) ? value : null;
 
-export function createRelay({ bus, accounts, log = console }) {
+/** Client address, honouring proxy headers only when told to. */
+const clientIp = (req, trustProxy) => {
+  if (trustProxy) {
+    const cf = req.headers['cf-connecting-ip'];
+    if (typeof cf === 'string' && cf) return cf;
+    const xff = req.headers['x-forwarded-for'];
+    if (typeof xff === 'string' && xff) return xff.split(',')[0].trim();
+  }
+  return req.socket?.remoteAddress || 'unknown';
+};
+
+/**
+ * Origin policy for WebSocket upgrades: 'same-host' (default) accepts an
+ * Origin whose host matches the request's Host header, an array accepts
+ * exactly those origins, `true` accepts anything. Requests without an
+ * Origin header (non-browser clients) are accepted: cross-site WebSocket
+ * hijacking needs a browser, and browsers always send it.
+ */
+const originAllowed = (req, policy) => {
+  const origin = req.headers.origin;
+  if (policy === true || !origin) return true;
+  let host;
+  try { host = new URL(origin).host; } catch { return false; }
+  if (Array.isArray(policy)) return policy.includes(origin);
+  return host === req.headers.host;
+};
+
+export function createRelay({
+  bus,
+  accounts,
+  log = console,
+  allowedOrigins = 'same-host',
+  trustProxy = false,
+  limits: overrides = {},
+  authorize = null,
+}) {
+  const limits = { ...DEFAULT_LIMITS, ...overrides };
   const instance = randomBytes(4).toString('hex');
-  const clients = new Map(); // ws -> { clientId, session, user, left }
+  const clients = new Map(); // ws -> { clientId, session, user, left, ip }
+  const perIp = new Map(); // ip -> open socket count
+  const authBuckets = new BucketTable(limits.authRequestsPerMinute / 60, limits.authRequestsPerMinute);
+  const registerBuckets = new BucketTable(limits.registrationsPerHour / 3600, limits.registrationsPerHour);
+  const loginFailures = new Map(); // `${ip}|${name}` -> { count, lockedUntil }
   let wss = null;
+
+  const sweeper = setInterval(() => {
+    authBuckets.sweep();
+    registerBuckets.sweep();
+    const now = Date.now();
+    for (const [key, f] of loginFailures) if (f.lockedUntil < now && now - f.at > limits.loginLockMs) loginFailures.delete(key);
+  }, 5 * 60_000);
+  sweeper.unref();
 
   const send = (ws, msg) => {
     if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
@@ -511,6 +690,41 @@ export function createRelay({ bus, accounts, log = console }) {
     return Array.from(byUser.values());
   };
 
+  const allowed = async (user, action, sheetId) => {
+    if (!authorize) return true;
+    try { return Boolean(await authorize({ user, action, sheetId })); } catch { return false; }
+  };
+
+  const validSheetId = (id) => typeof id === 'string' && SHEET_ID_RE.test(id);
+
+  // Keeps only well-formed updates inside the grid, with plausible stamps
+  const sanitizeUpdates = (updates) => {
+    const now = Date.now();
+    const out = [];
+    for (const u of updates.slice(0, limits.maxUpdatesPerMessage)) {
+      if (!isObject(u) || !Number.isInteger(u.row) || !Number.isInteger(u.col)) continue;
+      if (u.row < 0 || u.col < 0 || u.row >= limits.maxRows || u.col >= limits.maxCols) continue;
+      if (u.data !== undefined && u.data !== null && !isObject(u.data)) continue;
+      let data = u.data;
+      if (isObject(data)) {
+        if (JSON.stringify(data).length > limits.maxCellBytes) continue;
+        if (isObject(data.editMeta) && typeof data.editMeta.ts === 'number' && data.editMeta.ts > now + limits.futureSkewMs) {
+          data = { ...data, editMeta: { ...data.editMeta, ts: now } };
+        }
+      }
+      out.push({ row: u.row, col: u.col, data });
+    }
+    return out;
+  };
+
+  const sanitizeSelection = (sel) => {
+    if (!isObject(sel)) return null;
+    const n = (v) => Number.isInteger(v) && v >= 0 && v < limits.maxRows;
+    const c = (v) => Number.isInteger(v) && v >= 0 && v < limits.maxCols;
+    if (!n(sel.startRow) || !n(sel.endRow) || !c(sel.startCol) || !c(sel.endCol)) return null;
+    return { sheetId: sel.sheetId, startRow: sel.startRow, startCol: sel.startCol, endRow: sel.endRow, endCol: sel.endCol };
+  };
+
   const handleHttp = async (req, res) => {
     const url = new URL(req.url || '/', 'http://relay');
     if (url.pathname !== '/healthz' && !url.pathname.startsWith('/auth/')) return false;
@@ -521,18 +735,43 @@ export function createRelay({ bus, accounts, log = console }) {
     };
 
     if (url.pathname === '/healthz') {
-      json(200, { ok: true, instance, bus: bus.kind, clients: clients.size });
+      json(200, { ok: true });
       return true;
     }
     if (req.method !== 'POST') {
       json(405, { error: 'Method not allowed' });
       return true;
     }
+    const ip = clientIp(req, trustProxy);
+    if (!authBuckets.take(ip)) {
+      json(429, { error: 'Too many requests, try again shortly' });
+      return true;
+    }
     try {
-      const body = await readJson(req);
+      const body = await readJson(req, limits.maxBodyBytes);
       switch (url.pathname) {
-        case '/auth/register': json(200, await accounts.register(body.name, body.password)); break;
-        case '/auth/login': json(200, await accounts.login(body.name, body.password)); break;
+        case '/auth/register': {
+          if (!registerBuckets.take(ip)) throw new AuthError('Too many new accounts from this address, try again later', 429);
+          json(200, await accounts.register(body.name, body.password));
+          break;
+        }
+        case '/auth/login': {
+          const key = `${ip}|${String(body.name || '').trim().toLowerCase()}`;
+          const failures = loginFailures.get(key);
+          if (failures && failures.lockedUntil > Date.now()) throw new AuthError('Too many failed attempts, try again later', 429);
+          try {
+            json(200, await accounts.login(body.name, body.password));
+            loginFailures.delete(key);
+          } catch (err) {
+            if (err.status === 401) {
+              const next = { count: (failures?.count || 0) + 1, at: Date.now(), lockedUntil: 0 };
+              if (next.count >= limits.loginFailuresBeforeLock) next.lockedUntil = Date.now() + limits.loginLockMs;
+              loginFailures.set(key, next);
+            }
+            throw err;
+          }
+          break;
+        }
         case '/auth/me': json(200, { user: await accounts.byToken(body.token) }); break;
         case '/auth/logout': await accounts.logout(body.token); json(200, { ok: true }); break;
         default: json(404, { error: 'Not found' });
@@ -544,7 +783,9 @@ export function createRelay({ bus, accounts, log = console }) {
     return true;
   };
 
-  const handleConnection = (ws) => {
+  const handleConnection = (ws, req) => {
+    const ip = clientIp(req, trustProxy);
+    const budget = new Bucket(limits.messagesPerSecond, limits.messageBurst);
     let me = null;
 
     const leave = async () => {
@@ -556,17 +797,32 @@ export function createRelay({ bus, accounts, log = console }) {
     };
 
     const handle = async (raw) => {
+      if (!budget.take()) {
+        ws.close(1008, 'message rate exceeded');
+        return;
+      }
       let msg;
       try { msg = JSON.parse(String(raw)); } catch { return; }
-      if (!msg || typeof msg.type !== 'string') return;
+      if (!isObject(msg) || typeof msg.type !== 'string') return;
 
       if (msg.type === 'hello') {
         if (me) return; // one identity per socket
         // The token is authoritative; the client's own claim only shapes a guest
         const user = (await accounts.byToken(msg.token)) || guestFrom(msg.user);
-        const clientId = sanitizeClientId(msg.clientId) || `c-${randomBytes(6).toString('hex')}`;
+        // A tab resumes its own slot only by proving it holds the secret
+        let clientId = null;
+        let clientSecret = typeof msg.clientSecret === 'string' ? msg.clientSecret.slice(0, 64) : '';
+        const claimed = sanitizeClientId(msg.clientId);
+        if (claimed && clientSecret) {
+          const entry = await bus.presenceGet(claimed);
+          if (entry && entry.secretHash === sha256(clientSecret)) clientId = claimed;
+        }
+        if (!clientId) {
+          clientId = `c-${randomBytes(9).toString('hex')}`;
+          clientSecret = randomBytes(16).toString('hex');
+        }
         const session = randomBytes(6).toString('hex');
-        // A refresh can reconnect before the old socket closes: supersede it
+        // A resumed tab supersedes its own stale socket on this instance
         for (const [other, c] of clients) {
           if (c.clientId === clientId && other !== ws) {
             c.left = true;
@@ -574,12 +830,16 @@ export function createRelay({ bus, accounts, log = console }) {
             other.close(4000, 'superseded');
           }
         }
-        me = { clientId, session, user, left: false };
+        const outcome = await bus.presenceJoin(clientId, session, user, sha256(clientSecret));
+        if (!outcome) {
+          ws.close(1013, 'relay is full');
+          return;
+        }
+        me = { clientId, session, user, left: false, ip };
         clients.set(ws, me);
-        const { first, left } = await bus.presenceJoin(clientId, session, user);
-        send(ws, { type: 'roster', users: await roster(user.id), you: user, clientId });
-        if (left) await publish({ type: 'leave' }, { user: left, clientId });
-        if (first) await publish({ type: 'join' }, me);
+        send(ws, { type: 'roster', users: await roster(user.id), you: user, clientId, clientSecret });
+        if (outcome.left) await publish({ type: 'leave' }, { user: outcome.left, clientId });
+        if (outcome.first) await publish({ type: 'join' }, me);
         return;
       }
 
@@ -591,7 +851,7 @@ export function createRelay({ bus, accounts, log = console }) {
       }
 
       if (msg.type === 'sync') {
-        if (typeof msg.sheetId !== 'string') return;
+        if (!validSheetId(msg.sheetId) || !(await allowed(me.user, 'read', msg.sheetId))) return;
         const snap = await bus.getSnapshot(msg.sheetId);
         send(ws, { type: 'snapshot', sheetId: msg.sheetId, data: snap ? Array.from(snap.entries()) : null });
         return;
@@ -599,13 +859,29 @@ export function createRelay({ bus, accounts, log = console }) {
 
       if (RESERVED_TYPES.has(msg.type)) return; // server-only types can't be forged
 
+      let outgoing = msg;
       if (msg.type === 'cells') {
-        if (typeof msg.sheetId !== 'string' || !Array.isArray(msg.updates)) return;
-        await bus.applyCellUpdates(msg.sheetId, msg.updates);
+        if (!validSheetId(msg.sheetId) || !Array.isArray(msg.updates)) return;
+        if (!(await allowed(me.user, 'write', msg.sheetId))) return;
+        const updates = await bus.applyCellUpdates(msg.sheetId, sanitizeUpdates(msg.updates));
+        if (!updates.length) return;
+        outgoing = { type: 'cells', sheetId: msg.sheetId, updates };
+      } else if (msg.type === 'selection') {
+        if (!validSheetId(msg.sheetId)) return;
+        const selection = sanitizeSelection(msg.selection);
+        if (!selection) return;
+        outgoing = { type: 'selection', sheetId: msg.sheetId, selection };
+      } else if (msg.type === 'sheets') {
+        if (!Array.isArray(msg.sheets) || msg.sheets.length > 200) return;
+        const sheets = msg.sheets
+          .filter((s) => isObject(s) && validSheetId(s.id) && typeof s.name === 'string')
+          .map((s) => ({ id: s.id, name: s.name.slice(0, 64) }));
+        outgoing = { type: 'sheets', sheets };
+      } else {
+        outgoing = { ...msg };
+        delete outgoing.token;
       }
-
-      const { token: _token, ...rest } = msg;
-      await publish(rest, me);
+      await publish(outgoing, me);
     };
 
     // Messages from one socket are handled strictly in order (hello, then
@@ -615,6 +891,8 @@ export function createRelay({ bus, accounts, log = console }) {
       queue = queue.then(() => handle(raw)).catch((err) => log.error('[relay] message failed:', err));
     });
     ws.on('close', () => {
+      perIp.set(ip, Math.max(0, (perIp.get(ip) || 1) - 1));
+      if (!perIp.get(ip)) perIp.delete(ip);
       queue = queue.then(leave).catch((err) => log.error('[relay] leave failed:', err));
     });
   };
@@ -625,13 +903,25 @@ export function createRelay({ bus, accounts, log = console }) {
    * passes false so HMR's own upgrade keeps working.
    */
   const attach = (httpServer, { rejectOthers = true } = {}) => {
-    wss = new WebSocketServer({ noServer: true, maxPayload: 4 * 1024 * 1024 });
+    wss = new WebSocketServer({ noServer: true, maxPayload: limits.maxFrameBytes });
     httpServer.on('upgrade', (req, socket, head) => {
       const path = (req.url || '').split('?')[0];
       if (path !== '/collab') {
         if (rejectOthers) socket.destroy();
         return;
       }
+      if (!originAllowed(req, allowedOrigins)) {
+        socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+      const ip = clientIp(req, trustProxy);
+      if ((perIp.get(ip) || 0) >= limits.connectionsPerIp) {
+        socket.write('HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+      perIp.set(ip, (perIp.get(ip) || 0) + 1);
       wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
     });
     wss.on('connection', handleConnection);
@@ -639,6 +929,7 @@ export function createRelay({ bus, accounts, log = console }) {
   };
 
   const close = async () => {
+    clearInterval(sweeper);
     const open = Array.from(clients.keys());
     for (const ws of open) ws.close(1001, 'server shutting down');
     // Closing sockets drains presence via their close handlers; give the
@@ -647,5 +938,5 @@ export function createRelay({ bus, accounts, log = console }) {
     wss?.close();
   };
 
-  return { handleHttp, handleConnection, attach, close, instance };
+  return { handleHttp, handleConnection, attach, close, instance, limits };
 }

@@ -7,7 +7,8 @@ import {
   SpreadsheetContextInstance,
 } from './SpreadsheetContext';
 import { SpreadsheetEnhancedContext } from './SpreadsheetContextEnhanced';
-import { PersistenceManager, PersistenceMode } from './persistence/PersistenceManager';
+import { PersistenceManager } from './persistence/PersistenceManager';
+import type { PersistenceAdapter } from './persistence/types';
 import { SyncStatus, SaveResult } from './persistence/types';
 
 interface SpreadsheetContextValue {
@@ -26,20 +27,14 @@ interface SpreadsheetContextValue {
   listVersions: () => Promise<{ id: string; label?: string; timestamp: number }[]>;
   syncStatus: SyncStatus;
   dirty: boolean;
-  persistenceMode: PersistenceMode;
 }
 
 export interface PersistedTableProps extends TableProps {
   spreadsheetId?: string;
-  persistenceMode?: PersistenceMode;
+  /** Where documents are stored; defaults to this browser's localStorage. */
+  adapter?: PersistenceAdapter;
   autoSave?: boolean;
   autoSaveInterval?: number;
-  apiConfig?: {
-    baseUrl: string;
-    wsUrl: string;
-    apiKey?: string;
-    userId: string;
-  };
   onSyncStatusChange?: (status: SyncStatus) => void;
   onSaveComplete?: (result: SaveResult) => void;
   onLoadComplete?: (success: boolean) => void;
@@ -84,10 +79,9 @@ const enhancedReducer = (state: SpreadsheetState, action: SpreadsheetAction): Sp
 
 export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<PersistedTableProps>> = ({
   spreadsheetId = 'default',
-  persistenceMode = 'local',
+  adapter,
   autoSave = true,
   autoSaveInterval = 5000,
-  apiConfig,
   initialData,
   maxRows = 1000,
   maxCols = 100,
@@ -125,7 +119,7 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
     connected: true,
     syncing: false,
     pendingChanges: 0,
-    mode: persistenceMode === 'api' ? 'cloud' : persistenceMode === 'hybrid' ? 'hybrid' : 'local',
+    mode: 'local',
   });
 
   // Persistence manager
@@ -139,10 +133,10 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
   // Initialize persistence manager
   useEffect(() => {
     persistenceManager.current = new PersistenceManager({
-      mode: persistenceMode,
       spreadsheetId,
-      autoSave: false, // We'll handle auto-save ourselves
-      apiConfig,
+      adapter,
+      maxRows,
+      maxCols,
       onSyncStatusChange: (status) => {
         setSyncStatus(status);
         onSyncStatusChange?.(status);
@@ -163,9 +157,8 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
       if (hasUnsavedChanges.current) {
         saveDataRef.current?.();
       }
-      persistenceManager.current?.destroy();
     };
-  }, [spreadsheetId, persistenceMode]);
+  }, [spreadsheetId, adapter]);
 
   // Undo/Redo support
   const { undo, redo, canUndo, canRedo } = useUndoRedo(state, dispatch);
@@ -393,8 +386,7 @@ export const SpreadsheetProviderPersisted: React.FC<React.PropsWithChildren<Pers
     listVersions,
     syncStatus,
     dirty,
-    persistenceMode,
-  }), [state, dispatch, getCell, setCell, undo, redo, canUndo, canRedo, syncStatus, dirty, persistenceMode, listVersions]);
+  }), [state, dispatch, getCell, setCell, undo, redo, canUndo, canRedo, syncStatus, dirty, listVersions]);
 
   return (
     <SpreadsheetContext.Provider value={contextValue}>

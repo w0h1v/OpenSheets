@@ -141,7 +141,9 @@ function evaluateDateCondition(value: any, rule: ConditionalFormat): boolean {
 }
 
 /**
- * Evaluate formula-based conditions
+ * Formula conditions are spreadsheet formulas evaluated against the tested
+ * cell; `value`, `row` and `col` in the rule stand for that cell. Anything
+ * the evaluator rejects, or that yields an error value, is no match.
  */
 function evaluateFormulaCondition(
   value: any,
@@ -151,96 +153,24 @@ function evaluateFormulaCondition(
   data: SparseMatrix<CellData>,
   getCell?: (r: number, c: number) => CellData | undefined
 ): boolean {
+  const formula = rule.value1;
+  if (typeof formula !== 'string' || !formula.trim()) return false;
+  const literal = typeof value === 'number' || typeof value === 'boolean'
+    ? String(value)
+    : `"${String(value ?? '').replace(/"/g, '""')}"`;
+  const expression = formula
+    .replace(/^=/, '')
+    .replace(/\bvalue\b/g, literal)
+    .replace(/\brow\b/g, String(row + 1))
+    .replace(/\bcol\b/g, String(col + 1));
+  const lookup = getCell ?? ((r: number, c: number) => data.get(keyOf(r, c)));
   try {
-    const formula = rule.value1;
-    if (!formula) return false;
-
-    // Replace placeholders in formula
-    let processedFormula = formula;
-    
-    // Replace common placeholders
-    processedFormula = processedFormula.replace(/\bvalue\b/g, String(value));
-    processedFormula = processedFormula.replace(/\brow\b/g, String(row + 1)); // 1-based
-    processedFormula = processedFormula.replace(/\bcol\b/g, String(col + 1)); // 1-based
-    
-    // Replace cell references like A1 with actual cell addresses
-    processedFormula = processedFormula.replace(/A1/g, `${row + 1}:${col}`);
-    
-    // Handle special DFIR functions
-    if (processedFormula.includes('TODAY()')) {
-      const today = new Date();
-      processedFormula = processedFormula.replace(/TODAY\(\)/g, today.getTime().toString());
-    }
-
-    // For complex formulas, try to evaluate using the formula engine
-    if (getCell) {
-      const result = evaluateFormula('=' + processedFormula, getCell);
-      return Boolean(result);
-    }
-
-    // Fallback: simple evaluation
-    return evaluateSimpleFormula(processedFormula, value, row, col, data);
-  } catch (error) {
-    console.warn('Conditional formatting formula evaluation failed:', error);
+    const result = evaluateFormula('=' + expression, lookup);
+    if (typeof result === 'string' && result.startsWith('#')) return false;
+    return Boolean(result);
+  } catch {
     return false;
   }
-}
-
-/**
- * Simple formula evaluation for common DFIR patterns
- */
-function evaluateSimpleFormula(
-  formula: string,
-  value: any,
-  _row: number,
-  _col: number,
-  _data: SparseMatrix<CellData>
-): boolean {
-  const stringValue = String(value);
-
-  // IP address patterns
-  if (formula.includes('NOT(OR(LEFT')) {
-    // External IP detection
-    const ip = stringValue;
-    const privatePatterns = [
-      /^10\./,
-      /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
-      /^192\.168\./,
-      /^127\./,
-      /^169\.254\./
-    ];
-    return !privatePatterns.some(pattern => pattern.test(ip));
-  }
-
-  // Hash length detection
-  if (formula.includes('OR(LEN')) {
-    const len = stringValue.length;
-    return len === 32 || len === 40 || len === 64; // MD5, SHA1, SHA256
-  }
-
-  // Duplicate detection (simplified)
-  if (formula.includes('COUNTIF')) {
-    let count = 0;
-    _data.forEach((cellData: CellData) => {
-      if (cellData.value === value) count++;
-    });
-    return count > 1;
-  }
-
-  // Boolean expression: run it through the spreadsheet's own evaluator.
-  // Rule text can come from persisted or shared documents, so it is never
-  // handed to eval(); anything the evaluator rejects is simply "no match".
-  if (formula.includes('>') || formula.includes('<') || formula.includes('=')) {
-    try {
-      const result = evaluateFormula('=' + formula, (r, c) => _data.get(keyOf(r, c)));
-      if (typeof result === 'string' && result.startsWith('#')) return false;
-      return Boolean(result);
-    } catch {
-      return false;
-    }
-  }
-
-  return false;
 }
 
 /**
@@ -363,40 +293,3 @@ export function combineConditionalFormats(
 
   return combinedFormat;
 }
-
-/**
- * DFIR-specific conditional formatting presets
- */
-export const DFIR_CONDITIONAL_PRESETS = {
-  // Severity-based coloring
-  severityHighlight: {
-    critical: { backgroundColor: '#dc3545', color: '#ffffff', bold: true },
-    high: { backgroundColor: '#fd7e14', color: '#ffffff', bold: true },
-    medium: { backgroundColor: '#ffc107', color: '#000000' },
-    low: { backgroundColor: '#28a745', color: '#ffffff' },
-    info: { backgroundColor: '#17a2b8', color: '#ffffff' }
-  },
-
-  // IOC type coloring
-  iocTypeHighlight: {
-    malware: { backgroundColor: '#ff1744', color: '#ffffff', bold: true },
-    suspicious: { backgroundColor: '#ff9800', color: '#ffffff' },
-    benign: { backgroundColor: '#4caf50', color: '#ffffff' },
-    unknown: { backgroundColor: '#9e9e9e', color: '#ffffff' }
-  },
-
-  // Network traffic coloring
-  networkTrafficHighlight: {
-    internal: { backgroundColor: '#e3f2fd', color: '#0d47a1' },
-    external: { backgroundColor: '#fff3e0', color: '#bf360c' },
-    suspicious: { backgroundColor: '#ffebee', color: '#c62828', bold: true }
-  },
-
-  // File analysis coloring
-  fileAnalysisHighlight: {
-    executable: { backgroundColor: '#fce4ec', color: '#880e4f' },
-    script: { backgroundColor: '#f3e5f5', color: '#4a148c' },
-    document: { backgroundColor: '#e8f5e8', color: '#1b5e20' },
-    archive: { backgroundColor: '#fff8e1', color: '#f57f17' }
-  }
-};

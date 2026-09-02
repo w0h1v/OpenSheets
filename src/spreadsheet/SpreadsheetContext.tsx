@@ -1,61 +1,23 @@
-import React, { createContext, useContext, useState } from 'react';
-import { TableProps, SpreadsheetState, CellData, keyOf } from './types/spreadsheet';
+import { createContext, useContext } from 'react';
+import type React from 'react';
+import { SpreadsheetState, CellData } from './types/spreadsheet';
 
-interface SpreadsheetContextValue {
+/*
+ * The base context: a setState-style view of the spreadsheet that the grid
+ * internals (cell renderer, keyboard and clipboard hooks) read. Both
+ * providers publish it; consumers use the provider hooks instead.
+ */
+export interface SpreadsheetContextValue {
   state: SpreadsheetState;
   setState: React.Dispatch<React.SetStateAction<SpreadsheetState>>;
   getCell: (r: number, c: number) => CellData | undefined;
   setCell: (r: number, c: number, data: Partial<CellData>) => void;
 }
 
-// Exported so the enhanced provider can bridge this context for components
-// rendered inside a SpreadsheetProviderEnhanced tree.
 export const SpreadsheetContextInstance = createContext<SpreadsheetContextValue | null>(null);
-export type { SpreadsheetContextValue };
-const SpreadsheetContext = SpreadsheetContextInstance;
-
-export const SpreadsheetProvider: React.FC<React.PropsWithChildren<TableProps>> = ({
-  initialData,
-  maxRows = 1000,
-  maxCols = 100,
-  readOnly = false,
-  children,
-}) => {
-  const [state, setState] = useState<SpreadsheetState>({
-    data: initialData ?? new Map(),
-    maxRows,
-    maxCols,
-    selection: { ranges: [], active: null },
-    editing: null,
-    formulaInput: '',
-    readOnly,
-  });
-
-  const getCell = (r: number, c: number) => state.data.get(keyOf(r, c));
-  
-  const setCell = (r: number, c: number, data: Partial<CellData>) => {
-    setState((prev) => {
-      const key = keyOf(r, c);
-      const existing = prev.data.get(key) ?? { value: '' };
-      const updated: CellData = { ...existing, ...data };
-      if (updated.value === undefined) {
-        updated.value = '';
-      }
-      const newMap = new Map(prev.data);
-      newMap.set(key, updated);
-      return { ...prev, data: newMap };
-    });
-  };
-
-  return (
-    <SpreadsheetContext.Provider value={{ state, setState, getCell, setCell }}>
-      {children}
-    </SpreadsheetContext.Provider>
-  );
-};
 
 export const useSpreadsheet = () => {
-  const ctx = useContext(SpreadsheetContext);
-  if (!ctx) throw new Error('useSpreadsheet must be used within SpreadsheetProvider');
+  const ctx = useContext(SpreadsheetContextInstance);
+  if (!ctx) throw new Error('useSpreadsheet must be used inside a spreadsheet provider');
   return ctx;
 };

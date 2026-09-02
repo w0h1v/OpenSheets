@@ -15,7 +15,7 @@ export const ConditionalFormattingPanel: React.FC<ConditionalFormattingProps> = 
   onClose,
   selectedRange,
 }) => {
-  const [activeTab, setActiveTab] = useState<'rules' | 'templates' | 'dfir'>('rules');
+  const [activeTab, setActiveTab] = useState<'rules' | 'templates'>('rules');
   const [currentRule, setCurrentRule] = useState<ConditionalFormat>({
     type: 'cellValue',
     condition: 'greaterThan',
@@ -106,79 +106,6 @@ export const ConditionalFormattingPanel: React.FC<ConditionalFormattingProps> = 
     }
   ];
 
-  const dfirRules = [
-    {
-      name: 'Critical Severity',
-      description: 'Red background for critical/high severity items',
-      rule: {
-        type: 'textContains' as const,
-        condition: 'contains' as const,
-        value1: 'critical,high,severe',
-        format: { backgroundColor: '#ff4444', color: '#ffffff', bold: true }
-      }
-    },
-    {
-      name: 'Malicious IOCs',
-      description: 'Highlight known malicious indicators',
-      rule: {
-        type: 'textContains' as const,
-        condition: 'contains' as const,
-        value1: 'malware,trojan,backdoor,suspicious',
-        format: { backgroundColor: '#ff6b6b', color: '#ffffff', bold: true }
-      }
-    },
-    {
-      name: 'Recent Timestamps',
-      description: 'Highlight activity in last 24 hours',
-      rule: {
-        type: 'dateOccurring' as const,
-        condition: 'greaterThan' as const,
-        value1: 'TODAY()-1',
-        format: { backgroundColor: '#4ecdc4', color: '#000000' }
-      }
-    },
-    {
-      name: 'External IPs',
-      description: 'Highlight external IP addresses',
-      rule: {
-        type: 'formula' as const,
-        condition: 'equal' as const,
-        value1: 'NOT(OR(LEFT(A1,3)="10.",LEFT(A1,4)="172.",LEFT(A1,4)="192.",LEFT(A1,4)="127."))',
-        format: { backgroundColor: '#fff3cd', color: '#856404' }
-      }
-    },
-    {
-      name: 'Suspicious File Extensions',
-      description: 'Highlight potentially dangerous file types',
-      rule: {
-        type: 'textContains' as const,
-        condition: 'endsWith' as const,
-        value1: '.exe,.scr,.bat,.cmd,.pif,.com,.vbs,.js',
-        format: { backgroundColor: '#f8d7da', color: '#721c24' }
-      }
-    },
-    {
-      name: 'Hash Values',
-      description: 'Highlight cells containing hash values (MD5/SHA)',
-      rule: {
-        type: 'formula' as const,
-        condition: 'equal' as const,
-        value1: 'OR(LEN(A1)=32,LEN(A1)=40,LEN(A1)=64)',
-        format: { backgroundColor: '#d1ecf1', color: '#0c5460', fontFamily: 'monospace' }
-      }
-    },
-    {
-      name: 'Empty Evidence Fields',
-      description: 'Highlight missing critical evidence',
-      rule: {
-        type: 'cellValue' as const,
-        condition: 'equal' as const,
-        value1: '',
-        format: { backgroundColor: '#f5c6cb', color: '#721c24', strikethrough: true }
-      }
-    }
-  ];
-
   if (!isVisible) return null;
 
   return (
@@ -201,12 +128,6 @@ export const ConditionalFormattingPanel: React.FC<ConditionalFormattingProps> = 
             onClick={() => setActiveTab('templates')}
           >
             Templates
-          </button>
-          <button 
-            className={`${styles.tab} ${activeTab === 'dfir' ? styles.active : ''}`}
-            onClick={() => setActiveTab('dfir')}
-          >
-            DFIR Rules
           </button>
         </div>
 
@@ -399,66 +320,8 @@ export const ConditionalFormattingPanel: React.FC<ConditionalFormattingProps> = 
               </div>
             </div>
           )}
-
-          {activeTab === 'dfir' && (
-            <div className={styles.dfirTab}>
-              <p className={styles.description}>
-                Specialized conditional formatting rules for Digital Forensics and Incident Response:
-              </p>
-              
-              <div className={styles.dfirRulesList}>
-                {dfirRules.map((rule, index) => (
-                  <div key={index} className={styles.dfirRuleCard}>
-                    <div className={styles.dfirRuleHeader}>
-                      <h4>{rule.name}</h4>
-                      <div 
-                        className={styles.dfirRulePreview}
-                        style={{
-                          backgroundColor: rule.rule.format.backgroundColor,
-                          color: rule.rule.format.color,
-                          fontWeight: rule.rule.format.bold ? 'bold' : 'normal',
-                          fontFamily: rule.rule.format.fontFamily
-                        }}
-                      >
-                        Sample
-                      </div>
-                    </div>
-                    <p className={styles.dfirRuleDescription}>{rule.description}</p>
-                    <button 
-                      className={styles.dfirRuleButton}
-                      onClick={() => applyConditionalFormat(rule.rule)}
-                    >
-                      Apply DFIR Rule
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
-  );
-};
-
-// Component to trigger the conditional formatting panel
-export const ConditionalFormattingButton: React.FC = () => {
-  const [showPanel, setShowPanel] = useState(false);
-
-  return (
-    <>
-      <button
-        className={styles.triggerButton}
-        onClick={() => setShowPanel(true)}
-        title="Conditional Formatting"
-      >
-        🎨 Conditional Formatting
-      </button>
-
-      <ConditionalFormattingPanel
-        isVisible={showPanel}
-        onClose={() => setShowPanel(false)}
-      />
-    </>
   );
 };
