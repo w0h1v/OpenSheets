@@ -1,7 +1,7 @@
 import React, { useRef, useState, useCallback, useMemo, useEffect, useSyncExternalStore } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { columnToLetter } from '../utils/columnUtils';
-import { useSpreadsheet } from '../SpreadsheetContext';
+import { useSpreadsheet, useSpreadsheetBase, useSpreadsheetUi } from '../SpreadsheetContext';
 import { useMultiSelection } from '../hooks/useMultiSelection';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useClipboard } from '../hooks/useClipboard';
@@ -11,14 +11,17 @@ import { ResizeHandle } from './ResizeHandle';
 import { DataValidation } from './DataValidation';
 import { downloadCSV, importFromCSVFile } from '../utils/csvUtils';
 import { applyFilters } from '../utils/filterUtils';
-import {
-  getFormulaHighlights, subscribeFormulaHighlights,
-} from '../utils/formulaHighlightStore';
 import { getCollabUsers, subscribeCollab } from '../collaboration/presenceStore';
-import { getFilterPanelColumn, subscribeFilterPanel, setFilterPanelColumn } from '../utils/filterPanelStore';
 import { ColumnFilter } from './ColumnFilter';
 import { FilterIcon } from './icons';
 import styles from './SpreadsheetGrid.module.css';
+
+// Keys and clipboard events typed into a text field inside the grid (the
+// in-cell editor) keep their native behaviour instead of driving the grid
+const isEditableTarget = (target: EventTarget | null): boolean => {
+  const el = target as HTMLElement | null;
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+};
 
 export interface SpreadsheetGridProps {
   /** Identifies this sheet for cross-sheet formulas and collaboration. */
@@ -29,20 +32,52 @@ export interface SpreadsheetGridProps {
 
 export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'default', className, style }) => {
   const { state, dispatch } = useSpreadsheet();
+  const { handleUndoRedoKeyDown } = useSpreadsheetBase();
+  const { filterPanel, formulaHighlights: formulaHighlightStore } = useSpreadsheetUi();
   const parentRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [contextMenu, setContextMenu] = useState<{x:number,y:number,row:number,col:number} | null>(null);
   const [validationDialog, setValidationDialog] = useState<{row:number,col:number} | null>(null);
-  
+
   const {
     startSelection,
     updateSelection,
     endSelection,
+    handleKeyDown: handleSelectionKeyDown,
+    handleKeyUp: handleSelectionKeyUp,
   } = useMultiSelection(state, dispatch);
 
-  useKeyboardShortcuts();
-  useClipboard();
+  const { handleKeyDown: handleShortcutKeyDown } = useKeyboardShortcuts();
+  const { handleCopy, handlePaste, handleCut, handleKeyDown: handleClipboardKeyDown } = useClipboard();
+
+  // The scrolling container owns keyboard and clipboard input: it is
+  // focusable, clicking a cell focuses it, and only events from inside it
+  // reach these handlers, so several grids on one page stay independent
+  const focusGrid = useCallback(() => {
+    const el = parentRef.current;
+    if (el && !el.contains(document.activeElement)) el.focus();
+  }, []);
+
+  const handleGridKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (isEditableTarget(e.target)) return;
+    handleSelectionKeyDown(e);
+    handleShortcutKeyDown(e);
+    handleClipboardKeyDown(e);
+    handleUndoRedoKeyDown(e);
+  }, [handleSelectionKeyDown, handleShortcutKeyDown, handleClipboardKeyDown, handleUndoRedoKeyDown]);
+
+  const handleGridCopy = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
+    if (!isEditableTarget(e.target)) handleCopy(e);
+  }, [handleCopy]);
+
+  const handleGridPaste = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
+    if (!isEditableTarget(e.target)) handlePaste(e);
+  }, [handlePaste]);
+
+  const handleGridCut = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
+    if (!isEditableTarget(e.target)) handleCut(e);
+  }, [handleCut]);
 
   // Rows hidden by active filters collapse to zero height; effective row
   // heights feed the virtualizer and all overlay math so they stay in sync
@@ -113,11 +148,11 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
   const frozenW = sumUpTo(state.colWidths, frozenCols, 96);
 
   // Formula range highlights (published by the formula bar while editing)
-  const formulaHighlights = useSyncExternalStore(subscribeFormulaHighlights, getFormulaHighlights);
+  const formulaHighlights = useSyncExternalStore(formulaHighlightStore.subscribe, formulaHighlightStore.get);
   // Remote collaborator selections (published by the collab layer)
   const collabUsers = useSyncExternalStore(subscribeCollab, getCollabUsers);
   // Which column's filter panel is open (published by toolbar/badges)
-  const filterPanelCol = useSyncExternalStore(subscribeFilterPanel, getFilterPanelColumn);
+  const filterPanelCol = useSyncExternalStore(filterPanel.subscribe, filterPanel.get);
 
   const filterColumnData = useMemo(() => {
     if (filterPanelCol === null) return [];
@@ -191,6 +226,7 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
 
   // Memoized handlers with useCallback
   const handleMouseDown = useCallback((row: number, col: number, e: React.MouseEvent) => {
+    focusGrid();
     if (e.shiftKey) {
       // Extend selection
       updateSelection(row, col);
@@ -201,7 +237,7 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
       // Start new selection
       startSelection(row, col, false);
     }
-  }, [startSelection, updateSelection]);
+  }, [focusGrid, startSelection, updateSelection]);
 
   const handleMouseEnter = useCallback((row: number, col: number) => {
     updateSelection(row, col);
@@ -233,6 +269,7 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
         label: 'Cut',
         shortcut: '⌘X',
         onClick: () => {
+          focusGrid();
           document.execCommand('cut');
         }
       },
@@ -240,6 +277,7 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
         label: 'Copy',
         shortcut: '⌘C',
         onClick: () => {
+          focusGrid();
           document.execCommand('copy');
         }
       },
@@ -247,6 +285,7 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
         label: 'Paste',
         shortcut: '⌘V',
         onClick: () => {
+          focusGrid();
           document.execCommand('paste');
         }
       },
@@ -401,7 +440,7 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
         } 
       },
     ].map(item => item.label === '---' ? { label: item.label, onClick: () => {} } : item);
-  }, [contextMenu, state.selection.ranges, state.data, state.maxRows, state.maxCols, dispatch]);
+  }, [contextMenu, state.selection.ranges, state.data, state.maxRows, state.maxCols, dispatch, focusGrid]);
 
   // Handle file import
   const handleFileImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -511,6 +550,12 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
         className={className ? `${styles.container} ${className}` : styles.container}
         style={style}
         onScroll={handleScroll}
+        tabIndex={0}
+        onKeyDown={handleGridKeyDown}
+        onKeyUp={handleSelectionKeyUp}
+        onCopy={handleGridCopy}
+        onPaste={handleGridPaste}
+        onCut={handleGridCut}
         role="grid"
         aria-label="Spreadsheet"
         aria-rowcount={state.maxRows}
@@ -753,7 +798,7 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
                     padding: '0 3px',
                     fontSize: 9,
                   }}
-                  onClick={(e) => { e.stopPropagation(); setFilterPanelColumn(col.index); }}
+                  onClick={(e) => { e.stopPropagation(); filterPanel.set(col.index); }}
                   title="Filtered — click to edit"
                 >
                   <FilterIcon size={9} />
@@ -1009,7 +1054,7 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
           columnData={filterColumnData}
           existingFilters={state.filters ?? []}
           onFilterChange={(filters) => dispatch({ type: 'SET_FILTERS', payload: { filters } })}
-          onClose={() => setFilterPanelColumn(null)}
+          onClose={() => filterPanel.set(null)}
           position={{ x: 999999, y: 0 }}
         />
       )}

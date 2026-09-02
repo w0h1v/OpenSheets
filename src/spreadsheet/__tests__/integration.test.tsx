@@ -29,6 +29,10 @@ describe('Spreadsheet Integration Tests', () => {
     </SpreadsheetProvider>
   );
 
+  // Keyboard and clipboard input is owned by the grid's focusable
+  // container, so events target it rather than window/document
+  const grid = () => screen.getByRole('grid');
+
   describe('Keyboard Navigation', () => {
     it('should navigate with arrow keys', async () => {
       render(<TestSpreadsheet />);
@@ -38,28 +42,28 @@ describe('Spreadsheet Integration Tests', () => {
       fireEvent.click(firstCell);
       
       // Press arrow down
-      fireEvent.keyDown(window, { key: 'ArrowDown' });
+      fireEvent.keyDown(grid(), { key: 'ArrowDown' });
       await waitFor(() => {
         expect(screen.getByRole('gridcell', { name: /Cell A2/i }))
           .toHaveAttribute('aria-current', 'true');
       });
       
       // Press arrow right
-      fireEvent.keyDown(window, { key: 'ArrowRight' });
+      fireEvent.keyDown(grid(), { key: 'ArrowRight' });
       await waitFor(() => {
         expect(screen.getByRole('gridcell', { name: /Cell B2/i }))
           .toHaveAttribute('aria-current', 'true');
       });
       
       // Press arrow up
-      fireEvent.keyDown(window, { key: 'ArrowUp' });
+      fireEvent.keyDown(grid(), { key: 'ArrowUp' });
       await waitFor(() => {
         expect(screen.getByRole('gridcell', { name: /Cell B1/i }))
           .toHaveAttribute('aria-current', 'true');
       });
       
       // Press arrow left
-      fireEvent.keyDown(window, { key: 'ArrowLeft' });
+      fireEvent.keyDown(grid(), { key: 'ArrowLeft' });
       await waitFor(() => {
         expect(screen.getByRole('gridcell', { name: /Cell A1/i }))
           .toHaveAttribute('aria-current', 'true');
@@ -73,14 +77,14 @@ describe('Spreadsheet Integration Tests', () => {
       fireEvent.click(firstCell);
       
       // Press Tab
-      fireEvent.keyDown(window, { key: 'Tab' });
+      fireEvent.keyDown(grid(), { key: 'Tab' });
       await waitFor(() => {
         expect(screen.getByRole('gridcell', { name: /Cell B1/i }))
           .toHaveAttribute('aria-current', 'true');
       });
       
       // Press Shift+Tab
-      fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+      fireEvent.keyDown(grid(), { key: 'Tab', shiftKey: true });
       await waitFor(() => {
         expect(screen.getByRole('gridcell', { name: /Cell A1/i }))
           .toHaveAttribute('aria-current', 'true');
@@ -98,7 +102,7 @@ describe('Spreadsheet Integration Tests', () => {
       fireEvent.click(firstCell);
       
       // Press Ctrl+ArrowDown
-      fireEvent.keyDown(window, { key: 'ArrowDown', ctrlKey: true });
+      fireEvent.keyDown(grid(), { key: 'ArrowDown', ctrlKey: true });
       await waitFor(() => {
         expect(screen.getByRole('gridcell', { name: /Cell A6/i }))
           .toHaveAttribute('aria-current', 'true');
@@ -108,7 +112,7 @@ describe('Spreadsheet Integration Tests', () => {
     it('should select all with Ctrl+A', async () => {
       render(<TestSpreadsheet />);
       
-      fireEvent.keyDown(window, { key: 'a', ctrlKey: true });
+      fireEvent.keyDown(grid(), { key: 'a', ctrlKey: true });
       
       await waitFor(() => {
         const selectedCells = screen.getAllByRole('gridcell', { selected: true });
@@ -136,7 +140,7 @@ describe('Spreadsheet Integration Tests', () => {
       
       const cell = screen.getByRole('gridcell', { name: /Cell A1/i });
       fireEvent.click(cell);
-      fireEvent.keyDown(window, { key: 'Enter' });
+      fireEvent.keyDown(grid(), { key: 'Enter' });
       
       await waitFor(() => {
         const input = screen.getByRole('textbox', { name: /Cell A1 editor/i });
@@ -185,7 +189,7 @@ describe('Spreadsheet Integration Tests', () => {
       
       const cell = screen.getByRole('gridcell', { name: /Cell A1/i });
       fireEvent.click(cell);
-      fireEvent.keyDown(window, { key: 'a' });
+      fireEvent.keyDown(grid(), { key: 'a' });
       
       await waitFor(() => {
         const input = screen.getByRole('textbox', { name: /Cell A1 editor/i });
@@ -250,8 +254,8 @@ describe('Spreadsheet Integration Tests', () => {
       const cell = screen.getByRole('gridcell', { name: /Cell A1/i });
       fireEvent.click(cell);
       
-      fireEvent.keyDown(window, { key: 'ArrowRight', shiftKey: true });
-      fireEvent.keyDown(window, { key: 'ArrowDown', shiftKey: true });
+      fireEvent.keyDown(grid(), { key: 'ArrowRight', shiftKey: true });
+      fireEvent.keyDown(grid(), { key: 'ArrowDown', shiftKey: true });
       
       await waitFor(() => {
         const selectedCells = screen.getAllByRole('gridcell', { selected: true });
@@ -285,7 +289,7 @@ describe('Spreadsheet Integration Tests', () => {
       // Select and copy first cell
       const sourceCell = screen.getByRole('gridcell', { name: /Cell A1/i });
       fireEvent.click(sourceCell);
-      fireEvent.keyDown(window, { key: 'c', ctrlKey: true });
+      fireEvent.keyDown(grid(), { key: 'c', ctrlKey: true });
       
       // Select and paste to another cell
       const targetCell = screen.getByRole('gridcell', { name: /Cell B2/i });
@@ -294,8 +298,8 @@ describe('Spreadsheet Integration Tests', () => {
       // Mock clipboard API
       const clipboardData = new DataTransfer();
       clipboardData.setData('text/plain', 'Copy Me');
-      const pasteEvent = new ClipboardEvent('paste', { clipboardData });
-      document.dispatchEvent(pasteEvent);
+      const pasteEvent = new ClipboardEvent('paste', { clipboardData, bubbles: true });
+      grid().dispatchEvent(pasteEvent);
       
       await waitFor(() => {
         expect(screen.getAllByText('Copy Me')).toHaveLength(2);
@@ -310,15 +314,15 @@ describe('Spreadsheet Integration Tests', () => {
       
       const sourceCell = screen.getByRole('gridcell', { name: /Cell A1/i });
       fireEvent.click(sourceCell);
-      fireEvent.keyDown(window, { key: 'x', ctrlKey: true });
+      fireEvent.keyDown(grid(), { key: 'x', ctrlKey: true });
       
       const targetCell = screen.getByRole('gridcell', { name: /Cell B2/i });
       fireEvent.click(targetCell);
       
       const clipboardData = new DataTransfer();
       clipboardData.setData('text/plain', 'Cut Me');
-      const pasteEvent = new ClipboardEvent('paste', { clipboardData });
-      document.dispatchEvent(pasteEvent);
+      const pasteEvent = new ClipboardEvent('paste', { clipboardData, bubbles: true });
+      grid().dispatchEvent(pasteEvent);
       
       await waitFor(() => {
         expect(screen.getAllByText('Cut Me')).toHaveLength(1);
@@ -344,7 +348,7 @@ describe('Spreadsheet Integration Tests', () => {
         expect(screen.getByText('First Value')).toBeInTheDocument();
       });
       
-      fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+      fireEvent.keyDown(grid(), { key: 'z', ctrlKey: true });
       
       await waitFor(() => {
         expect(screen.queryByText('First Value')).not.toBeInTheDocument();
@@ -362,8 +366,8 @@ describe('Spreadsheet Integration Tests', () => {
       await userEvent.type(input, 'Test Value');
       fireEvent.keyDown(input, { key: 'Enter' });
       
-      fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
-      fireEvent.keyDown(window, { key: 'y', ctrlKey: true });
+      fireEvent.keyDown(grid(), { key: 'z', ctrlKey: true });
+      fireEvent.keyDown(grid(), { key: 'y', ctrlKey: true });
       
       await waitFor(() => {
         expect(screen.getByText('Test Value')).toBeInTheDocument();

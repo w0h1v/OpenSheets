@@ -1,4 +1,5 @@
 import { useRef, useCallback, useEffect } from 'react';
+import type React from 'react';
 import { SpreadsheetState } from '../types/spreadsheet';
 import { SpreadsheetAction } from '../types/actions';
 import { isRemoteApplying } from '../utils/editContext';
@@ -42,7 +43,6 @@ export function useUndoRedo(
     present: state,
     future: [],
   });
-  const restoring = useRef(false);
 
   const canUndo = history.current.past.length > 0;
   const canRedo = history.current.future.length > 0;
@@ -59,7 +59,7 @@ export function useUndoRedo(
 
     // Add current state to past
     const newPast = [...past, present];
-    
+
     // Limit history size
     if (newPast.length > maxHistorySize) {
       newPast.shift();
@@ -72,41 +72,52 @@ export function useUndoRedo(
     };
   }, [maxHistorySize]);
 
+  // The latest state, read by restores so they keep the live UI state
+  const latest = useRef(state);
+  latest.current = state;
+
+  // Snapshots carry whatever selection/editing state was live when they
+  // were taken; a restore keeps the current UI state so undo never
+  // re-opens an editor or jumps the selection
+  const withLiveUi = useCallback((snapshot: SpreadsheetState): SpreadsheetState => {
+    const { selection, editing, formulaInput } = latest.current;
+    return { ...snapshot, selection, editing, formulaInput };
+  }, []);
+
+  // Undo and redo move the history cursor and restore the state it now
+  // points at. RESTORE_STATE installs that exact object, so the effect
+  // below sees present === state and records nothing for it.
   const undo = useCallback(() => {
     const { past, present, future } = history.current;
 
     if (past.length === 0) return;
 
-    const previous = past[past.length - 1];
-    const newPast = past.slice(0, past.length - 1);
+    const restored = withLiveUi(past[past.length - 1]);
 
     history.current = {
-      past: newPast,
-      present: previous,
+      past: past.slice(0, past.length - 1),
+      present: restored,
       future: [present, ...future],
     };
 
-    // Update the actual state
-    return previous;
-  }, []);
+    dispatch({ type: 'RESTORE_STATE', payload: restored });
+  }, [withLiveUi, dispatch]);
 
   const redo = useCallback(() => {
     const { past, present, future } = history.current;
-    
+
     if (future.length === 0) return;
 
-    const next = future[0];
-    const newFuture = future.slice(1);
+    const restored = withLiveUi(future[0]);
 
     history.current = {
       past: [...past, present],
-      present: next,
-      future: newFuture,
+      present: restored,
+      future: future.slice(1),
     };
 
-    // Return the new state
-    return next;
-  }, []);
+    dispatch({ type: 'RESTORE_STATE', payload: restored });
+  }, [withLiveUi, dispatch]);
 
   const reset = useCallback(() => {
     history.current = {
@@ -116,44 +127,31 @@ export function useUndoRedo(
     };
   }, [state]);
 
-  // Update present state when state changes. States produced by undo/redo
-  // themselves just move the history cursor; they must not be recorded as
-  // new history entries.
+  // Record document changes as they happen. Remote-applied edits
+  // (collaboration) advance the cursor without creating history.
   useEffect(() => {
     if (history.current.present === state) return;
-    if (restoring.current || isRemoteApplying()) {
-      restoring.current = false;
+    if (isRemoteApplying()) {
       history.current.present = state;
       return;
     }
     saveState(state);
   }, [state, saveState]);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        const previousState = undo();
-        if (previousState) {
-          // Dispatch a special action to restore state
-          restoring.current = true;
-          dispatch({ type: 'RESTORE_STATE', payload: previousState });
-        }
-      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
-        e.preventDefault();
-        const nextState = redo();
-        if (nextState) {
-          // Dispatch a special action to restore state
-          restoring.current = true;
-          dispatch({ type: 'RESTORE_STATE', payload: nextState });
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, dispatch]);
+  // Ctrl/Cmd+Z undoes; Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y redoes. The grid
+  // attaches this to its focusable container so it fires per grid.
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    // Shift+Z reports an uppercase key
+    const key = e.key.toLowerCase();
+    if (key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      undo();
+    } else if (key === 'y' || (key === 'z' && e.shiftKey)) {
+      e.preventDefault();
+      redo();
+    }
+  }, [undo, redo]);
 
   return {
     undo,
@@ -162,5 +160,6 @@ export function useUndoRedo(
     canRedo,
     saveState,
     reset,
+    handleKeyDown,
   };
 }

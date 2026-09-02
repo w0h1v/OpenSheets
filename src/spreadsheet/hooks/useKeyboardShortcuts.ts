@@ -1,111 +1,113 @@
-import { useEffect } from 'react';
+import { useCallback } from 'react';
+import type React from 'react';
 import { useSpreadsheetBase } from '../SpreadsheetContext';
 import { singleCellSelection } from '../utils/selectionUtils';
 
+/*
+ * Navigation and editing shortcuts. The returned handler is attached to the
+ * grid's focusable container rather than window, so a grid only answers
+ * keys typed while it (or a cell inside it) has focus.
+ */
 export const useKeyboardShortcuts = () => {
   const { state, setState, setCell } = useSpreadsheetBase();
   const active = state.selection.active;
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!active) return;
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!active) return;
 
-      // Don't hijack keystrokes typed into an input (e.g. the formula bar
-      // or the in-cell editor)
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
-        return;
-      }
-      
-      // Don't handle navigation if we're editing
-      if (state.editing) return;
+    // Don't hijack keystrokes typed into an input (e.g. the in-cell editor)
+    const target = e.target as HTMLElement | null;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+      return;
+    }
 
-      // Shift/Ctrl+Arrow selection extension and data-edge jumps are handled
-      // by the multi-selection keyboard handler; skip here to avoid conflicts.
-      const isArrow = e.key.startsWith('Arrow');
-      if (isArrow && (e.shiftKey || e.ctrlKey || e.metaKey)) return;
+    // Don't handle navigation if we're editing
+    if (state.editing) return;
 
-      let handled = false;
-      let newRow = active.row;
-      let newCol = active.col;
+    // Shift/Ctrl+Arrow selection extension and data-edge jumps are handled
+    // by the multi-selection keyboard handler; skip here to avoid conflicts.
+    const isArrow = e.key.startsWith('Arrow');
+    if (isArrow && (e.shiftKey || e.ctrlKey || e.metaKey)) return;
 
-      switch(e.key) {
-        case 'ArrowUp':
+    let handled = false;
+    let newRow = active.row;
+    let newCol = active.col;
+
+    switch (e.key) {
+      case 'ArrowUp':
+        newRow = Math.max(0, active.row - 1);
+        handled = true;
+        break;
+      case 'ArrowDown':
+        newRow = Math.min(state.maxRows - 1, active.row + 1);
+        handled = true;
+        break;
+      case 'ArrowLeft':
+        newCol = Math.max(0, active.col - 1);
+        handled = true;
+        break;
+      case 'ArrowRight':
+        newCol = Math.min(state.maxCols - 1, active.col + 1);
+        handled = true;
+        break;
+      case 'Tab':
+        if (e.shiftKey) {
+          newCol = Math.max(0, active.col - 1);
+        } else {
+          newCol = Math.min(state.maxCols - 1, active.col + 1);
+        }
+        handled = true;
+        break;
+      case 'F2':
+        // F2 enters edit mode on the active cell, like Sheets/Excel
+        setState((prev) => ({
+          ...prev,
+          editing: { row: active.row, col: active.col },
+          formulaInput: '',
+        }));
+        handled = true;
+        break;
+      case 'Enter':
+        // Enter opens the editor on the active cell (Shift+Enter moves up)
+        if (e.shiftKey) {
           newRow = Math.max(0, active.row - 1);
           handled = true;
-          break;
-        case 'ArrowDown':
-          newRow = Math.min(state.maxRows - 1, active.row + 1);
-          handled = true;
-          break;
-        case 'ArrowLeft':
-          newCol = Math.max(0, active.col - 1);
-          handled = true;
-          break;
-        case 'ArrowRight':
-          newCol = Math.min(state.maxCols - 1, active.col + 1);
-          handled = true;
-          break;
-        case 'Tab':
-          if (e.shiftKey) {
-            newCol = Math.max(0, active.col - 1);
-          } else {
-            newCol = Math.min(state.maxCols - 1, active.col + 1);
-          }
-          handled = true;
-          break;
-        case 'F2':
-          // F2 enters edit mode on the active cell, like Sheets/Excel
+        } else {
           setState((prev) => ({
             ...prev,
             editing: { row: active.row, col: active.col },
             formulaInput: '',
           }));
           handled = true;
-          break;
-        case 'Enter':
-          // Enter opens the editor on the active cell (Shift+Enter moves up)
-          if (e.shiftKey) {
-            newRow = Math.max(0, active.row - 1);
-            handled = true;
-          } else {
-            setState((prev) => ({
-              ...prev,
-              editing: { row: active.row, col: active.col },
-              formulaInput: '',
-            }));
-            handled = true;
-          }
-          break;
-        case 'Delete':
-        case 'Backspace':
-          if (!state.editing && !state.readOnly) {
-            // Clear cell content
-            setCell(active.row, active.col, { value: '', formula: undefined });
-            handled = true;
-          }
-          break;
-      }
+        }
+        break;
+      case 'Delete':
+      case 'Backspace':
+        if (!state.editing && !state.readOnly) {
+          // Clear cell content
+          setCell(active.row, active.col, { value: '', formula: undefined });
+          handled = true;
+        }
+        break;
+    }
 
-      if (handled) {
-        e.preventDefault();
-        setState((prev) => ({
-          ...prev,
-          selection: singleCellSelection(newRow, newCol),
-        }));
-      }
+    if (handled) {
+      e.preventDefault();
+      setState((prev) => ({
+        ...prev,
+        selection: singleCellSelection(newRow, newCol),
+      }));
+    }
 
-      // Start editing on any printable character
-      if (!state.editing && !state.readOnly && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-        setState((prev) => ({
-          ...prev,
-          editing: { row: active.row, col: active.col },
-          formulaInput: e.key,
-        }));
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    // Start editing on any printable character
+    if (!state.editing && !state.readOnly && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+      setState((prev) => ({
+        ...prev,
+        editing: { row: active.row, col: active.col },
+        formulaInput: e.key,
+      }));
+    }
   }, [active, state.editing, state.readOnly, state.maxRows, state.maxCols, setState, setCell]);
+
+  return { handleKeyDown };
 };

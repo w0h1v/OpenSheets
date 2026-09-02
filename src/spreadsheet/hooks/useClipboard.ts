@@ -1,98 +1,93 @@
-import { useEffect } from 'react';
+import { useCallback } from 'react';
+import type React from 'react';
 import { useSpreadsheetBase } from '../SpreadsheetContext';
 import { serializeTabular, parseTabular } from '../utils/clipboardUtils';
 import { normalizeRect } from '../utils/selectionUtils';
 
+// Native and React clipboard events share this shape, as does the event
+// the Ctrl/Cmd+C/X keydown path synthesizes
+interface ClipboardLikeEvent {
+  clipboardData: DataTransfer | null;
+  preventDefault: () => void;
+}
+
+/*
+ * Copy, cut and paste for the current selection. The handlers are attached
+ * to the grid's focusable container rather than document, so clipboard
+ * events only reach the grid that has focus.
+ */
 export const useClipboard = () => {
   const { state, getCell, setCell } = useSpreadsheetBase();
+  const { selection, readOnly, maxRows, maxCols } = state;
 
-  useEffect(() => {
-    const handleCopy = async (e: ClipboardEvent) => {
-      if (!state.selection.ranges.length) return;
-      
-      const rect = normalizeRect(state.selection.ranges[0]);
-      const rows: string[][] = [];
-      
-      for (let r = rect.startRow; r <= rect.endRow; r++) {
-        const cols: string[] = [];
-        for (let c = rect.startCol; c <= rect.endCol; c++) {
-          const cell = getCell(r, c);
-          cols.push(cell?.value?.toString() ?? '');
-        }
-        rows.push(cols);
+  const handleCopy = useCallback((e: ClipboardLikeEvent) => {
+    if (!selection.ranges.length) return;
+
+    const rect = normalizeRect(selection.ranges[0]);
+    const rows: string[][] = [];
+
+    for (let r = rect.startRow; r <= rect.endRow; r++) {
+      const cols: string[] = [];
+      for (let c = rect.startCol; c <= rect.endCol; c++) {
+        const cell = getCell(r, c);
+        cols.push(cell?.value?.toString() ?? '');
       }
-      
-      const text = serializeTabular(rows);
-      e.clipboardData?.setData('text/plain', text);
-      e.preventDefault();
-    };
+      rows.push(cols);
+    }
 
-    const handlePaste = async (e: ClipboardEvent) => {
-      if (state.readOnly) return;
-      
-      const text = e.clipboardData?.getData('text/plain');
-      if (!text) return;
-      
-      const data = parseTabular(text);
-      const start = state.selection.active;
-      if (!start) return;
-      
-      e.preventDefault();
-      
-      data.forEach((row, i) => {
-        row.forEach((val, j) => {
-          const targetRow = start.row + i;
-          const targetCol = start.col + j;
-          if (targetRow < state.maxRows && targetCol < state.maxCols) {
-            setCell(targetRow, targetCol, { value: val });
-          }
-        });
+    e.clipboardData?.setData('text/plain', serializeTabular(rows));
+    e.preventDefault();
+  }, [selection, getCell]);
+
+  const handlePaste = useCallback((e: ClipboardLikeEvent) => {
+    if (readOnly) return;
+
+    const text = e.clipboardData?.getData('text/plain');
+    if (!text) return;
+
+    const data = parseTabular(text);
+    const start = selection.active;
+    if (!start) return;
+
+    e.preventDefault();
+
+    data.forEach((row, i) => {
+      row.forEach((val, j) => {
+        const targetRow = start.row + i;
+        const targetCol = start.col + j;
+        if (targetRow < maxRows && targetCol < maxCols) {
+          setCell(targetRow, targetCol, { value: val });
+        }
       });
-    };
+    });
+  }, [readOnly, selection.active, maxRows, maxCols, setCell]);
 
-    const handleCut = async (e: ClipboardEvent) => {
-      if (state.readOnly) return;
-      
-      // First copy
-      await handleCopy(e);
-      
-      // Then clear the selection
-      if (!state.selection.ranges.length) return;
-      const rect = normalizeRect(state.selection.ranges[0]);
-      
-      for (let r = rect.startRow; r <= rect.endRow; r++) {
-        for (let c = rect.startCol; c <= rect.endCol; c++) {
-          setCell(r, c, { value: '', formula: undefined });
-        }
+  const handleCut = useCallback((e: ClipboardLikeEvent) => {
+    if (readOnly) return;
+
+    // First copy
+    handleCopy(e);
+
+    // Then clear the selection
+    if (!selection.ranges.length) return;
+    const rect = normalizeRect(selection.ranges[0]);
+
+    for (let r = rect.startRow; r <= rect.endRow; r++) {
+      for (let c = rect.startCol; c <= rect.endCol; c++) {
+        setCell(r, c, { value: '', formula: undefined });
       }
-    };
+    }
+  }, [readOnly, handleCopy, selection.ranges, setCell]);
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-        const event = new ClipboardEvent('copy', { 
-          clipboardData: new DataTransfer() 
-        });
-        handleCopy(event);
-      } else if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-        // Paste will be handled by the paste event
-      } else if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
-        const event = new ClipboardEvent('cut', { 
-          clipboardData: new DataTransfer() 
-        });
-        handleCut(event);
-      }
-    };
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    if (e.key === 'c') {
+      handleCopy(new ClipboardEvent('copy', { clipboardData: new DataTransfer() }));
+    } else if (e.key === 'x') {
+      handleCut(new ClipboardEvent('cut', { clipboardData: new DataTransfer() }));
+    }
+    // Ctrl/Cmd+V is handled by the paste event
+  }, [handleCopy, handleCut]);
 
-    document.addEventListener('copy', handleCopy);
-    document.addEventListener('paste', handlePaste);
-    document.addEventListener('cut', handleCut);
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      document.removeEventListener('copy', handleCopy);
-      document.removeEventListener('paste', handlePaste);
-      document.removeEventListener('cut', handleCut);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [state.selection, state.readOnly, state.maxRows, state.maxCols, getCell, setCell]);
+  return { handleCopy, handlePaste, handleCut, handleKeyDown };
 };
