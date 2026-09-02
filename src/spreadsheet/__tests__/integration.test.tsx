@@ -232,6 +232,33 @@ describe('Spreadsheet Integration Tests', () => {
     });
   });
 
+  describe('Comments', () => {
+    it('adds a comment through the in-app dialog, never a native prompt', async () => {
+      const nativePrompt = jest.spyOn(window, 'prompt').mockImplementation(() => 'should not be used');
+      render(<TestSpreadsheet />);
+
+      const cell = screen.getByRole('gridcell', { name: /Cell B2/i });
+      fireEvent.contextMenu(cell);
+      fireEvent.click(screen.getByRole('button', { name: 'Insert comment…' }));
+
+      const dialog = await screen.findByRole('dialog', { name: 'Insert comment' });
+      const field = screen.getByLabelText('Comment');
+      expect(field).toHaveFocus();
+      // Typing into the dialog must not start editing the cell behind it
+      fireEvent.keyDown(field, { key: 'n' });
+      fireEvent.change(field, { target: { value: 'Needs a second look' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Add comment' }));
+
+      await waitFor(() => {
+        expect(screen.getByTitle('You: Needs a second look')).toBeInTheDocument();
+      });
+      expect(dialog).not.toBeInTheDocument();
+      expect(screen.queryByRole('textbox', { name: /editor/i })).toBeNull();
+      expect(nativePrompt).not.toHaveBeenCalled();
+      nativePrompt.mockRestore();
+    });
+  });
+
   describe('Multi-cell Selection', () => {
     it('should select range with Shift+Click', async () => {
       render(<TestSpreadsheet />);

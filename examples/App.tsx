@@ -12,6 +12,7 @@ import {
   GridGlyphIcon, SunIcon, MoonIcon, HistoryIcon, AddSheetIcon,
 } from '../src/spreadsheet/components/icons';
 import { DropdownMenu, MenuEntry } from '../src/spreadsheet/components/Menu';
+import { useDialogs } from '../src/spreadsheet/components/Dialog';
 import { FindReplaceBar } from '../src/spreadsheet/components/FindReplaceBar';
 import { ChartPanel } from '../src/spreadsheet/components/ChartPanel';
 import { ConditionalFormattingPanel } from '../src/spreadsheet/components/ConditionalFormatting';
@@ -40,6 +41,7 @@ const VersionHistory: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { saveVersion, loadVersion, listVersions } = useSpreadsheet();
   const [versions, setVersions] = useState<VersionEntry[]>([]);
   const [busy, setBusy] = useState(false);
+  const { confirm, prompt, dialogs } = useDialogs();
 
   const refresh = useCallback(async () => {
     const list = await listVersions();
@@ -51,7 +53,7 @@ const VersionHistory: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   }, [refresh]);
 
   const handleSave = async () => {
-    const label = prompt('Version label:');
+    const label = await prompt({ title: 'Save version', label: 'Version label', placeholder: 'e.g. Before the Q3 edits' });
     if (!label) return;
     setBusy(true);
     try {
@@ -63,7 +65,12 @@ const VersionHistory: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   };
 
   const handleRestore = async (id: string) => {
-    if (!confirm('Restore this version? Current unsaved changes will be replaced.')) return;
+    const ok = await confirm({
+      title: 'Restore this version?',
+      message: 'Unsaved changes in the current sheet will be replaced.',
+      confirmLabel: 'Restore',
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await loadVersion(id);
@@ -74,6 +81,7 @@ const VersionHistory: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
   return (
     <aside className="versionPanel">
+      {dialogs}
       <div className="versionPanelHeader">
         <h4>Version history</h4>
         <button onClick={onClose} title="Close">✕</button>
@@ -99,6 +107,7 @@ const DevDrawer: React.FC = () => {
   const { state, dispatch, save } = useSpreadsheet();
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState('');
+  const { confirm, dialogs } = useDialogs();
 
   const showMessage = (msg: string) => {
     setMessage(msg);
@@ -166,7 +175,13 @@ const DevDrawer: React.FC = () => {
   };
 
   const clearAll = async () => {
-    if (!confirm('Clear all data?')) return;
+    const ok = await confirm({
+      title: 'Clear all data?',
+      message: 'Every cell in this sheet will be emptied.',
+      confirmLabel: 'Clear',
+      destructive: true,
+    });
+    if (!ok) return;
     dispatch({ type: 'CLEAR_ALL' });
     await new Promise((r) => setTimeout(r, 50));
     await save();
@@ -180,6 +195,7 @@ const DevDrawer: React.FC = () => {
 
   return (
     <div className="devDrawer">
+      {dialogs}
       <button className="devToggle" onClick={() => setOpen(!open)} title="Dev/test controls">
         Dev {open ? '▾' : '▸'}
       </button>
@@ -648,6 +664,8 @@ const MenuBar: React.FC<{
   const active = state.selection.active;
   const range = state.selection.ranges[0];
 
+  const { alert, prompt, dialogs } = useDialogs();
+
   const importCSV = async (file: File | undefined) => {
     if (!file) return;
     const { importFromCSVFile } = await import('../src/spreadsheet/utils/csvUtils');
@@ -661,14 +679,20 @@ const MenuBar: React.FC<{
       });
       dispatch({ type: 'SET_CELLS', payload: { updates } });
     } catch {
-      alert('Failed to import CSV');
+      await alert({ title: 'Import failed', message: 'That file could not be read as CSV.' });
     }
   };
 
   const fileMenu: MenuEntry[] = [
     { label: 'New sheet', onClick: () => dispatch({ type: 'CLEAR_ALL' }) },
     { label: 'Save now', shortcut: '⌘S', onClick: () => save() },
-    { label: 'Save version', onClick: () => { const l = prompt('Version label:'); if (l) saveVersion(l); } },
+    {
+      label: 'Save version',
+      onClick: async () => {
+        const label = await prompt({ title: 'Save version', label: 'Version label', placeholder: 'e.g. Before the Q3 edits' });
+        if (label) saveVersion(label);
+      },
+    },
     { separator: true, label: '' },
     { label: 'Import CSV…', onClick: () => csvInputRef.current?.click() },
     { label: 'Download as CSV', onClick: () => downloadCSV(state.data, 'opensheets.csv') },
@@ -740,9 +764,9 @@ const MenuBar: React.FC<{
     {
       label: 'Comment on cell…',
       disabled: !active,
-      onClick: () => {
+      onClick: async () => {
         if (!active) return;
-        const text = prompt('Comment:');
+        const text = await prompt({ title: 'Comment on cell', label: 'Comment', multiline: true, submitLabel: 'Add comment' });
         if (!text) return;
         dispatch({
           type: 'SET_COMMENT',
@@ -821,11 +845,15 @@ const MenuBar: React.FC<{
 
   const helpMenu: MenuEntry[] = [
     { label: 'Keyboard shortcuts', onClick: onShortcuts },
-    { label: 'About OpenSheets', onClick: () => alert('OpenSheets — an open-source, Google Sheets-style spreadsheet component for React.') },
+    {
+      label: 'About OpenSheets',
+      onClick: () => void alert({ title: 'OpenSheets', message: 'An open-source, Google Sheets-style spreadsheet component for React.' }),
+    },
   ];
 
   return (
     <nav className="menuRow">
+      {dialogs}
       <input
         ref={csvInputRef}
         type="file"
@@ -1037,15 +1065,24 @@ const AppShell: React.FC = () => {
     } catch { /* ignore quota errors */ }
   };
 
+  const { confirm, prompt, dialogs } = useDialogs();
+
   const addSheet = () => {
     const sheet = { id: `sheet-${Date.now()}`, name: `Sheet${sheets.length + 1}` };
     persistSheets([...sheets, sheet]);
     setActiveId(sheet.id);
   };
 
-  const removeSheet = (id: string) => {
+  const removeSheet = async (id: string) => {
     if (sheets.length <= 1) return;
-    if (!confirm('Delete this sheet and its saved data?')) return;
+    const sheet = sheets.find((sh) => sh.id === id);
+    const ok = await confirm({
+      title: `Delete ${sheet?.name ?? 'this sheet'}?`,
+      message: 'The sheet and its saved data are removed for everyone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
     const remaining = sheets.filter((sh) => sh.id !== id);
     persistSheets(remaining);
     if (activeId === id) setActiveId(remaining[0].id);
@@ -1059,15 +1096,17 @@ const AppShell: React.FC = () => {
     }
   }, [sheets, activeId]);
 
-  const renameSheet = (id: string) => {
+  const renameSheet = async (id: string) => {
     const sheet = sheets.find((sh) => sh.id === id);
-    const name = prompt('Sheet name:', sheet?.name);
-    if (!name || !sheet) return;
+    if (!sheet) return;
+    const name = await prompt({ title: 'Rename sheet', label: 'Sheet name', defaultValue: sheet.name, submitLabel: 'Rename' });
+    if (!name) return;
     persistSheets(sheets.map((sh) => (sh.id === id ? { ...sh, name } : sh)));
   };
 
   return (
     <div className="appShell">
+      {dialogs}
       {/* key remounts the provider so each sheet loads its own persisted state */}
       <SpreadsheetProvider
         key={activeId}

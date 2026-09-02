@@ -15,6 +15,9 @@ repository before:
   sign-in, per-person presence across tabs, shared document fields with
   last-writer stamps, protected ranges enforced on the server, origin checks,
   rate limits and size caps, and Redis for running several instances.
+- No native browser dialogs: comments, version labels, sheet names and
+  confirmations go through an in-app dialog (`ConfirmDialog`, `PromptDialog`,
+  `useDialogs`).
 - ESM and CommonJS builds with one stylesheet and TypeScript types; optional
   Excel and HyperFormula entries with their own peer dependencies; one
   runtime dependency.

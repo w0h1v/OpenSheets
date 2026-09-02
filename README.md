@@ -76,7 +76,9 @@ formulas and collaboration), `className` and `style`.
 
 Other components: `FormulaBar`, `FormattingToolbar`, `FindReplaceBar`,
 `ChartPanel`, `ConditionalFormattingPanel`, `DataValidation`, `DropdownMenu`,
-and the icon set. The demo in `examples/App.tsx` shows all of them wired into
+`ConfirmDialog` and `PromptDialog` (with `useDialogs` for a promise-based
+confirm, alert and prompt), and the icon set. Nothing opens a native browser
+dialog. The demo in `examples/App.tsx` shows all of them wired into
 a Sheets-style application with menus, sheet tabs, version history and
 sharing.
 

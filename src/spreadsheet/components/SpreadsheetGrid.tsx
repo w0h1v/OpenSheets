@@ -13,6 +13,7 @@ import { downloadCSV, importFromCSVFile } from '../utils/csvUtils';
 import { applyFilters } from '../utils/filterUtils';
 import { getCollabUsers, subscribeCollab } from '../collaboration/presenceStore';
 import { ColumnFilter } from './ColumnFilter';
+import { ConfirmDialog, PromptDialog } from './Dialog';
 import { FilterIcon } from './icons';
 import styles from './SpreadsheetGrid.module.css';
 
@@ -187,6 +188,9 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
 
   // Fill handle drag state
   const [fillDrag, setFillDrag] = useState<{ endRow: number; endCol: number } | null>(null);
+  // Cell the "Insert comment" dialog is open for
+  const [commentTarget, setCommentTarget] = useState<{ row: number; col: number } | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const dispatchFill = useCallback(() => {
     if (!fillDrag || !state.selection.ranges.length) {
@@ -352,17 +356,7 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
       },
       {
         label: 'Insert comment…',
-        onClick: () => {
-          const text = prompt('Comment:');
-          if (!text) return;
-          dispatch({
-            type: 'SET_COMMENT',
-            payload: {
-              key: `${contextMenu.row}:${contextMenu.col}`,
-              comment: { author: 'You', text, timestamp: Date.now() },
-            },
-          });
-        }
+        onClick: () => setCommentTarget({ row: contextMenu.row, col: contextMenu.col }),
       },
       {
         label: 'Clear Contents',
@@ -475,9 +469,8 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
           })
         }}
       ]});
-    } catch (error) {
-      console.error('Failed to import CSV:', error);
-      alert('Failed to import CSV file');
+    } catch {
+      setImportError('That file could not be read as CSV.');
     }
 
     // Clear file input
@@ -1062,6 +1055,34 @@ export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'def
         />
       )}
 
+      <ConfirmDialog
+        open={importError !== null}
+        title="Import failed"
+        message={importError}
+        cancelLabel={null}
+        onConfirm={() => setImportError(null)}
+        onCancel={() => setImportError(null)}
+      />
+      <PromptDialog
+        open={commentTarget !== null}
+        title="Insert comment"
+        label="Comment"
+        multiline
+        submitLabel="Add comment"
+        onSubmit={(text) => {
+          if (commentTarget) {
+            dispatch({
+              type: 'SET_COMMENT',
+              payload: {
+                key: `${commentTarget.row}:${commentTarget.col}`,
+                comment: { author: 'You', text, timestamp: Date.now() },
+              },
+            });
+          }
+          setCommentTarget(null);
+        }}
+        onCancel={() => setCommentTarget(null)}
+      />
       {filterPanelCol !== null && (
         <ColumnFilter
           column={filterPanelCol}

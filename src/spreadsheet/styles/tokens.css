@@ -17,6 +17,8 @@
   --os-accent: #0284c7;
   --os-accent-hov: #0369a1;
   --os-accent-contrast: #ffffff;
+  --os-danger: #dc2626;
+  --os-danger-hov: #b91c1c;
   --os-tabbg: #f8fafc;
   --os-cellbg: #ffffff;
   --os-headline: #cbd5e1;
@@ -50,6 +52,8 @@ html[data-theme='dark'] {
   --os-accent: #38bdf8;
   --os-accent-hov: #7dd3fc;
   --os-accent-contrast: #0b1424;
+  --os-danger: #f87171;
+  --os-danger-hov: #fca5a5;
   --os-tabbg: #0b1424;
   --os-cellbg: #0f172a;
   --os-headline: #33455f;

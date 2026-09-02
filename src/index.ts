@@ -30,6 +30,8 @@ export type { ChartType, ChartPanelState } from './spreadsheet/components/ChartP
 export { ConditionalFormattingPanel } from './spreadsheet/components/ConditionalFormatting';
 export { DataValidation } from './spreadsheet/components/DataValidation';
 export { DropdownMenu } from './spreadsheet/components/Menu';
+export { Dialog, ConfirmDialog, PromptDialog, useDialogs } from './spreadsheet/components/Dialog';
+export type { DialogProps, ConfirmDialogProps, PromptDialogProps, ConfirmOptions, AlertOptions, PromptOptions } from './spreadsheet/components/Dialog';
 export type { MenuEntry } from './spreadsheet/components/Menu';
 export * from './spreadsheet/components/icons';
 export { useTheme } from './spreadsheet/hooks/useTheme';
