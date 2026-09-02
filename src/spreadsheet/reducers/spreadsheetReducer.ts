@@ -4,6 +4,8 @@ import { stampEditMeta, getEditAuthor, isRemoteApplying } from '../utils/editCon
 import { updateFormulaReferences } from '../utils/formulaUtils';
 import { normalizeRect } from '../utils/selectionUtils';
 
+let protectedRangeSeq = 0;
+
 /**
  * Shift/prune merged regions for row/column insertions and deletions.
  * Inserts shift merges at/after the index; deletes drop merges that
@@ -43,16 +45,14 @@ function shiftMerges(
           : { ...m, startCol: start - count, endCol: end - count });
       } else if (start >= index && end < index + count) {
         // Entirely inside the deleted range: drop it
-      } else if (start < index && end >= index + count) {
-        // Deletion carves the middle out of the merge: shrink toward start
-        out.push(horizontal
-          ? { ...m, endRow: start + (end - index - count) }
-          : { ...m, endCol: start + (end - index - count) });
       } else {
-        // Partial overlap at the head: shift the tail back
+        // Partial overlap: the surviving cells keep their positions before the
+        // deletion and shift back by count after it
+        const newStart = start < index ? start : index;
+        const newEnd = end >= index + count ? end - count : index - 1;
         out.push(horizontal
-          ? { ...m, startRow: index, endRow: end - count }
-          : { ...m, startCol: index, endCol: end - count });
+          ? { ...m, startRow: newStart, endRow: newEnd }
+          : { ...m, startCol: newStart, endCol: newEnd });
       }
     }
   }
@@ -168,7 +168,10 @@ function reduce(
     case 'PROTECT_RANGE': {
       const range = normalizeRect(action.payload.range);
       const entry = {
-        id: `pr-${Date.now()}`,
+        // A counter as well as the clock: ranges protected in the same
+        // millisecond (a batch) must not share an id, or one UNPROTECT_RANGE
+        // would drop both
+        id: `pr-${Date.now()}-${protectedRangeSeq++}`,
         range,
         description: action.payload.description,
         owner: getEditAuthor(),

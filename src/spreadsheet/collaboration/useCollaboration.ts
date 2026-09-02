@@ -94,6 +94,7 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
     };
 
     let disposed = false;
+    let baselineTaken = false;
     let reconnectAttempt = 0;
     let reconnectTimer: number | null = null;
     let ws: WebSocket;
@@ -127,7 +128,12 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
         socket.send(JSON.stringify({ type: 'hello', ...(slot || {}), token: getAuthToken(), user: identity }));
         // Ask the server for a snapshot; applied only if we have no local data
         socket.send(JSON.stringify({ type: 'sync', sheetId }));
-        syncSnapshot();
+        // Baseline only on the first connection: after a drop, edits made
+        // while offline must stay in the diff so the poller re-sends them
+        if (!baselineTaken) {
+          baselineTaken = true;
+          syncSnapshot();
+        }
         // Flush anything buffered while connecting/offline (connect-race
         // broadcasts and messages queued across a disconnect)
         const queued = [...pendingRef.current, ...loadQueue()];
