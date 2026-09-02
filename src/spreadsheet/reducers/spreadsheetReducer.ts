@@ -1,6 +1,6 @@
-import { SpreadsheetState, CellData, keyOf, parseKey, SelectionRect } from '../types/spreadsheet';
+import { SpreadsheetState, CellData, keyOf, parseKey, SelectionRect, DOCUMENT_FIELDS, DocumentField } from '../types/spreadsheet';
 import { SpreadsheetAction } from '../types/actions';
-import { stampEditMeta, getEditAuthor } from '../utils/editContext';
+import { stampEditMeta, getEditAuthor, isRemoteApplying } from '../utils/editContext';
 import { updateFormulaReferences } from '../utils/formulaUtils';
 import { normalizeRect } from '../utils/selectionUtils';
 
@@ -94,11 +94,41 @@ function rangeProtectedForOthers(
   );
 }
 
+/**
+ * Document fields (merges, protected ranges, filters, freezes, sizes) carry
+ * a last-writer stamp so collaborators converge on them the same way cells
+ * do. Local changes are stamped here; remote ones arrive already stamped.
+ */
+function stampDocumentFields(before: SpreadsheetState, after: SpreadsheetState): SpreadsheetState {
+  if (after === before || isRemoteApplying()) return after;
+  let docMeta = after.docMeta;
+  for (const field of DOCUMENT_FIELDS) {
+    if (after[field] !== before[field]) docMeta = { ...(docMeta ?? {}), [field]: stampEditMeta() };
+  }
+  return docMeta === after.docMeta ? after : { ...after, docMeta };
+}
+
 export function spreadsheetReducer(
   state: SpreadsheetState,
   action: SpreadsheetAction
 ): SpreadsheetState {
+  return stampDocumentFields(state, reduce(state, action));
+}
+
+function reduce(
+  state: SpreadsheetState,
+  action: SpreadsheetAction
+): SpreadsheetState {
   switch (action.type) {
+    case 'APPLY_REMOTE_DOCUMENT': {
+      const next: SpreadsheetState = { ...state, docMeta: { ...(state.docMeta ?? {}) } };
+      for (const [field, entry] of Object.entries(action.payload.fields) as Array<[DocumentField, { value: unknown; stamp: { ts: number; by: string } }]>) {
+        (next as unknown as Record<string, unknown>)[field] = entry.value ?? undefined;
+        next.docMeta![field] = entry.stamp;
+      }
+      return next;
+    }
+
     case 'CLEAR_ALL':
       return { ...state, data: new Map(), filters: [] };
 

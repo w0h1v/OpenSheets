@@ -302,6 +302,50 @@ describe('relay (memory bus)', () => {
     await Promise.all([writer.close(), reader.close()]);
   });
 
+  test('document fields converge by stamp and protected ranges are enforced', async () => {
+    const owner = await connect(srv.port, { token: ada.token });
+    const guest = await connect(srv.port, { user: { id: 'guest-bob', name: 'Bob' } });
+    await Promise.all([owner.roster, guest.roster]);
+    const stamp = (ts, by) => ({ ts, by });
+
+    // Ada protects A1:B2; the relay records her as owner and relays it
+    const range = { id: 'pr-1', range: { startRow: 0, startCol: 0, endRow: 1, endCol: 1 }, owner: 'whatever', description: 'locked' };
+    owner.send({ type: 'document', sheetId: 'doc', fields: { protectedRanges: { value: [range], stamp: stamp(100, 'x') } } });
+    const relayed = await guest.waitFor(isType('document'));
+    assert.equal(relayed.fields.protectedRanges.value[0].owner, ada.user.id);
+    assert.equal(relayed.fields.protectedRanges.stamp.by, ada.user.id, 'stamps are attributed by the relay');
+
+    // Bob cannot write inside it, can write outside it
+    guest.send({ type: 'cells', sheetId: 'doc', updates: [{ row: 0, col: 0, data: { value: 'nope' } }, { row: 5, col: 5, data: { value: 'ok' } }] });
+    const cells = await owner.waitFor(isType('cells'));
+    assert.deepEqual(cells.updates.map((u) => u.data.value), ['ok']);
+
+    // Bob cannot remove or reshape Ada's range, but may add his own
+    guest.send({ type: 'document', sheetId: 'doc', fields: { protectedRanges: { value: [], stamp: stamp(200, 'x') } } });
+    guest.send({ type: 'document', sheetId: 'doc', fields: { protectedRanges: { value: [{ ...range, range: { startRow: 0, startCol: 0, endRow: 0, endCol: 0 } }], stamp: stamp(201, 'x') } } });
+    await owner.silence(isType('document'));
+    const own = { id: 'pr-2', range: { startRow: 9, startCol: 0, endRow: 9, endCol: 3 }, owner: ada.user.id };
+    guest.send({ type: 'document', sheetId: 'doc', fields: { protectedRanges: { value: [{ ...range, owner: ada.user.id }, own], stamp: stamp(202, 'x') } } });
+    const added = await owner.waitFor(isType('document'));
+    assert.deepEqual(added.fields.protectedRanges.value.map((p) => [p.id, p.owner]), [['pr-1', ada.user.id], ['pr-2', 'guest-bob']]);
+
+    // Older stamps lose, newer win; the snapshot carries the winning fields
+    owner.send({ type: 'document', sheetId: 'doc', fields: { merges: { value: [{ startRow: 2, startCol: 2, endRow: 2, endCol: 3 }], stamp: stamp(500, 'x') } } });
+    await guest.waitFor(isType('document'));
+    guest.send({ type: 'document', sheetId: 'doc', fields: { merges: { value: [], stamp: stamp(400, 'x') } } });
+    await owner.silence(isType('document'));
+    guest.send({ type: 'document', sheetId: 'doc', fields: { merges: { value: [], stamp: stamp(600, 'x') }, frozenRows: { value: 2, stamp: stamp(1, 'x') }, colWidths: { value: [80, 'wide'], stamp: stamp(1, 'x') } } });
+    const won = await owner.waitFor(isType('document'));
+    assert.deepEqual(Object.keys(won.fields).sort(), ['frozenRows', 'merges'], 'the malformed field is dropped');
+    const late = await connect(srv.port, { user: { name: 'Late' } });
+    late.send({ type: 'sync', sheetId: 'doc' });
+    const snap = await late.waitFor(isType('snapshot'));
+    assert.deepEqual(snap.doc.merges.value, []);
+    assert.equal(snap.doc.frozenRows.value, 2);
+    assert.equal(snap.doc.protectedRanges.value.length, 2);
+    await Promise.all([owner.close(), guest.close(), late.close()]);
+  });
+
   test('malformed and out-of-range updates are dropped, future stamps are clamped', async () => {
     const a = await connect(srv.port, { user: { name: 'A' } });
     const b = await connect(srv.port, { user: { name: 'B' } });

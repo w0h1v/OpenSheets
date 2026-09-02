@@ -6,6 +6,17 @@ export interface ConditionalFormat {
   format: CellFormat;
 }
 
+/** Who wrote something and when; the higher stamp wins when edits collide. */
+export interface EditStamp {
+  ts: number;
+  by: string;
+}
+
+/** Document-level state that collaborators share, each field with its own stamp. */
+export type DocumentField = 'merges' | 'protectedRanges' | 'filters' | 'frozenRows' | 'frozenCols' | 'rowHeights' | 'colWidths';
+
+export const DOCUMENT_FIELDS: readonly DocumentField[] = ['merges', 'protectedRanges', 'filters', 'frozenRows', 'frozenCols', 'rowHeights', 'colWidths'];
+
 /** What a cell can hold; formulas store their result here. */
 export type CellValue = string | number | boolean | Date | null;
 
@@ -16,7 +27,7 @@ export interface CellData {
   metadata?: any;
   // LWW edit stamp for convergent multi-user merges: (ts, by) totally
   // orders concurrent writes to the same cell
-  editMeta?: { ts: number; by: string };
+  editMeta?: EditStamp;
 }
 
 export interface BorderStyle {
@@ -161,6 +172,8 @@ export interface SpreadsheetState {
   protectedRanges?: ProtectedRange[];
   rowHeights?: number[];
   colWidths?: number[];
+  /** Last-writer stamps per shared document field (see DocumentField). */
+  docMeta?: Partial<Record<DocumentField, EditStamp>>;
   validation?: Map<string, ValidationRule>;
   clipboardData?: { cells: CellData[][]; source: SelectionRect };
   sheetFormatting?: SheetFormatting;

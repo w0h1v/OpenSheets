@@ -29,6 +29,21 @@ export interface CellUpdate {
   data?: { value?: unknown; [key: string]: unknown } | null;
 }
 
+export interface EditStamp {
+  ts: number;
+  by: string;
+}
+
+export type DocumentField = 'merges' | 'protectedRanges' | 'filters' | 'frozenRows' | 'frozenCols' | 'rowHeights' | 'colWidths';
+
+/** One shared document field with the stamp that last set it. */
+export interface DocumentEntry {
+  value: unknown;
+  stamp: EditStamp;
+}
+
+export type DocumentFields = Partial<Record<DocumentField, DocumentEntry>>;
+
 export interface RelayLimits {
   maxFrameBytes: number;
   maxBodyBytes: number;
@@ -61,6 +76,9 @@ export interface RelayBus {
   getSnapshot(sheetId: string): Promise<Map<string, unknown> | null>;
   /** Stores what fits within the caps and resolves with the updates that were stored. */
   applyCellUpdates(sheetId: string, updates: CellUpdate[]): Promise<CellUpdate[]>;
+  getDocument(sheetId: string): Promise<DocumentFields>;
+  /** Last-writer-wins per field; resolves with the fields that were stored. */
+  applyDocument(sheetId: string, fields: DocumentFields): Promise<DocumentFields>;
   presenceGet(clientId: string): Promise<{ clientId: string; session: string; secretHash: string; user: RelayUser } | null>;
   /** Resolves null when the presence cap is reached. */
   presenceJoin(clientId: string, session: string, user: RelayUser, secretHash: string): Promise<{ first: boolean; left: RelayUser | null } | null>;
@@ -77,6 +95,8 @@ export declare class MemoryBus implements RelayBus {
   subscribe(channel: string, handler: (message: any) => void): Promise<void>;
   getSnapshot(sheetId: string): Promise<Map<string, unknown> | null>;
   applyCellUpdates(sheetId: string, updates: CellUpdate[]): Promise<CellUpdate[]>;
+  getDocument(sheetId: string): Promise<DocumentFields>;
+  applyDocument(sheetId: string, fields: DocumentFields): Promise<DocumentFields>;
   presenceGet(clientId: string): Promise<{ clientId: string; session: string; secretHash: string; user: RelayUser } | null>;
   presenceJoin(clientId: string, session: string, user: RelayUser, secretHash: string): Promise<{ first: boolean; left: RelayUser | null } | null>;
   presenceLeave(clientId: string, session: string): Promise<{ last: boolean; user: RelayUser | null }>;
@@ -100,6 +120,8 @@ export declare class RedisBus implements RelayBus {
   subscribe(channel: string, handler: (message: any) => void): Promise<void>;
   getSnapshot(sheetId: string): Promise<Map<string, unknown> | null>;
   applyCellUpdates(sheetId: string, updates: CellUpdate[]): Promise<CellUpdate[]>;
+  getDocument(sheetId: string): Promise<DocumentFields>;
+  applyDocument(sheetId: string, fields: DocumentFields): Promise<DocumentFields>;
   presenceGet(clientId: string): Promise<{ clientId: string; session: string; secretHash: string; user: RelayUser } | null>;
   presenceJoin(clientId: string, session: string, user: RelayUser, secretHash: string): Promise<{ first: boolean; left: RelayUser | null } | null>;
   presenceLeave(clientId: string, session: string): Promise<{ last: boolean; user: RelayUser | null }>;

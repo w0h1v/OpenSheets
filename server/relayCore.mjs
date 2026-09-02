@@ -40,11 +40,20 @@ import { WebSocketServer, WebSocket } from 'ws';
  * presence entries are capped. Row/column indexes and edit timestamps are
  * validated before anything is stored or relayed.
  *
+ * Documents: besides cells, a sheet has document-level fields (merges,
+ * protected ranges, filters, frozen panes, row heights, column widths).
+ * Each field carries a last-writer stamp {ts, by}; the relay keeps the
+ * winning value per field, relays only accepted fields, and returns them
+ * with the snapshot. Protected ranges are enforced here: a cell update
+ * inside a range owned by someone else is dropped, and a client may only
+ * add, change or remove ranges it owns.
+ *
  * Wire protocol (client -> server): hello{token?, user?, clientId?,
- * clientSecret?}, sync{sheetId}, cells{sheetId, updates}, selection{...},
- * sheets{...}, bye. Server -> client: roster{users, you, clientId,
- * clientSecret}, snapshot{sheetId, data}, join{user}, leave{user}, and every
- * relayed message with {user, clientId} attached by the server.
+ * clientSecret?}, sync{sheetId}, cells{sheetId, updates},
+ * document{sheetId, fields}, selection{...}, sheets{...}, bye.
+ * Server -> client: roster{users, you, clientId, clientSecret},
+ * snapshot{sheetId, data, doc}, join{user}, leave{user}, and every relayed
+ * message with {user, clientId} attached by the server.
  */
 
 /** Default location of accounts.json: a `data` folder under the process cwd (the demo servers pass their own). */
@@ -88,6 +97,7 @@ export const DEFAULT_LIMITS = Object.freeze({
 
 const CHANNEL = 'collab';
 const RESERVED_TYPES = new Set(['roster', 'snapshot', 'join', 'leave']);
+const DOCUMENT_FIELDS = ['merges', 'protectedRanges', 'filters', 'frozenRows', 'frozenCols', 'rowHeights', 'colWidths'];
 const SHEET_ID_RE = /^[\w.-]{1,64}$/;
 const SCRYPT = { N: 2 ** 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 
@@ -172,6 +182,18 @@ function leaveOutcome(entries, clientId, session) {
 
 const publicEntry = ({ clientId, user }) => ({ clientId, user });
 
+/** Total order over edit stamps: true when `a` beats `b`. */
+const stampWins = (a, b) => !b || a.ts > b.ts || (a.ts === b.ts && a.by > b.by);
+
+// Keeps the fields whose stamp beats what is stored; returns what was kept
+function mergeDocument(stored, fields) {
+  const accepted = {};
+  for (const [field, entry] of Object.entries(fields)) {
+    if (stampWins(entry.stamp, stored[field]?.stamp)) accepted[field] = entry;
+  }
+  return accepted;
+}
+
 // Merge a batch of cell updates so a later write to the same cell wins
 function mergeUpdates(updates) {
   const merged = new Map(); // key -> cell | null (null = clear)
@@ -185,10 +207,25 @@ export class MemoryBus {
     this.limits = limits;
     this.handlers = new Map(); // channel -> Set<fn>
     this.snapshots = new Map(); // sheetId -> Map<key, cell>
+    this.docs = new Map(); // sheetId -> { field: { value, stamp } }
     this.presence = new Map(); // clientId -> entry
   }
   async init() {}
   async close() {}
+  async getDocument(sheetId) {
+    return { ...(this.docs.get(sheetId) || {}) };
+  }
+  /** Last-writer-wins per field; resolves with the fields that were stored. */
+  async applyDocument(sheetId, fields) {
+    let doc = this.docs.get(sheetId);
+    if (!doc) {
+      if (this.docs.size >= this.limits.maxSheets) return {};
+      this.docs.set(sheetId, (doc = {}));
+    }
+    const accepted = mergeDocument(doc, fields);
+    Object.assign(doc, accepted);
+    return accepted;
+  }
   async publish(channel, message) {
     for (const fn of this.handlers.get(channel) || []) {
       try { fn(message); } catch { /* a listener error must not break delivery */ }
@@ -353,6 +390,27 @@ export class RedisBus {
       await multi.exec();
     }
     return updates.filter((u) => merged.has(`${u.row}:${u.col}`));
+  }
+
+  async getDocument(sheetId) {
+    const doc = {};
+    for (const [field, raw] of Object.entries(await this.client.hGetAll(this.key('doc', sheetId)))) {
+      try { doc[field] = JSON.parse(raw); } catch { /* skip corrupt field */ }
+    }
+    return doc;
+  }
+
+  async applyDocument(sheetId, fields) {
+    const hash = this.key('doc', sheetId);
+    const accepted = mergeDocument(await this.getDocument(sheetId), fields);
+    const entries = Object.entries(accepted);
+    if (entries.length) {
+      const multi = this.client.multi();
+      multi.hSet(hash, Object.fromEntries(entries.map(([f, e]) => [f, JSON.stringify(e)])));
+      multi.expire(hash, this.limits.snapshotTtlSeconds);
+      await multi.exec();
+    }
+    return accepted;
   }
 
   async readPresence() {
@@ -717,6 +775,85 @@ export function createRelay({
     return out;
   };
 
+  const isRect = (r) =>
+    isObject(r) && [r.startRow, r.endRow].every((v) => Number.isInteger(v) && v >= 0 && v < limits.maxRows)
+    && [r.startCol, r.endCol].every((v) => Number.isInteger(v) && v >= 0 && v < limits.maxCols);
+  const rect = (r) => ({ startRow: r.startRow, startCol: r.startCol, endRow: r.endRow, endCol: r.endCol });
+  const sameRect = (a, b) => a.startRow === b.startRow && a.startCol === b.startCol && a.endRow === b.endRow && a.endCol === b.endCol;
+  const inRect = (row, col, r) => row >= r.startRow && row <= r.endRow && col >= r.startCol && col <= r.endCol;
+
+  // Validates one document field's value; returns undefined to drop the field
+  const sanitizeFieldValue = (field, value) => {
+    if (value === null || value === undefined) return null;
+    switch (field) {
+      case 'merges':
+        return Array.isArray(value) && value.length <= 5000 && value.every(isRect) ? value.map(rect) : undefined;
+      case 'protectedRanges':
+        if (!Array.isArray(value) || value.length > 1000) return undefined;
+        if (!value.every((p) => isObject(p) && typeof p.id === 'string' && /^[\w-]{1,64}$/.test(p.id) && isRect(p.range) && typeof p.owner === 'string')) return undefined;
+        return value.map((p) => ({
+          id: p.id,
+          range: rect(p.range),
+          owner: p.owner.slice(0, 64),
+          ...(typeof p.description === 'string' && p.description ? { description: p.description.slice(0, 200) } : {}),
+        }));
+      case 'filters':
+        return Array.isArray(value) && value.length <= 200 && value.every((f) => isObject(f) && JSON.stringify(f).length <= 4096) ? value : undefined;
+      case 'frozenRows':
+      case 'frozenCols':
+        return Number.isInteger(value) && value >= 0 && value <= 1000 ? value : undefined;
+      case 'rowHeights':
+      case 'colWidths': {
+        const cap = field === 'rowHeights' ? limits.maxRows : limits.maxCols;
+        return Array.isArray(value) && value.length <= Math.min(cap, 100_000)
+          && value.every((n) => typeof n === 'number' && n >= 4 && n <= 4000) ? value : undefined;
+      }
+      default:
+        return undefined;
+    }
+  };
+
+  // A client may add, change or remove only the protected ranges it owns
+  const respectsOwnership = (incoming, stored, userId) => {
+    const before = new Map(stored.map((p) => [p.id, p]));
+    for (const p of incoming) {
+      const prev = before.get(p.id);
+      if (prev && prev.owner !== userId) {
+        if (prev.owner !== p.owner || !sameRect(prev.range, p.range)) return false;
+      } else {
+        p.owner = userId;
+      }
+    }
+    const after = new Set(incoming.map((p) => p.id));
+    return stored.every((p) => p.owner === userId || after.has(p.id));
+  };
+
+  const sanitizeDocument = async (sheetId, fields, user) => {
+    if (!isObject(fields)) return {};
+    const now = Date.now();
+    const out = {};
+    let stored = null;
+    for (const field of DOCUMENT_FIELDS) {
+      const entry = fields[field];
+      if (!isObject(entry) || !isObject(entry.stamp) || typeof entry.stamp.ts !== 'number') continue;
+      const value = sanitizeFieldValue(field, entry.value);
+      if (value === undefined) continue;
+      if (field === 'protectedRanges') {
+        stored = stored || await bus.getDocument(sheetId);
+        if (!respectsOwnership(value ?? [], stored.protectedRanges?.value || [], user.id)) continue;
+      }
+      out[field] = { value, stamp: { ts: Math.min(entry.stamp.ts, now + limits.futureSkewMs), by: user.id } };
+    }
+    return out;
+  };
+
+  // Drops cell updates that land inside someone else's protected range
+  const enforceProtection = async (sheetId, updates, userId) => {
+    const ranges = (await bus.getDocument(sheetId)).protectedRanges?.value;
+    if (!ranges || !ranges.length) return updates;
+    return updates.filter((u) => !ranges.some((p) => p.owner !== userId && inRect(u.row, u.col, p.range)));
+  };
+
   const sanitizeSelection = (sel) => {
     if (!isObject(sel)) return null;
     const n = (v) => Number.isInteger(v) && v >= 0 && v < limits.maxRows;
@@ -853,7 +990,8 @@ export function createRelay({
       if (msg.type === 'sync') {
         if (!validSheetId(msg.sheetId) || !(await allowed(me.user, 'read', msg.sheetId))) return;
         const snap = await bus.getSnapshot(msg.sheetId);
-        send(ws, { type: 'snapshot', sheetId: msg.sheetId, data: snap ? Array.from(snap.entries()) : null });
+        const doc = await bus.getDocument(msg.sheetId);
+        send(ws, { type: 'snapshot', sheetId: msg.sheetId, data: snap ? Array.from(snap.entries()) : null, doc });
         return;
       }
 
@@ -863,9 +1001,16 @@ export function createRelay({
       if (msg.type === 'cells') {
         if (!validSheetId(msg.sheetId) || !Array.isArray(msg.updates)) return;
         if (!(await allowed(me.user, 'write', msg.sheetId))) return;
-        const updates = await bus.applyCellUpdates(msg.sheetId, sanitizeUpdates(msg.updates));
+        const permitted = await enforceProtection(msg.sheetId, sanitizeUpdates(msg.updates), me.user.id);
+        const updates = await bus.applyCellUpdates(msg.sheetId, permitted);
         if (!updates.length) return;
         outgoing = { type: 'cells', sheetId: msg.sheetId, updates };
+      } else if (msg.type === 'document') {
+        if (!validSheetId(msg.sheetId)) return;
+        if (!(await allowed(me.user, 'write', msg.sheetId))) return;
+        const fields = await bus.applyDocument(msg.sheetId, await sanitizeDocument(msg.sheetId, msg.fields, me.user));
+        if (!Object.keys(fields).length) return;
+        outgoing = { type: 'document', sheetId: msg.sheetId, fields };
       } else if (msg.type === 'selection') {
         if (!validSheetId(msg.sheetId)) return;
         const selection = sanitizeSelection(msg.selection);

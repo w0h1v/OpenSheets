@@ -53,6 +53,7 @@ const reducer = (state: SpreadsheetState, action: SpreadsheetAction): Spreadshee
       merges: loaded.merges,
       filters: loaded.filters,
       protectedRanges: loaded.protectedRanges,
+      docMeta: loaded.docMeta ?? state.docMeta,
     };
   }
   return spreadsheetReducer(state, action);

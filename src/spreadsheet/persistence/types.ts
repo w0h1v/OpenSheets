@@ -33,6 +33,7 @@ export interface PersistedState {
   merges?: Array<import('../types/spreadsheet').SelectionRect>;
   filters?: Array<import('../types/spreadsheet').FilterRule>;
   protectedRanges?: Array<import('../types/spreadsheet').ProtectedRange>;
+  docMeta?: import('../types/spreadsheet').SpreadsheetState['docMeta'];
   metadata: SpreadsheetMetadata;
 }
 

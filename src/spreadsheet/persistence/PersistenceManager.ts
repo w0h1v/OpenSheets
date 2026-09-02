@@ -46,6 +46,7 @@ export class PersistenceManager {
       merges: state.merges,
       filters: state.filters,
       protectedRanges: state.protectedRanges,
+      docMeta: state.docMeta,
       metadata: {
         id: this.config.spreadsheetId,
         title: this.config.spreadsheetId,
@@ -73,6 +74,7 @@ export class PersistenceManager {
       merges: persisted.merges,
       filters: persisted.filters,
       protectedRanges: persisted.protectedRanges,
+      docMeta: persisted.docMeta,
     };
   }
 

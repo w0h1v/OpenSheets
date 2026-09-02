@@ -1,4 +1,4 @@
-import { CellData, Selection, SelectionRect, CellFormat, ValidationRule, SpreadsheetState, SheetFormatting } from './spreadsheet';
+import { CellData, Selection, SelectionRect, CellFormat, ValidationRule, SpreadsheetState, SheetFormatting, DocumentField, EditStamp } from './spreadsheet';
 
 export type SpreadsheetAction =
   | { type: 'SET_CELL'; payload: { row: number; col: number; data: Partial<CellData> } }
@@ -29,6 +29,8 @@ export type SpreadsheetAction =
   | { type: 'SORT_RANGE'; payload: { range: SelectionRect; column: number; ascending: boolean } }
   | { type: 'SET_VALIDATION'; payload: { row: number; col: number; validation: ValidationRule | null } }
   | { type: 'UPDATE_SHEET_FORMATTING'; payload: Partial<SheetFormatting> }
+  // Shared document fields received from collaborators, each with the stamp that won
+  | { type: 'APPLY_REMOTE_DOCUMENT'; payload: { fields: Partial<Record<DocumentField, { value: unknown; stamp: EditStamp }>> } }
   | { type: 'LOAD_STATE'; payload: SpreadsheetState }
   | { type: 'RESTORE_STATE'; payload: SpreadsheetState }
   | { type: 'UNDO' }

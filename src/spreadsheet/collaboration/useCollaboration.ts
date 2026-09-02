@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
-import { SpreadsheetState, CellData } from '../types/spreadsheet';
+import { SpreadsheetState, CellData, DOCUMENT_FIELDS, DocumentField, EditStamp } from '../types/spreadsheet';
 import {
   setCollabUsers, pushCollabToast, CollabUser,
 } from './presenceStore';
@@ -12,8 +12,11 @@ import { keyOf } from '../types/spreadsheet';
 
 /*
  * Live collaboration over the relay (see config.ts for where it lives):
- *  - outgoing: debounced diffs of state.data, plus selection presence
- *  - incoming: remote cell edits applied via dispatch, roster updates
+ *  - outgoing: debounced diffs of state.data, document fields (merges,
+ *    protected ranges, filters, freezes, sizes) whose stamp is ours, and
+ *    selection presence
+ *  - incoming: remote cell edits and document fields applied via dispatch
+ *    when their stamp wins, roster updates
  * Identity comes from authStore (the signed-in account, else a per-tab
  * guest); the relay confirms it in the roster reply and is authoritative.
  * The relay assigns each tab a client id so several tabs of one account
@@ -53,6 +56,28 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
 
     const remoteUsers = new Map<string, CollabUser>();
     const publishUsers = () => setCollabUsers(Array.from(remoteUsers.values()));
+
+    // Document fields already reconciled with the relay, by stamp
+    const syncedDoc = new Map<DocumentField, string>();
+    const stampKey = (stamp: EditStamp) => `${stamp.ts}|${stamp.by}`;
+    type RemoteFields = Partial<Record<DocumentField, { value: unknown; stamp: EditStamp }>>;
+    const applyRemoteDocument = (fields: RemoteFields | undefined) => {
+      if (!fields) return;
+      const local = getStateRef.current().docMeta ?? {};
+      const winning: RemoteFields = {};
+      for (const field of DOCUMENT_FIELDS) {
+        const entry = fields[field];
+        if (!entry || typeof entry.stamp?.ts !== 'number' || typeof entry.stamp?.by !== 'string') continue;
+        if (editStampWins(entry.stamp, local[field])) {
+          winning[field] = entry;
+          syncedDoc.set(field, stampKey(entry.stamp));
+        }
+      }
+      if (!Object.keys(winning).length) return;
+      beginRemoteApply();
+      dispatchRef.current({ type: 'APPLY_REMOTE_DOCUMENT', payload: { fields: winning } });
+      endRemoteApply();
+    };
     const syncSnapshot = () => {
       lastSyncedRef.current = JSON.stringify(getStateRef.current().data, (_k, v) =>
         v instanceof Map ? Array.from(v.entries()) : v
@@ -153,6 +178,11 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
             endRemoteApply();
             setTimeout(syncSnapshot, 0);
           }
+          applyRemoteDocument(msg.doc);
+          return;
+        }
+        if (msg.type === 'snapshot' && msg.sheetId === sheetId) {
+          applyRemoteDocument(msg.doc);
           return;
         }
 
@@ -205,6 +235,11 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
           return;
         }
 
+        if (msg.type === 'document' && msg.sheetId === sheetId) {
+          applyRemoteDocument(msg.fields);
+          return;
+        }
+
         if (msg.type === 'selection' && !ownAccount) {
           remoteUsers.set(msg.user.id, {
             ...msg.user,
@@ -250,6 +285,20 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
           updates.push({ row, col, data: { value: '' } });
         }
       });
+
+      // Document fields we stamped ourselves go out as they change; fields
+      // stamped by others were applied from the relay and are already there
+      const docMeta = getStateRef.current().docMeta;
+      if (docMeta) {
+        const outgoing: Record<string, { value: unknown; stamp: EditStamp }> = {};
+        for (const field of DOCUMENT_FIELDS) {
+          const stamp = docMeta[field];
+          if (!stamp || syncedDoc.get(field) === stampKey(stamp)) continue;
+          syncedDoc.set(field, stampKey(stamp));
+          if (stamp.by === selfId) outgoing[field] = { value: getStateRef.current()[field] ?? null, stamp };
+        }
+        if (Object.keys(outgoing).length) sock.send(JSON.stringify({ type: 'document', sheetId, fields: outgoing }));
+      }
 
       if (updates.length && diffTimerRef.current === null) {
         diffTimerRef.current = window.setTimeout(() => {

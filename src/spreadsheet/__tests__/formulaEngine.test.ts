@@ -9,9 +9,9 @@ import {
   parseFormula,
   tokenize,
 } from '../formula';
-import { CellData, keyOf } from '../types/spreadsheet';
+import { CellData, CellValue, keyOf } from '../types/spreadsheet';
 
-const grid = (cells: Record<string, unknown>): Map<string, CellData> => {
+const grid = (cells: Record<string, CellValue>): Map<string, CellData> => {
   const map = new Map<string, CellData>();
   for (const [ref, raw] of Object.entries(cells)) {
     const [row, col] = parseCellRef(ref);
@@ -25,7 +25,7 @@ const grid = (cells: Record<string, unknown>): Map<string, CellData> => {
 
 const accessorFor = (map: Map<string, CellData>) => (row: number, col: number) => map.get(keyOf(row, col));
 
-const evalWith = (formula: string, cells: Record<string, unknown> = {}) =>
+const evalWith = (formula: string, cells: Record<string, CellValue> = {}) =>
   evaluateFormula(formula, accessorFor(grid(cells)));
 
 describe('formula tokenizer', () => {
@@ -319,7 +319,7 @@ describe('formula evaluator', () => {
     });
 
     it('caps evaluation depth as a backstop', () => {
-      const chain: Record<string, unknown> = {};
+      const chain: Record<string, CellValue> = {};
       for (let i = 1; i <= 200; i++) chain[`A${i}`] = `=A${i + 1}+1`;
       chain.A201 = 0;
       expect(evalWith('=A150', chain)).toBe(51);
