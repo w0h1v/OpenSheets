@@ -6,11 +6,12 @@ import {
 import {
   getIdentity, subscribeAuth, getAuthToken, getClientSlot, setClientSlot, adoptServerIdentity, Identity,
 } from './authStore';
+import { relayUrl } from './config';
 import { setEditAuthor, editStampWins, beginRemoteApply, endRemoteApply } from '../utils/editContext';
 import { keyOf } from '../types/spreadsheet';
 
 /*
- * Live collaboration over the relay at /collab:
+ * Live collaboration over the relay (see config.ts for where it lives):
  *  - outgoing: debounced diffs of state.data, plus selection presence
  *  - incoming: remote cell edits applied via dispatch, roster updates
  * Identity comes from authStore (the signed-in account, else a per-tab
@@ -49,7 +50,6 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
     if (!enabled) return;
     let clientId = getClientSlot()?.clientId ?? null;
     let selfId = identity.id;
-    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
 
     const remoteUsers = new Map<string, CollabUser>();
     const publishUsers = () => setCollabUsers(Array.from(remoteUsers.values()));
@@ -76,7 +76,7 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
     const connect = () => {
       if (disposed) return;
       try {
-        ws = new WebSocket(`${proto}://${window.location.host}/collab`);
+        ws = new WebSocket(relayUrl());
       } catch {
         scheduleReconnect();
         return;

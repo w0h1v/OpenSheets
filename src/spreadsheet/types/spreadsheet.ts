@@ -6,8 +6,11 @@ export interface ConditionalFormat {
   format: CellFormat;
 }
 
+/** What a cell can hold; formulas store their result here. */
+export type CellValue = string | number | boolean | Date | null;
+
 export interface CellData {
-  value: any;
+  value: CellValue;
   formula?: string;
   format?: CellFormat;
   metadata?: any;

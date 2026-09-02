@@ -1,5 +1,5 @@
 import React, { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { useSpreadsheetEnhanced } from '../SpreadsheetContextEnhanced';
+import { useSpreadsheet } from '../SpreadsheetContext';
 import { columnToLetter } from '../utils/columnUtils';
 import { normalizeRect } from '../utils/selectionUtils';
 import { parseCellRef, cellsInRange } from '../utils/formulaUtils';
@@ -40,7 +40,7 @@ const refsInFormula = (formula: string): Array<[number, number, number, number]>
 };
 
 export const FormulaBar: React.FC = () => {
-  const { state, dispatch, getCell, setCell } = useSpreadsheetEnhanced();
+  const { state, dispatch, getCell, setCell } = useSpreadsheet();
   const active = state.selection.active;
   // Track the cell the current bar text belongs to, so a commit always
   // targets the cell that was selected when typing started, even if the

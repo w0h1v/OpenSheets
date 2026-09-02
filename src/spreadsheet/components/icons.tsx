@@ -48,7 +48,7 @@ export const StrikethroughIcon: React.FC<IconProps> = (p) => (
 );
 
 export const TextColorIcon: React.FC<IconProps> = (p) => (
-  <Svg {...p}><path d="M4.75 10 8 2.75 11.25 10M5.9 7.75h4.2" /><rect x="3" y="12" width="10" height="2.5" rx="0.75" fill="var(--accent)" stroke="none" /></Svg>
+  <Svg {...p}><path d="M4.75 10 8 2.75 11.25 10M5.9 7.75h4.2" /><rect x="3" y="12" width="10" height="2.5" rx="0.75" fill="var(--os-accent)" stroke="none" /></Svg>
 );
 
 export const FillColorIcon: React.FC<IconProps> = (p) => (

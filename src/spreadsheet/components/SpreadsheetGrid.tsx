@@ -1,11 +1,11 @@
 import React, { useRef, useState, useCallback, useMemo, useEffect, useSyncExternalStore } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { columnToLetter } from '../utils/columnUtils';
-import { useSpreadsheetEnhanced } from '../SpreadsheetContextEnhanced';
+import { useSpreadsheet } from '../SpreadsheetContext';
 import { useMultiSelection } from '../hooks/useMultiSelection';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useClipboard } from '../hooks/useClipboard';
-import { CellRendererOptimized } from './CellRendererOptimized';
+import { CellRenderer } from './CellRenderer';
 import { ContextMenu } from './ContextMenu';
 import { ResizeHandle } from './ResizeHandle';
 import { DataValidation } from './DataValidation';
@@ -18,10 +18,17 @@ import { getCollabUsers, subscribeCollab } from '../collaboration/presenceStore'
 import { getFilterPanelColumn, subscribeFilterPanel, setFilterPanelColumn } from '../utils/filterPanelStore';
 import { ColumnFilter } from './ColumnFilter';
 import { FilterIcon } from './icons';
-import styles from './SpreadsheetTable.module.css';
+import styles from './SpreadsheetGrid.module.css';
 
-export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ sheetId = 'default' }) => {
-  const { state, dispatch } = useSpreadsheetEnhanced();
+export interface SpreadsheetGridProps {
+  /** Identifies this sheet for cross-sheet formulas and collaboration. */
+  sheetId?: string;
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+export const SpreadsheetGrid: React.FC<SpreadsheetGridProps> = ({ sheetId = 'default', className, style }) => {
+  const { state, dispatch } = useSpreadsheet();
   const parentRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -501,7 +508,8 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
     >
       <div
         ref={parentRef}
-        className={styles.container}
+        className={className ? `${styles.container} ${className}` : styles.container}
+        style={style}
         onScroll={handleScroll}
         role="grid"
         aria-label="Spreadsheet"
@@ -524,8 +532,8 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
                 left: selectionBox.left,
                 width: selectionBox.width,
                 height: selectionBox.height,
-                border: '1px solid var(--accent)',
-                backgroundColor: 'var(--grid-range-fill)',
+                border: '1px solid var(--os-accent)',
+                backgroundColor: 'var(--os-grid-range-fill)',
                 pointerEvents: 'none',
                 boxSizing: 'border-box',
               }}
@@ -541,7 +549,7 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
                 left: fillBox.left,
                 width: fillBox.width,
                 height: fillBox.height,
-                border: '1px dashed var(--accent)',
+                border: '1px dashed var(--os-accent)',
                 pointerEvents: 'none',
                 boxSizing: 'border-box',
               }}
@@ -564,8 +572,8 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
                   left,
                   width,
                   height,
-                  border: '1.5px dashed var(--faint)',
-                  background: 'repeating-linear-gradient(45deg, transparent, transparent 6px, var(--hover) 6px, var(--hover) 7px)',
+                  border: '1.5px dashed var(--os-faint)',
+                  background: 'repeating-linear-gradient(45deg, transparent, transparent 6px, var(--os-hover) 6px, var(--os-hover) 7px)',
                   pointerEvents: 'none',
                   boxSizing: 'border-box',
                   zIndex: 0,
@@ -685,7 +693,7 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
                   role="presentation"
                   aria-colindex={col.index + 1}
                 >
-                  <CellRendererOptimized row={row.index} col={col.index} />
+                  <CellRenderer row={row.index} col={col.index} />
                 </div>
               ))}
             </div>
@@ -736,8 +744,8 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
                   style={{
                     marginLeft: 3,
                     border: 'none',
-                    background: 'var(--toolbar-active-bg)',
-                    color: 'var(--accent)',
+                    background: 'var(--os-toolbar-active-bg)',
+                    color: 'var(--os-accent)',
                     display: 'inline-flex',
                     alignItems: 'center',
                     borderRadius: 4,
@@ -814,7 +822,7 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
             overflow: 'hidden',
             zIndex: 3,
             pointerEvents: 'none',
-            background: 'var(--cellbg)',
+            background: 'var(--os-cellbg)',
           }}
         >
           <div
@@ -848,7 +856,7 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
                         onContextMenu={(e) => handleContextMenu(e, r, col.index)}
                         role="presentation"
                       >
-                        <CellRendererOptimized row={r} col={col.index} />
+                        <CellRenderer row={r} col={col.index} />
                       </div>
                     ))}
                 </div>
@@ -870,7 +878,7 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
             overflow: 'hidden',
             zIndex: 3,
             pointerEvents: 'none',
-            background: 'var(--cellbg)',
+            background: 'var(--os-cellbg)',
           }}
         >
           <div
@@ -902,7 +910,7 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
                     onContextMenu={(e) => handleContextMenu(e, row.index, c)}
                     role="presentation"
                   >
-                    <CellRendererOptimized row={row.index} col={c} />
+                    <CellRenderer row={row.index} col={c} />
                   </div>
                 ))
               )}
@@ -921,7 +929,7 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
             height: frozenH,
             overflow: 'hidden',
             zIndex: 5,
-            background: 'var(--cellbg)',
+            background: 'var(--os-cellbg)',
           }}
         >
           {Array.from({ length: frozenRows }, (_, r) =>
@@ -941,7 +949,7 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
                 onContextMenu={(e) => handleContextMenu(e, r, c)}
                 role="presentation"
               >
-                <CellRendererOptimized row={r} col={c} />
+                <CellRenderer row={r} col={c} />
               </div>
             ))
           )}
@@ -970,8 +978,8 @@ export const SpreadsheetTableOptimized: React.FC<{ sheetId?: string }> = ({ shee
             left: selectionBox.left + selectionBox.width - 3,
             width: 6,
             height: 6,
-            backgroundColor: 'var(--accent)',
-            border: '1px solid var(--cellbg)',
+            backgroundColor: 'var(--os-accent)',
+            border: '1px solid var(--os-cellbg)',
             cursor: 'crosshair',
             zIndex: 5,
           }}

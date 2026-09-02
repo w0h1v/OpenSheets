@@ -6,7 +6,7 @@
 .trigger {
   border: none;
   background: transparent;
-  color: var(--muted);
+  color: var(--os-muted);
   font-size: 12px;
   padding: 2px 7px;
   border-radius: 4px;
@@ -16,8 +16,8 @@
 
 .trigger:hover,
 .triggerOpen {
-  background: var(--hover);
-  color: var(--ink);
+  background: var(--os-hover);
+  color: var(--os-ink);
 }
 
 .panel {
@@ -28,10 +28,10 @@
   max-height: 70vh;
   overflow-y: auto;
   padding: 4px;
-  background: var(--panel);
-  border: 1px solid var(--border);
+  background: var(--os-panel);
+  border: 1px solid var(--os-border);
   border-radius: 8px;
-  box-shadow: var(--menu-shadow);
+  box-shadow: var(--os-menu-shadow);
   z-index: 1100;
   display: flex;
   flex-direction: column;
@@ -50,7 +50,7 @@
   border: none;
   border-radius: 5px;
   background: transparent;
-  color: var(--text);
+  color: var(--os-text);
   font-size: 12.5px;
   text-align: left;
   cursor: pointer;
@@ -58,8 +58,8 @@
 }
 
 .item:hover:not(:disabled) {
-  background: var(--hover);
-  color: var(--ink);
+  background: var(--os-hover);
+  color: var(--os-ink);
 }
 
 .item:disabled {
@@ -70,7 +70,7 @@
 .check {
   width: 14px;
   flex: none;
-  color: var(--accent);
+  color: var(--os-accent);
   font-size: 11px;
 }
 
@@ -81,11 +81,11 @@
 .shortcut {
   margin-left: auto;
   font-size: 11px;
-  color: var(--faint);
+  color: var(--os-faint);
 }
 
 .separator {
   height: 1px;
   margin: 4px 8px;
-  background: var(--border);
+  background: var(--os-border);
 }

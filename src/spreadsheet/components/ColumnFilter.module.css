@@ -1,6 +1,6 @@
 .filterDropdown {
   background: white;
-  border: 1px solid var(--border);
+  border: 1px solid var(--os-border);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   min-width: 320px;
@@ -17,15 +17,15 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--hover);
+  border-bottom: 1px solid var(--os-border);
+  background: var(--os-hover);
 }
 
 .header h3 {
   margin: 0;
   font-size: 14px;
   font-weight: 500;
-  color: var(--text);
+  color: var(--os-text);
 }
 
 .closeButton {
@@ -34,17 +34,17 @@
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
-  color: var(--muted);
+  color: var(--os-muted);
   font-size: 14px;
 }
 
 .closeButton:hover {
-  background: var(--border);
+  background: var(--os-border);
 }
 
 .tabs {
   display: flex;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--os-border);
   background: white;
 }
 
@@ -55,17 +55,17 @@
   padding: 10px 12px;
   cursor: pointer;
   font-size: 13px;
-  color: var(--muted);
+  color: var(--os-muted);
   transition: all 0.15s ease;
 }
 
 .tab:hover {
-  background: var(--hover);
+  background: var(--os-hover);
 }
 
 .tab.active {
-  color: var(--accent);
-  border-bottom: 2px solid var(--accent);
+  color: var(--os-accent);
+  border-bottom: 2px solid var(--os-accent);
   background: white;
 }
 
@@ -89,20 +89,20 @@
 .searchInput {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--os-border);
   border-radius: 4px;
   font-size: 13px;
   outline: none;
 }
 
 .searchInput:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  border-color: var(--os-accent);
+  box-shadow: 0 0 0 1px var(--os-accent);
 }
 
 .selectAllContainer {
   padding: 8px 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--os-border);
   margin-bottom: 8px;
 }
 
@@ -126,7 +126,7 @@
 }
 
 .checkboxLabel:hover {
-  background: var(--hover);
+  background: var(--os-hover);
 }
 
 .checkboxLabel input[type="checkbox"] {
@@ -136,11 +136,11 @@
 
 .valueText {
   flex: 1;
-  color: var(--text);
+  color: var(--os-text);
 }
 
 .valueCount {
-  color: var(--muted);
+  color: var(--os-muted);
   font-size: 11px;
   font-weight: 500;
 }
@@ -167,12 +167,12 @@
 .formGroup label {
   font-size: 12px;
   font-weight: 500;
-  color: var(--text);
+  color: var(--os-text);
 }
 
 .select, .input {
   padding: 8px 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--os-border);
   border-radius: 4px;
   font-size: 13px;
   outline: none;
@@ -180,13 +180,13 @@
 }
 
 .select:focus, .input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  border-color: var(--os-accent);
+  box-shadow: 0 0 0 1px var(--os-accent);
 }
 
 .select:disabled, .input:disabled {
-  background: var(--hover);
-  color: var(--muted);
+  background: var(--os-hover);
+  color: var(--os-muted);
   cursor: not-allowed;
 }
 
@@ -196,7 +196,7 @@
   gap: 8px;
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--os-border);
 }
 
 .applyButton {
@@ -204,7 +204,7 @@
   padding: 8px 16px;
   border: none;
   border-radius: 4px;
-  background: var(--accent);
+  background: var(--os-accent);
   color: white;
   font-size: 13px;
   font-weight: 500;
@@ -217,24 +217,24 @@
 }
 
 .applyButton:disabled {
-  background: var(--border);
+  background: var(--os-border);
   cursor: not-allowed;
 }
 
 .clearButton {
   padding: 8px 16px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--os-border);
   border-radius: 4px;
   background: white;
-  color: var(--text);
+  color: var(--os-text);
   font-size: 13px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .clearButton:hover {
-  background: var(--hover);
-  border-color: var(--muted);
+  background: var(--os-hover);
+  border-color: var(--os-muted);
 }
 
 /* Scrollbars */
@@ -245,19 +245,19 @@
 
 .valuesList::-webkit-scrollbar-track,
 .content::-webkit-scrollbar-track {
-  background: var(--hover);
+  background: var(--os-hover);
   border-radius: 3px;
 }
 
 .valuesList::-webkit-scrollbar-thumb,
 .content::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: var(--os-border);
   border-radius: 3px;
 }
 
 .valuesList::-webkit-scrollbar-thumb:hover,
 .content::-webkit-scrollbar-thumb:hover {
-  background: var(--faint);
+  background: var(--os-faint);
 }
 
 /* Responsive Design */

@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
-import { useSpreadsheet } from '../SpreadsheetContext';
+import { useSpreadsheetBase } from '../SpreadsheetContext';
 import { serializeTabular, parseTabular } from '../utils/clipboardUtils';
 import { normalizeRect } from '../utils/selectionUtils';
 
 export const useClipboard = () => {
-  const { state, getCell, setCell } = useSpreadsheet();
+  const { state, getCell, setCell } = useSpreadsheetBase();
 
   useEffect(() => {
     const handleCopy = async (e: ClipboardEvent) => {

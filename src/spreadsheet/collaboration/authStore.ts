@@ -1,4 +1,5 @@
 import { COLLAB_PALETTE } from './presenceStore';
+import { authUrl } from './config';
 
 /*
  * Who am I, for collaboration. A module-level store (like presenceStore) so
@@ -6,14 +7,17 @@ import { COLLAB_PALETTE } from './presenceStore';
  *
  *  - Signed in: the account from the relay's /auth endpoints. The session
  *    (token + user) lives in localStorage, so it is one identity per
- *    *person* — shared by every tab of this browser and restored on reload.
+ *    person: shared by every tab of this browser and restored on reload.
  *    Signing in or out in one tab applies to all tabs via the storage event.
  *  - Guest: a per-tab identity in sessionStorage (opening a second tab
  *    still demos multi-user collaboration with zero setup).
  *
+ * Nothing is read from storage until the first call, so importing the
+ * package has no side effects and works during server rendering.
+ *
  * The relay is authoritative: on connect it answers with the identity it
- * derived from the token, and adoptServerIdentity() reconciles — a rejected
- * token drops the local session, a normalized guest is kept as normalized.
+ * derived from the token, and adoptServerIdentity() reconciles. A rejected
+ * token drops the local session; a normalized guest is kept as normalized.
  */
 
 export interface Identity {
@@ -26,6 +30,11 @@ export interface Identity {
 export interface AuthSession {
   token: string;
   user: Identity;
+}
+
+export interface ClientSlot {
+  clientId: string;
+  clientSecret: string;
 }
 
 const SESSION_KEY = 'opensheets-auth';
@@ -55,12 +64,15 @@ const writeSession = (next: AuthSession | null) => {
   } catch { /* ignore */ }
 };
 
+const writeGuest = (guest: Identity) => {
+  try { sessionStorage.setItem(GUEST_KEY, JSON.stringify(guest)); } catch { /* ignore */ }
+};
+
 const readGuest = (): Identity => {
   try {
     const saved = sessionStorage.getItem(GUEST_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      // Pre-account builds stored `u-…` ids; the relay only honours `guest-…`
       if (parsed && typeof parsed.id === 'string' && parsed.id.startsWith('guest-')) {
         return { id: parsed.id, name: parsed.name, color: parsed.color, authenticated: false };
       }
@@ -76,16 +88,12 @@ const readGuest = (): Identity => {
   return guest;
 };
 
-const writeGuest = (guest: Identity) => {
-  try { sessionStorage.setItem(GUEST_KEY, JSON.stringify(guest)); } catch { /* ignore */ }
-};
-
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
-let session: AuthSession | null = readSession();
-let guest: Identity = readGuest();
-let identity: Identity = session ? session.user : guest;
+let session: AuthSession | null = null;
+let guest: Identity | null = null;
+let identity: Identity | null = null;
 
 const sameIdentity = (a: Identity, b: Identity) =>
   a.id === b.id && a.name === b.name && a.color === b.color && a.authenticated === b.authenticated;
@@ -93,13 +101,31 @@ const sameIdentity = (a: Identity, b: Identity) =>
 // Recompute the effective identity; notify only on a real change so the
 // collaboration socket is not torn down for nothing
 const refresh = () => {
-  const next = session ? session.user : guest;
-  if (sameIdentity(next, identity)) return;
+  const next = session ? session.user : (guest as Identity);
+  if (identity && sameIdentity(next, identity)) return;
   identity = next;
   emit();
 };
 
+// First use reads storage and starts listening for other tabs
+const ensure = (): Identity => {
+  if (identity) return identity;
+  session = readSession();
+  guest = readGuest();
+  identity = session ? session.user : guest;
+  if (typeof window !== 'undefined') {
+    window.addEventListener('storage', (e) => {
+      if (e.key === SESSION_KEY || e.key === null) {
+        session = readSession();
+        refresh();
+      }
+    });
+  }
+  return identity;
+};
+
 const setSession = (next: AuthSession | null) => {
+  ensure();
   session = next;
   writeSession(next);
   refresh();
@@ -107,21 +133,17 @@ const setSession = (next: AuthSession | null) => {
 
 /** The identity to collaborate as: the signed-in account, else this tab's guest. */
 export function getIdentity(): Identity {
-  return identity;
+  return ensure();
 }
 
 export function getAuthToken(): string | null {
+  ensure();
   return session ? session.token : null;
 }
 
 export function subscribeAuth(listener: () => void) {
   listeners.add(listener);
   return () => listeners.delete(listener);
-}
-
-export interface ClientSlot {
-  clientId: string;
-  clientSecret: string;
 }
 
 /**
@@ -144,7 +166,7 @@ export function setClientSlot(slot: ClientSlot) {
 }
 
 const call = async (path: string, body: unknown): Promise<any> => {
-  const res = await fetch(`/auth/${path}`, {
+  const res = await fetch(authUrl(path), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -157,16 +179,17 @@ const call = async (path: string, body: unknown): Promise<any> => {
 export async function register(name: string, password: string): Promise<Identity> {
   const next = await call('register', { name, password });
   setSession({ token: next.token, user: { ...next.user, authenticated: true } });
-  return identity;
+  return ensure();
 }
 
 export async function login(name: string, password: string): Promise<Identity> {
   const next = await call('login', { name, password });
   setSession({ token: next.token, user: { ...next.user, authenticated: true } });
-  return identity;
+  return ensure();
 }
 
 export async function logout(): Promise<void> {
+  ensure();
   const token = session ? session.token : null;
   setSession(null);
   if (token) await call('logout', { token }).catch(() => { /* server unreachable: local sign-out stands */ });
@@ -174,13 +197,14 @@ export async function logout(): Promise<void> {
 
 /** Reconcile with the identity the relay derived from our hello. */
 export function adoptServerIdentity(you: Identity) {
+  ensure();
   if (session && !you.authenticated) {
-    // Our token was rejected (revoked, or the accounts file was reset)
+    // Our token was rejected (revoked, or the accounts store was reset)
     setSession(null);
     return;
   }
   if (!session && !you.authenticated) {
-    if (!sameIdentity(you, guest)) {
+    if (!guest || !sameIdentity(you, guest)) {
       guest = you;
       writeGuest(guest);
       refresh();
@@ -190,13 +214,4 @@ export function adoptServerIdentity(you: Identity) {
   if (session && you.authenticated && !sameIdentity(you, session.user)) {
     setSession({ token: session.token, user: you });
   }
-}
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => {
-    if (e.key === SESSION_KEY || e.key === null) {
-      session = readSession();
-      refresh();
-    }
-  });
 }

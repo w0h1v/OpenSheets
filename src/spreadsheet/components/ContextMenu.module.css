@@ -3,10 +3,10 @@
   position: fixed;
   min-width: 190px;
   padding: 4px;
-  background: var(--panel);
-  border: 1px solid var(--border);
+  background: var(--os-panel);
+  border: 1px solid var(--os-border);
   border-radius: 8px;
-  box-shadow: var(--menu-shadow);
+  box-shadow: var(--os-menu-shadow);
   z-index: 1000;
   display: flex;
   flex-direction: column;
@@ -21,15 +21,15 @@
   border: none;
   border-radius: 5px;
   background: transparent;
-  color: var(--text);
+  color: var(--os-text);
   font-size: 12.5px;
   text-align: left;
   cursor: pointer;
 }
 
 .item:hover {
-  background: var(--hover);
-  color: var(--ink);
+  background: var(--os-hover);
+  color: var(--os-ink);
 }
 
 .itemLabel {
@@ -39,11 +39,11 @@
 .shortcut {
   margin-left: auto;
   font-size: 11px;
-  color: var(--faint);
+  color: var(--os-faint);
 }
 
 .separator {
   height: 1px;
   margin: 4px 8px;
-  background: var(--border);
+  background: var(--os-border);
 }

@@ -1,101 +1,76 @@
 /*
- * OpenSheets design tokens ("Crisp" redesign).
- * Light values on :root; dark values via html[data-theme="dark"].
- * Set data-theme on <html> (useTheme hook does this and persists choice).
+ * OpenSheets design tokens. Light values on :root, dark values under
+ * html[data-theme="dark"] (the useTheme hook sets that attribute and
+ * persists the choice). Every token is prefixed `--os-` so it never
+ * collides with the host application's own variables.
  */
 
 :root {
-  --bg: #ffffff;
-  --panel: #ffffff;
-  --ink: #0f172a;
-  --text: #1e293b;
-  --muted: #475569;
-  --faint: #94a3b8;
-  --border: #e2e8f0;
-  --hover: #f1f5f9;
-  --accent: #0284c7;
-  --accent-hov: #0369a1;
-  --accent-contrast: #ffffff;
-  --tabbg: #f8fafc;
-  --cellbg: #ffffff;
-  --headline: #cbd5e1;
+  --os-bg: #ffffff;
+  --os-panel: #ffffff;
+  --os-ink: #0f172a;
+  --os-text: #1e293b;
+  --os-muted: #475569;
+  --os-faint: #94a3b8;
+  --os-border: #e2e8f0;
+  --os-hover: #f1f5f9;
+  --os-accent: #0284c7;
+  --os-accent-hov: #0369a1;
+  --os-accent-contrast: #ffffff;
+  --os-tabbg: #f8fafc;
+  --os-cellbg: #ffffff;
+  --os-headline: #cbd5e1;
 
   /* Grid-specific tokens */
-  --gridline: #eef2f6;
-  --grid-header-bg: #f8fafc;
-  --grid-header-text: #64748b;
-  --grid-header-underline: #cbd5e1;
-  --grid-header-tint: #e0f2fe;
-  --grid-header-tint-text: #0369a1;
-  --grid-range-fill: rgba(2, 132, 199, 0.08);
-  --grid-number-ink: #0f172a;
+  --os-gridline: #eef2f6;
+  --os-grid-header-bg: #f8fafc;
+  --os-grid-header-text: #64748b;
+  --os-grid-header-underline: #cbd5e1;
+  --os-grid-header-tint: #e0f2fe;
+  --os-grid-header-tint-text: #0369a1;
+  --os-grid-range-fill: rgba(2, 132, 199, 0.08);
+  --os-grid-number-ink: #0f172a;
 
   /* Toolbar */
-  --toolbar-active-bg: #e0f2fe;
+  --os-toolbar-active-bg: #e0f2fe;
 
   /* Shadows (menus only) */
-  --menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  --os-menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
 }
 
 html[data-theme='dark'] {
-  --bg: #0f172a;
-  --panel: #16213a;
-  --ink: #f1f5f9;
-  --text: #dbe4f0;
-  --muted: #94a3b8;
-  --faint: #64748b;
-  --border: #263650;
-  --hover: #22304a;
-  --accent: #38bdf8;
-  --accent-hov: #7dd3fc;
-  --accent-contrast: #0b1424;
-  --tabbg: #0b1424;
-  --cellbg: #0f172a;
-  --headline: #33455f;
+  --os-bg: #0f172a;
+  --os-panel: #16213a;
+  --os-ink: #f1f5f9;
+  --os-text: #dbe4f0;
+  --os-muted: #94a3b8;
+  --os-faint: #64748b;
+  --os-border: #263650;
+  --os-hover: #22304a;
+  --os-accent: #38bdf8;
+  --os-accent-hov: #7dd3fc;
+  --os-accent-contrast: #0b1424;
+  --os-tabbg: #0b1424;
+  --os-cellbg: #0f172a;
+  --os-headline: #33455f;
 
-  --gridline: #1c2a42;
-  --grid-header-bg: #16213a;
-  --grid-header-text: #8fa3c0;
-  --grid-header-underline: #33455f;
-  --grid-header-tint: #1e3a55;
-  --grid-header-tint-text: #7dd3fc;
-  --grid-range-fill: rgba(56, 189, 248, 0.1);
-  --grid-number-ink: #e8eef7;
+  --os-gridline: #1c2a42;
+  --os-grid-header-bg: #16213a;
+  --os-grid-header-text: #8fa3c0;
+  --os-grid-header-underline: #33455f;
+  --os-grid-header-tint: #1e3a55;
+  --os-grid-header-tint-text: #7dd3fc;
+  --os-grid-range-fill: rgba(56, 189, 248, 0.1);
+  --os-grid-number-ink: #e8eef7;
 
-  --toolbar-active-bg: #1e3a55;
+  --os-toolbar-active-bg: #1e3a55;
 
-  --menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --os-menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
-/* ---------- Accessibility ---------- */
-
-/*
- * Keyboard focus: visible 2px accent ring on interactive elements only
- * when focused via keyboard (:focus-visible), so mouse clicks stay clean.
- */
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-[role='gridcell']:focus-visible,
-[role='tab']:focus-visible {
-  outline: 2px solid var(--accent);
+/* Keyboard focus ring inside the grid; mouse clicks stay clean */
+[role='gridcell']:focus-visible {
+  outline: 2px solid var(--os-accent);
   outline-offset: 1px;
   border-radius: 4px;
-}
-
-/* Users who prefer reduced motion get none (we keep hovers instant) */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-/* Selection highlight inside cells should respect the theme too */
-::selection {
-  background: color-mix(in srgb, var(--accent) 25%, transparent);
 }

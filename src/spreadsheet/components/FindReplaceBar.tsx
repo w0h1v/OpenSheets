@@ -1,6 +1,5 @@
-import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { SpreadsheetContext } from '../SpreadsheetContextPersisted';
-import { SpreadsheetEnhancedContext } from '../SpreadsheetContextEnhanced';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSpreadsheet } from '../SpreadsheetContext';
 import { columnToLetter } from '../utils/columnUtils';
 import { evaluateFormula } from '../utils/formulaUtils';
 import { keyOf, CellData } from '../types/spreadsheet';
@@ -11,10 +10,8 @@ import styles from './FindReplace.module.css';
  * navigates matches with selection, replace / replace all.
  */
 export const FindReplaceBar: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const persistedContext = useContext(SpreadsheetContext);
-  const enhancedContext = useContext(SpreadsheetEnhancedContext);
-  const context = persistedContext || enhancedContext;
-  const { state, dispatch } = context as typeof context & { dispatch: React.Dispatch<any> };
+  const context = useSpreadsheet();
+  const { state, dispatch } = context;
 
   const [query, setQuery] = useState('');
   const [replacement, setReplacement] = useState('');

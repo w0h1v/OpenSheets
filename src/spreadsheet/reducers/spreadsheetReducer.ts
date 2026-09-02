@@ -500,10 +500,14 @@ export function spreadsheetReducer(
         const bVal = b.data[column - normalized.startCol]?.value;
         
         if (aVal === bVal) return 0;
-        if (aVal === undefined) return 1;
-        if (bVal === undefined) return -1;
-        
-        const comparison = aVal < bVal ? -1 : 1;
+        if (aVal === undefined || aVal === null) return 1;
+        if (bVal === undefined || bVal === null) return -1;
+
+        const av = aVal instanceof Date ? aVal.getTime() : aVal;
+        const bv = bVal instanceof Date ? bVal.getTime() : bVal;
+        const comparison = typeof av === 'number' && typeof bv === 'number'
+          ? (av < bv ? -1 : 1)
+          : String(av).localeCompare(String(bv));
         return ascending ? comparison : -comparison;
       });
       

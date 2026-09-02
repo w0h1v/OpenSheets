@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import {
-  SpreadsheetProviderPersisted,
-  useSpreadsheetPersisted,
-  SpreadsheetTableOptimized,
+  SpreadsheetProvider,
+  useSpreadsheet,
+  SpreadsheetGrid,
   FormulaBar,
   FormattingToolbar,
 } from '../src';
@@ -37,7 +37,7 @@ interface VersionEntry {
 /* ---------------- Version history (right panel) ---------------- */
 
 const VersionHistory: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const { saveVersion, loadVersion, listVersions } = useSpreadsheetPersisted();
+  const { saveVersion, loadVersion, listVersions } = useSpreadsheet();
   const [versions, setVersions] = useState<VersionEntry[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -96,7 +96,7 @@ const VersionHistory: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 /* ---------------- Dev drawer (test controls) ---------------- */
 
 const DevDrawer: React.FC = () => {
-  const { state, dispatch, save } = useSpreadsheetPersisted();
+  const { state, dispatch, save } = useSpreadsheet();
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -212,7 +212,7 @@ const loadSheetList = (): SheetMeta[] => {
 };
 
 const SelectionStats: React.FC = () => {
-  const { state } = useSpreadsheetPersisted();
+  const { state } = useSpreadsheet();
   const range = state.selection.ranges[0];
   if (!range) return <span />;
 
@@ -247,7 +247,7 @@ const CollabLayer: React.FC<{
   onSheetsReceived: (sheets: SheetMeta[]) => void;
   sendRef: React.MutableRefObject<((msg: unknown) => void) | null>;
 }> = ({ sheetId, sheetName, onSheetsReceived, sendRef }) => {
-  const { state, dispatch } = useSpreadsheetPersisted();
+  const { state, dispatch } = useSpreadsheet();
   const stateRef = useRef(state);
   stateRef.current = state;
   useEffect(() => {
@@ -357,7 +357,7 @@ const TabPresence: React.FC<{ sheetId: string; activeSheet: string }> = ({ sheet
 /* ---------------- Protected ranges (cell-level permissions) ---------------- */
 
 const ProtectionHost: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
-  const { state, dispatch } = useSpreadsheetPersisted();
+  const { state, dispatch } = useSpreadsheet();
   // Hooks run unconditionally: the early return used to sit above useState,
   // which changed the hook count when the dialog opened
   const [description, setDescription] = useState('');
@@ -648,7 +648,7 @@ const MenuBar: React.FC<{
   onConditionalFormatting: () => void;
   onProtect: () => void;
 }> = ({ theme, toggleTheme, onToggleHistory, historyOpen, compact, onToggleCompact, onShortcuts, onInsertChart, onFind, onConditionalFormatting, onProtect }) => {
-  const { state, dispatch, save, saveVersion, undo, redo, canUndo, canRedo } = useSpreadsheetPersisted();
+  const { state, dispatch, save, saveVersion, undo, redo, canUndo, canRedo } = useSpreadsheet();
   const csvInputRef = useRef<HTMLInputElement>(null);
   const active = state.selection.active;
   const range = state.selection.ranges[0];
@@ -873,7 +873,7 @@ const ChartHost: React.FC<{
   pending: { startRow: number; startCol: number; endRow: number; endCol: number } | null;
   onConsumed: () => void;
 }> = ({ sheetId, pending, onConsumed }) => {
-  const { state } = useSpreadsheetPersisted();
+  const { state } = useSpreadsheet();
   const [charts, setCharts] = useState<ChartRecord[]>(() => loadCharts(sheetId));
 
   const persist = (next: ChartRecord[]) => {
@@ -915,7 +915,7 @@ const ChartHost: React.FC<{
 /* ---------------- Conditional formatting host ---------------- */
 
 const ConditionalFormattingHost: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
-  const { state } = useSpreadsheetPersisted();
+  const { state } = useSpreadsheet();
   if (!open) return null;
   return (
     <ConditionalFormattingPanel
@@ -929,7 +929,7 @@ const ConditionalFormattingHost: React.FC<{ open: boolean; onClose: () => void }
 /* ---------------- Density (View > Compact density) ---------------- */
 
 const DensityController: React.FC<{ compact: boolean }> = ({ compact }) => {
-  const { state, dispatch } = useSpreadsheetPersisted();
+  const { state, dispatch } = useSpreadsheet();
   const maxRowsRef = useRef(state.maxRows);
   maxRowsRef.current = state.maxRows;
   // Only on density toggles: re-running on maxRows changes would flatten
@@ -963,7 +963,7 @@ const HeaderBar: React.FC<{
   onConditionalFormatting: () => void;
   onProtect: () => void;
 }> = ({ theme, toggleTheme, showHistory, onToggleHistory, compact, onToggleCompact, onShare, onAccount, onShortcuts, onInsertChart, onFind, onConditionalFormatting, onProtect }) => {
-  const { syncStatus, dirty } = useSpreadsheetPersisted();
+  const { syncStatus, dirty } = useSpreadsheet();
   const savedLabel = syncStatus.syncing ? 'Saving…' : dirty ? 'Unsaved changes' : 'Saved';
 
   return (
@@ -1074,9 +1074,10 @@ const AppShell: React.FC = () => {
   return (
     <div className="appShell">
       {/* key remounts the provider so each sheet loads its own persisted state */}
-      <SpreadsheetProviderPersisted
+      <SpreadsheetProvider
         key={activeId}
         spreadsheetId={activeId}
+        persistence="local"
         autoSave={true}
         autoSaveInterval={5000}
         maxRows={1000}
@@ -1103,7 +1104,7 @@ const AppShell: React.FC = () => {
 
         <div className="mainArea">
           <div className="gridArea">
-            <SpreadsheetTableOptimized sheetId={activeId} />
+            <SpreadsheetGrid sheetId={activeId} />
           </div>
           {showHistory && <VersionHistory onClose={() => setShowHistory(false)} />}
         </div>
@@ -1152,7 +1153,7 @@ const AppShell: React.FC = () => {
         <ProtectionHost open={protectOpen} onClose={() => setProtectOpen(false)} />
         <DensityController compact={compact} />
         <DevDrawer />
-      </SpreadsheetProviderPersisted>
+      </SpreadsheetProvider>
 
       <CollabToasts />
       {shareOpen && <ShareDialog onClose={() => setShareOpen(false)} />}

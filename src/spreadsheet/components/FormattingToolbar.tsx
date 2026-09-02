@@ -1,6 +1,5 @@
-import React, { useContext } from 'react';
-import { SpreadsheetContext } from '../SpreadsheetContextPersisted';
-import { SpreadsheetEnhancedContext } from '../SpreadsheetContextEnhanced';
+import React from 'react';
+import { useSpreadsheet } from '../SpreadsheetContext';
 import { keyOf, CellFormat, CellData } from '../types/spreadsheet';
 import { normalizeRect } from '../utils/selectionUtils';
 import { getFormatOptions } from '../utils/formatUtils';
@@ -14,18 +13,14 @@ import { setFilterPanelColumn } from '../utils/filterPanelStore';
 import styles from './FormattingToolbar.module.css';
 
 export const FormattingToolbar: React.FC = () => {
-  const persistedContext = useContext(SpreadsheetContext);
-  const enhancedContext = useContext(SpreadsheetEnhancedContext);
-  const context = persistedContext || enhancedContext;
+  const context = useSpreadsheet();
 
   if (!context) {
     return <div className={styles.toolbar} />;
   }
 
   const { state, dispatch, setCell } = context;
-  const { undo, redo, canUndo, canRedo } = context as typeof context & {
-    undo?: () => void; redo?: () => void; canUndo?: boolean; canRedo?: boolean;
-  };
+  const { undo, redo, canUndo, canRedo } = context;
   const active = state.selection.active;
   const formatOptions = getFormatOptions();
 

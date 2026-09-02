@@ -9,15 +9,15 @@ const readInitialTheme = (): Theme => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved === 'light' || saved === 'dark') return saved;
   } catch { /* storage unavailable */ }
-  if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches) {
     return 'dark';
   }
   return 'light';
 };
 
 /**
- * Applies the "Crisp" theme to <html data-theme> and persists the choice.
- * All token consumers live in CSS; this hook only flips the attribute.
+ * Applies the theme to <html data-theme> and persists the choice. All token
+ * consumers live in CSS; this hook only flips the attribute.
  */
 export function useTheme() {
   const [theme, setTheme] = useState<Theme>(readInitialTheme);

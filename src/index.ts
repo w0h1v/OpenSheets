@@ -13,13 +13,15 @@
  *   opensheets/server        collaboration relay        (peers: ws, redis)
  */
 
-// Providers and their hooks
-export { SpreadsheetProviderEnhanced, useSpreadsheetEnhanced } from './spreadsheet/SpreadsheetContextEnhanced';
-export { SpreadsheetProviderPersisted, useSpreadsheetPersisted } from './spreadsheet/SpreadsheetContextPersisted';
-export type { PersistedTableProps } from './spreadsheet/SpreadsheetContextPersisted';
+// Provider and hook
+export { SpreadsheetProvider } from './spreadsheet/SpreadsheetProvider';
+export type { SpreadsheetProviderProps, Persistence } from './spreadsheet/SpreadsheetProvider';
+export { useSpreadsheet } from './spreadsheet/SpreadsheetContext';
+export type { SpreadsheetContextValue } from './spreadsheet/SpreadsheetContext';
 
 // Grid and chrome
-export { SpreadsheetTableOptimized } from './spreadsheet/components/SpreadsheetTableOptimized';
+export { SpreadsheetGrid } from './spreadsheet/components/SpreadsheetGrid';
+export type { SpreadsheetGridProps } from './spreadsheet/components/SpreadsheetGrid';
 export { FormulaBar } from './spreadsheet/components/FormulaBar';
 export { FormattingToolbar } from './spreadsheet/components/FormattingToolbar';
 export { FindReplaceBar } from './spreadsheet/components/FindReplaceBar';
@@ -30,14 +32,13 @@ export { DataValidation } from './spreadsheet/components/DataValidation';
 export { DropdownMenu } from './spreadsheet/components/Menu';
 export type { MenuEntry } from './spreadsheet/components/Menu';
 export * from './spreadsheet/components/icons';
-
-// Hooks
-export { useUndoRedo } from './spreadsheet/hooks/useUndoRedo';
 export { useTheme } from './spreadsheet/hooks/useTheme';
 export type { Theme } from './spreadsheet/hooks/useTheme';
 
 // Collaboration (client side; the relay is `opensheets/server`)
 export { useCollaboration } from './spreadsheet/collaboration/useCollaboration';
+export { configureCollaboration } from './spreadsheet/collaboration/config';
+export type { CollaborationConfig } from './spreadsheet/collaboration/config';
 export { getCollabUsers, getCollabToasts, subscribeCollab, COLLAB_PALETTE } from './spreadsheet/collaboration/presenceStore';
 export type { CollabUser, CollabToast } from './spreadsheet/collaboration/presenceStore';
 export { getIdentity, getAuthToken, subscribeAuth, login, register, logout } from './spreadsheet/collaboration/authStore';
@@ -45,7 +46,6 @@ export type { Identity, AuthSession } from './spreadsheet/collaboration/authStor
 export { registerSheetData, unregisterSheetData } from './spreadsheet/utils/sheetRegistry';
 
 // Persistence
-export { PersistenceManager } from './spreadsheet/persistence/PersistenceManager';
 export { LocalStorageAdapter } from './spreadsheet/persistence/LocalStorageAdapter';
 export type {
   PersistenceAdapter, PersistedState, SpreadsheetMetadata, SaveResult, Version, SyncStatus,

@@ -37,3 +37,4 @@ vite.config.js.timestamp-*
 # Other package managers (npm's lockfile is committed; see docs/SUPPLY-CHAIN.md)
 yarn.lock
 pnpm-lock.yaml
+.playwright-mcp/

@@ -1,10 +1,10 @@
 .panel {
   position: absolute;
   z-index: 40;
-  background: var(--panel);
-  border: 1px solid var(--border);
+  background: var(--os-panel);
+  border: 1px solid var(--os-border);
   border-radius: 10px;
-  box-shadow: var(--menu-shadow);
+  box-shadow: var(--os-menu-shadow);
   padding: 8px 10px 10px;
   cursor: grab;
   user-select: none;
@@ -25,7 +25,7 @@
 .title {
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--ink);
+  color: var(--os-ink);
 }
 
 .typeSwitch {
@@ -38,26 +38,26 @@
   border: none;
   background: transparent;
   border-radius: 4px;
-  color: var(--muted);
+  color: var(--os-muted);
   font-size: 11px;
   padding: 2px 7px;
   cursor: pointer;
 }
 
 .typeSwitch button:hover {
-  background: var(--hover);
-  color: var(--ink);
+  background: var(--os-hover);
+  color: var(--os-ink);
 }
 
 .typeActive {
-  background: var(--toolbar-active-bg) !important;
-  color: var(--accent) !important;
+  background: var(--os-toolbar-active-bg) !important;
+  color: var(--os-accent) !important;
 }
 
 .close {
   border: none;
   background: transparent;
-  color: var(--muted);
+  color: var(--os-muted);
   cursor: pointer;
   font-size: 12px;
   border-radius: 4px;
@@ -65,8 +65,8 @@
 }
 
 .close:hover {
-  background: var(--hover);
-  color: var(--ink);
+  background: var(--os-hover);
+  color: var(--os-ink);
 }
 
 .svg {
@@ -75,22 +75,22 @@
 }
 
 .bg {
-  fill: var(--cellbg);
+  fill: var(--os-cellbg);
 }
 
 .grid {
-  stroke: var(--border);
+  stroke: var(--os-border);
   stroke-width: 1;
 }
 
 .tick {
-  fill: var(--faint);
+  fill: var(--os-faint);
   font-size: 9px;
   font-family: inherit;
 }
 
 .emptyText {
-  fill: var(--faint);
+  fill: var(--os-faint);
   font-size: 12px;
 }
 
@@ -101,7 +101,7 @@
 }
 
 .pieLabel {
-  fill: var(--accent-contrast);
+  fill: var(--os-accent-contrast);
   font-size: 8px;
   pointer-events: none;
 }
@@ -118,7 +118,7 @@
   align-items: center;
   gap: 5px;
   font-size: 11px;
-  color: var(--muted);
+  color: var(--os-muted);
 }
 
 .legendSwatch {

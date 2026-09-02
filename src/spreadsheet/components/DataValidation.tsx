@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { ValidationRule } from '../types/spreadsheet';
-import { useSpreadsheetEnhanced } from '../SpreadsheetContextEnhanced';
+import { useSpreadsheet } from '../SpreadsheetContext';
 import styles from './DataValidation.module.css';
 
 interface Props {
@@ -10,7 +10,7 @@ interface Props {
 }
 
 export const DataValidation: React.FC<Props> = ({ row, col, onClose }) => {
-  const { state, dispatch } = useSpreadsheetEnhanced();
+  const { state, dispatch } = useSpreadsheet();
   const existingRule = state.validation?.get(`${row}:${col}`);
   
   const [validationType, setValidationType] = useState<ValidationRule['type']>(

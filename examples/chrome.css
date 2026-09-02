@@ -8,34 +8,58 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-  background: var(--bg);
+  background: var(--os-bg);
 }
 
 button {
   padding: 6px 14px;
   border: none;
   border-radius: 4px;
-  background: var(--accent);
-  color: var(--accent-contrast);
+  background: var(--os-accent);
+  color: var(--os-accent-contrast);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
 }
 
 button:hover {
-  background: var(--accent-hov);
+  background: var(--os-accent-hov);
 }
 
 button:active {
   transform: translateY(1px);
 }
 
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[role='tab']:focus-visible {
+  outline: 2px solid var(--os-accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+::selection {
+  background: color-mix(in srgb, var(--os-accent) 25%, transparent);
+}
+
 .appShell {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--os-bg);
+  color: var(--os-text);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   overflow: hidden;
 }
@@ -48,8 +72,8 @@ button:active {
   gap: 12px;
   padding: 0 12px;
   height: 44px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
+  border-bottom: 1px solid var(--os-border);
+  background: var(--os-bg);
   flex: none;
 }
 
@@ -57,8 +81,8 @@ button:active {
   width: 26px;
   height: 26px;
   border-radius: 6px;
-  background: var(--accent);
-  color: var(--accent-contrast);
+  background: var(--os-accent);
+  color: var(--os-accent-contrast);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -81,13 +105,13 @@ button:active {
 .title {
   font-size: 14px;
   font-weight: 600;
-  color: var(--ink);
+  color: var(--os-ink);
   white-space: nowrap;
 }
 
 .saved {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--os-muted);
 }
 
 .menuRow {
@@ -98,7 +122,7 @@ button:active {
 .menuItem {
   border: none;
   background: transparent;
-  color: var(--muted);
+  color: var(--os-muted);
   font-size: 12px;
   padding: 1px 6px;
   border-radius: 4px;
@@ -106,8 +130,8 @@ button:active {
 }
 
 .menuItem:hover {
-  background: var(--hover);
-  color: var(--ink);
+  background: var(--os-hover);
+  color: var(--os-ink);
 }
 
 .headerActions {
@@ -120,10 +144,11 @@ button:active {
 .headerIconBtn {
   width: 30px;
   height: 30px;
+  padding: 0;
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--muted);
+  color: var(--os-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -132,8 +157,8 @@ button:active {
 
 .headerIconBtn:hover,
 .headerIconBtn.active {
-  background: var(--hover);
-  color: var(--ink);
+  background: var(--os-hover);
+  color: var(--os-ink);
 }
 
 .shareButton {
@@ -141,15 +166,15 @@ button:active {
   padding: 0 14px;
   border: none;
   border-radius: 6px;
-  background: var(--accent);
-  color: var(--accent-contrast);
+  background: var(--os-accent);
+  color: var(--os-accent-contrast);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
 }
 
 .shareButton:hover {
-  background: var(--accent-hov);
+  background: var(--os-accent-hov);
 }
 
 /* ---------- Main area ---------- */
@@ -172,8 +197,8 @@ button:active {
   display: flex;
   align-items: stretch;
   height: 34px;
-  background: var(--tabbg);
-  border-top: 1px solid var(--border);
+  background: var(--os-tabbg);
+  border-top: 1px solid var(--os-border);
   flex: none;
 }
 
@@ -181,7 +206,7 @@ button:active {
   width: 34px;
   border: none;
   background: transparent;
-  color: var(--muted);
+  color: var(--os-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -189,8 +214,8 @@ button:active {
 }
 
 .addSheet:hover {
-  color: var(--ink);
-  background: var(--hover);
+  color: var(--os-ink);
+  background: var(--os-hover);
 }
 
 .tabs {
@@ -205,7 +230,7 @@ button:active {
   gap: 6px;
   padding: 0 14px;
   font-size: 12.5px;
-  color: var(--muted);
+  color: var(--os-muted);
   cursor: pointer;
   border-left: 1px solid transparent;
   border-right: 1px solid transparent;
@@ -214,27 +239,27 @@ button:active {
 }
 
 .tab:hover {
-  color: var(--ink);
+  color: var(--os-ink);
 }
 
 .tab.active {
-  background: var(--cellbg);
-  color: var(--accent);
+  background: var(--os-cellbg);
+  color: var(--os-accent);
   font-weight: 600;
-  border-top: 2px solid var(--accent);
-  border-left: 1px solid var(--border);
-  border-right: 1px solid var(--border);
+  border-top: 2px solid var(--os-accent);
+  border-left: 1px solid var(--os-border);
+  border-right: 1px solid var(--os-border);
 }
 
 .tabClose {
-  color: var(--muted);
+  color: var(--os-muted);
   padding: 0 2px;
   border-radius: 3px;
 }
 
 .tabClose:hover {
-  color: var(--ink);
-  background: var(--hover);
+  color: var(--os-ink);
+  background: var(--os-hover);
 }
 
 .stats {
@@ -243,7 +268,7 @@ button:active {
   align-items: center;
   padding: 0 12px;
   font-size: 11.5px;
-  color: var(--muted);
+  color: var(--os-muted);
   white-space: nowrap;
 }
 
@@ -251,8 +276,8 @@ button:active {
 
 .versionPanel {
   width: 230px;
-  border-left: 1px solid var(--border);
-  background: var(--panel);
+  border-left: 1px solid var(--os-border);
+  background: var(--os-panel);
   padding: 12px;
   overflow-y: auto;
   flex: none;
@@ -270,13 +295,13 @@ button:active {
 .versionPanelHeader h4 {
   margin: 0;
   font-size: 13px;
-  color: var(--ink);
+  color: var(--os-ink);
 }
 
 .versionPanelHeader button {
   border: none;
   background: transparent;
-  color: var(--muted);
+  color: var(--os-muted);
   cursor: pointer;
   font-size: 12px;
   border-radius: 4px;
@@ -284,14 +309,14 @@ button:active {
 }
 
 .versionPanelHeader button:hover {
-  background: var(--hover);
-  color: var(--ink);
+  background: var(--os-hover);
+  color: var(--os-ink);
 }
 
 .versionSave {
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text);
+  border: 1px solid var(--os-border);
+  background: var(--os-bg);
+  color: var(--os-text);
   font-size: 12.5px;
   padding: 6px 10px;
   border-radius: 6px;
@@ -299,7 +324,7 @@ button:active {
 }
 
 .versionSave:hover:not(:disabled) {
-  background: var(--hover);
+  background: var(--os-hover);
 }
 
 .versionSave:disabled {
@@ -309,7 +334,7 @@ button:active {
 
 .versionEmpty {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--os-muted);
 }
 
 .versionCard {
@@ -317,13 +342,13 @@ button:active {
   flex-direction: column;
   gap: 2px;
   padding: 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--os-border);
   border-radius: 6px;
-  background: var(--bg);
+  background: var(--os-bg);
 }
 
 .versionCard small {
-  color: var(--muted);
+  color: var(--os-muted);
 }
 
 .versionCard button {
@@ -331,7 +356,7 @@ button:active {
   align-self: flex-start;
   border: none;
   background: transparent;
-  color: var(--accent);
+  color: var(--os-accent);
   font-size: 12px;
   padding: 2px 6px;
   border-radius: 4px;
@@ -339,7 +364,7 @@ button:active {
 }
 
 .versionCard button:hover:not(:disabled) {
-  background: var(--hover);
+  background: var(--os-hover);
 }
 
 .versionCard button:disabled {
@@ -360,13 +385,13 @@ button:active {
 }
 
 .devToggle {
-  border: 1px solid var(--border);
-  background: var(--panel);
-  color: var(--muted);
+  border: 1px solid var(--os-border);
+  background: var(--os-panel);
+  color: var(--os-muted);
   font-size: 11px;
   padding: 3px 10px;
   border-radius: 6px;
-  box-shadow: var(--menu-shadow);
+  box-shadow: var(--os-menu-shadow);
   cursor: pointer;
 }
 
@@ -375,16 +400,16 @@ button:active {
   align-items: center;
   gap: 6px;
   padding: 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--os-border);
   border-radius: 8px;
-  background: var(--panel);
-  box-shadow: var(--menu-shadow);
+  background: var(--os-panel);
+  box-shadow: var(--os-menu-shadow);
 }
 
 .devBody button {
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text);
+  border: 1px solid var(--os-border);
+  background: var(--os-bg);
+  color: var(--os-text);
   font-size: 12px;
   padding: 4px 10px;
   border-radius: 5px;
@@ -393,7 +418,7 @@ button:active {
 }
 
 .devBody button:hover {
-  background: var(--hover);
+  background: var(--os-hover);
 }
 
 .devBody button.danger {
@@ -401,21 +426,21 @@ button:active {
 }
 
 .devBody button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-contrast);
+  background: var(--os-accent);
+  border-color: var(--os-accent);
+  color: var(--os-accent-contrast);
 }
 
 .devMeta {
   font-size: 11.5px;
-  color: var(--muted);
+  color: var(--os-muted);
   padding: 0 4px;
   white-space: nowrap;
 }
 
 .devToast {
   font-size: 11.5px;
-  color: var(--accent);
+  color: var(--os-accent);
   white-space: nowrap;
 }
 
@@ -433,10 +458,10 @@ button:active {
 
 .dialog {
   width: min(480px, calc(100vw - 48px));
-  background: var(--panel);
-  border: 1px solid var(--border);
+  background: var(--os-panel);
+  border: 1px solid var(--os-border);
   border-radius: 10px;
-  box-shadow: var(--menu-shadow);
+  box-shadow: var(--os-menu-shadow);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -452,13 +477,13 @@ button:active {
 .dialogHeader h3 {
   margin: 0;
   font-size: 15px;
-  color: var(--ink);
+  color: var(--os-ink);
 }
 
 .dialogHeader button {
   border: none;
   background: transparent;
-  color: var(--muted);
+  color: var(--os-muted);
   cursor: pointer;
   font-size: 13px;
   border-radius: 4px;
@@ -466,14 +491,14 @@ button:active {
 }
 
 .dialogHeader button:hover {
-  background: var(--hover);
-  color: var(--ink);
+  background: var(--os-hover);
+  color: var(--os-ink);
 }
 
 .dialogNote {
   margin: 0;
   font-size: 12.5px;
-  color: var(--muted);
+  color: var(--os-muted);
   line-height: 1.5;
 }
 
@@ -485,10 +510,10 @@ button:active {
 .shareRow select {
   flex: 1;
   height: 32px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--os-border);
   border-radius: 6px;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--os-bg);
+  color: var(--os-text);
   font-size: 13px;
   padding: 0 8px;
 }
@@ -499,8 +524,8 @@ button:active {
   padding: 0 14px;
   border: none;
   border-radius: 6px;
-  background: var(--accent);
-  color: var(--accent-contrast);
+  background: var(--os-accent);
+  color: var(--os-accent-contrast);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -508,15 +533,15 @@ button:active {
 
 .shareRow button:hover,
 .dialog button.primary:hover {
-  background: var(--accent-hov);
+  background: var(--os-accent-hov);
 }
 
 .shareLink {
   height: 34px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--os-border);
   border-radius: 6px;
-  background: var(--bg);
-  color: var(--muted);
+  background: var(--os-bg);
+  color: var(--os-muted);
   font-size: 12.5px;
   padding: 0 10px;
   width: 100%;
@@ -534,12 +559,12 @@ button:active {
 
 .shortcutAction {
   font-size: 12.5px;
-  color: var(--text);
+  color: var(--os-text);
 }
 
 .shortcutKeys {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--os-muted);
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -561,7 +586,7 @@ button:active {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--bg);
+  border: 2px solid var(--os-bg);
   margin-left: -6px;
 }
 
@@ -570,7 +595,7 @@ button:active {
 }
 
 .avatarMore {
-  background: var(--muted);
+  background: var(--os-muted);
   font-size: 10px;
 }
 
@@ -589,13 +614,13 @@ button:active {
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-  background: var(--panel);
-  border: 1px solid var(--border);
+  background: var(--os-panel);
+  border: 1px solid var(--os-border);
   border-left-width: 3px;
   border-radius: 8px;
-  box-shadow: var(--menu-shadow);
+  box-shadow: var(--os-menu-shadow);
   font-size: 12.5px;
-  color: var(--text);
+  color: var(--os-text);
 }
 
 .toastDot {
@@ -633,15 +658,15 @@ button:active {
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--os-border);
   border-radius: 6px;
-  background: var(--bg);
+  background: var(--os-bg);
 }
 
 .protectLabel {
   font-size: 12px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--os-accent);
   font-variant-numeric: tabular-nums;
   flex: none;
 }
@@ -649,16 +674,16 @@ button:active {
 .protectDesc {
   flex: 1;
   font-size: 12.5px;
-  color: var(--muted);
+  color: var(--os-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .protectRow button {
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--muted);
+  border: 1px solid var(--os-border);
+  background: var(--os-bg);
+  color: var(--os-muted);
   font-size: 11.5px;
   padding: 3px 10px;
   border-radius: 5px;
@@ -667,8 +692,8 @@ button:active {
 }
 
 .protectRow button:hover {
-  background: var(--hover);
-  color: var(--ink);
+  background: var(--os-hover);
+  color: var(--os-ink);
 }
 
 /* ---------- Account (sign in / identity) ---------- */
@@ -679,16 +704,16 @@ button:active {
   gap: 6px;
   height: 30px;
   padding: 2px 10px 2px 3px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--os-border);
   border-radius: 15px;
   background: transparent;
-  color: var(--ink);
+  color: var(--os-ink);
   font-size: 12.5px;
   cursor: pointer;
 }
 
 .accountButton:hover {
-  background: var(--hover);
+  background: var(--os-hover);
 }
 
 .accountButton .avatar {
@@ -711,13 +736,13 @@ button:active {
 .authTabs {
   display: flex;
   gap: 4px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--os-border);
 }
 
 .authTabs button {
   border: none;
   background: transparent;
-  color: var(--muted);
+  color: var(--os-muted);
   font-size: 13px;
   padding: 6px 10px;
   border-radius: 0;
@@ -728,12 +753,12 @@ button:active {
 
 .authTabs button:hover {
   background: transparent;
-  color: var(--ink);
+  color: var(--os-ink);
 }
 
 .authTabs button.active {
-  color: var(--ink);
-  border-bottom-color: var(--accent);
+  color: var(--os-ink);
+  border-bottom-color: var(--os-accent);
 }
 
 .authField {
@@ -741,21 +766,21 @@ button:active {
   flex-direction: column;
   gap: 4px;
   font-size: 12px;
-  color: var(--muted);
+  color: var(--os-muted);
 }
 
 .authField input {
   height: 34px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--os-border);
   border-radius: 6px;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--os-bg);
+  color: var(--os-text);
   font-size: 13px;
   padding: 0 10px;
 }
 
 .authField input:focus {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--os-accent);
   outline-offset: -1px;
 }
 
@@ -769,9 +794,9 @@ button:active {
   align-items: center;
   gap: 10px;
   padding: 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--os-border);
   border-radius: 8px;
-  background: var(--bg);
+  background: var(--os-bg);
 }
 
 .accountAvatar {
@@ -784,18 +809,18 @@ button:active {
 .accountName {
   font-size: 14px;
   font-weight: 600;
-  color: var(--ink);
+  color: var(--os-ink);
 }
 
 .accountHint {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--os-muted);
 }
 
 .protectOwner {
   font-size: 10.5px;
-  color: var(--accent);
-  border: 1px solid var(--accent);
+  color: var(--os-accent);
+  border: 1px solid var(--os-accent);
   border-radius: 4px;
   padding: 0 5px;
   flex: none;

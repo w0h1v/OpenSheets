@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, memo, useSyncExternalStore } from 'react';
-import { useSpreadsheet } from '../SpreadsheetContext';
+import { useSpreadsheetBase } from '../SpreadsheetContext';
+import type { CellValue } from '../types/spreadsheet';
 import { evaluateFormula } from '../utils/formulaUtils';
 import { isCellInSelection } from '../utils/selectionUtils';
 import { formatCellValue } from '../utils/formatUtils';
@@ -17,8 +18,12 @@ interface Props {
 }
 
 // Memoized cell renderer for performance
-export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
-  const { state, setState, getCell, setCell } = useSpreadsheet();
+// What the in-cell editor shows for a stored value
+const editableText = (value: CellValue | undefined): string =>
+  value === null || value === undefined ? '' : value instanceof Date ? value.toISOString().slice(0, 10) : String(value);
+
+export const CellRenderer: React.FC<Props> = memo(({ row, col }) => {
+  const { state, setState, getCell, setCell } = useSpreadsheetBase();
   const cellData = getCell(row, col);
   // Cross-sheet formulas re-evaluate when any source sheet's data changes
   const registryVersion = useSyncExternalStore(subscribeRegistryVersion, getRegistryVersion);
@@ -28,8 +33,8 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
   const isSelected = isCellInSelection(row, col, state.selection);
   const isActive = state.selection.active?.row === row && state.selection.active?.col === col;
 
-  const [tempValue, setTempValue] = useState(
-    cellData?.formula ?? cellData?.value ?? ''
+  const [tempValue, setTempValue] = useState<string>(
+    cellData?.formula ?? editableText(cellData?.value)
   );
   const [showDropdown, setShowDropdown] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ x: 0, y: 0 });
@@ -46,7 +51,7 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
 
   useEffect(() => {
     if (isEditing) {
-      setTempValue(state.formulaInput || cellData?.formula || cellData?.value || '');
+      setTempValue(state.formulaInput || cellData?.formula || editableText(cellData?.value));
     }
   }, [isEditing, state.formulaInput, cellData]);
 
@@ -55,9 +60,9 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
       setState((prev) => ({
         ...prev,
         editing: { row, col },
-        formulaInput: cellData?.formula ?? cellData?.value ?? '',
+        formulaInput: cellData?.formula ?? editableText(cellData?.value),
       }));
-      setTempValue(cellData?.formula ?? cellData?.value ?? '');
+      setTempValue(cellData?.formula ?? editableText(cellData?.value));
     }
   }, [state.readOnly, setState, row, col, cellData]);
 
@@ -165,7 +170,7 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
       
       // Colors (numbers render in near-black, like Sheets/Excel)
       backgroundColor: format.backgroundColor,
-      color: format.color ?? (displayValue.isNumeric ? 'var(--grid-number-ink)' : undefined),
+      color: format.color ?? (displayValue.isNumeric ? 'var(--os-grid-number-ink)' : undefined),
 
       // Alignment (numbers right-align by default, like Sheets/Excel)
       textAlign: format.textAlign ?? (displayValue.isNumeric ? 'right' : undefined),
@@ -215,7 +220,7 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
       style.backgroundColor = format.backgroundColor || 'rgba(26, 115, 232, 0.05)';
     }
     if (isActive) {
-      style.outline = '2px solid var(--accent)';
+      style.outline = '2px solid var(--os-accent)';
       style.outlineOffset = '-2px';
       style.zIndex = 2;
     }
@@ -394,4 +399,4 @@ export const CellRendererOptimized: React.FC<Props> = memo(({ row, col }) => {
   return prevProps.row === nextProps.row && prevProps.col === nextProps.col;
 });
 
-CellRendererOptimized.displayName = 'CellRendererOptimized';
+CellRenderer.displayName = 'CellRenderer';

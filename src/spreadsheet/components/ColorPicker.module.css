@@ -13,14 +13,14 @@
   border: none;
   border-radius: 5px;
   background: transparent;
-  color: var(--muted);
+  color: var(--os-muted);
   cursor: pointer;
   padding: 0;
 }
 
 .trigger:hover {
-  background: var(--hover);
-  color: var(--ink);
+  background: var(--os-hover);
+  color: var(--os-ink);
 }
 
 /* Active color indicator bar under the icon */
@@ -31,7 +31,7 @@
   right: 7px;
   height: 2.5px;
   border-radius: 1px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--os-border);
 }
 
 .panel {
@@ -40,16 +40,16 @@
   left: 0;
   z-index: 1100;
   padding: 8px;
-  background: var(--panel);
-  border: 1px solid var(--border);
+  background: var(--os-panel);
+  border: 1px solid var(--os-border);
   border-radius: 8px;
-  box-shadow: var(--menu-shadow);
+  box-shadow: var(--os-menu-shadow);
 }
 
 .sectionTitle {
   font-size: 10.5px;
   font-weight: 600;
-  color: var(--faint);
+  color: var(--os-faint);
   text-transform: uppercase;
   letter-spacing: 0.3px;
   margin: 6px 2px 4px;
@@ -68,7 +68,7 @@
 .swatch {
   width: 17px;
   height: 17px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--os-border);
   border-radius: 3px;
   padding: 0;
   cursor: pointer;
@@ -79,16 +79,16 @@
 }
 
 .swatchActive {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--os-accent);
   outline-offset: 1px;
 }
 
 .noneButton {
   width: 100%;
-  border: 1px solid var(--border);
+  border: 1px solid var(--os-border);
   border-radius: 5px;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--os-bg);
+  color: var(--os-text);
   font-size: 12px;
   padding: 5px 8px;
   cursor: pointer;
@@ -96,7 +96,7 @@
 }
 
 .noneButton:hover {
-  background: var(--hover);
+  background: var(--os-hover);
 }
 
 .customRow {
@@ -105,26 +105,26 @@
   gap: 6px;
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--os-border);
 }
 
 .customInput {
   width: 26px;
   height: 24px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--os-border);
   border-radius: 4px;
   padding: 1px;
   cursor: pointer;
-  background: var(--bg);
+  background: var(--os-bg);
 }
 
 .customText {
   width: 74px;
   height: 24px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--os-border);
   border-radius: 4px;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--os-bg);
+  color: var(--os-text);
   font-size: 12px;
   padding: 0 6px;
 }
@@ -134,12 +134,12 @@
   padding: 0 10px;
   border: none;
   border-radius: 4px;
-  background: var(--accent);
-  color: var(--accent-contrast);
+  background: var(--os-accent);
+  color: var(--os-accent-contrast);
   font-size: 12px;
   cursor: pointer;
 }
 
 .customApply:hover {
-  background: var(--accent-hov);
+  background: var(--os-accent-hov);
 }

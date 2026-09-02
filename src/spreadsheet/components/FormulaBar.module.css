@@ -2,8 +2,8 @@
 .container {
   display: flex;
   align-items: stretch;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
+  border-bottom: 1px solid var(--os-border);
+  background: var(--os-bg);
   height: 30px;
   flex: none;
 }
@@ -13,10 +13,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--os-border);
   font-size: 12px;
   font-weight: 600;
-  color: var(--ink);
+  color: var(--os-ink);
   white-space: nowrap;
   overflow: hidden;
   flex: none;
@@ -29,7 +29,7 @@
   font-family: Georgia, 'Times New Roman', serif;
   font-style: italic;
   font-size: 12.5px;
-  color: var(--muted);
+  color: var(--os-muted);
   flex: none;
 }
 
@@ -54,14 +54,14 @@
   white-space: pre;
   overflow: hidden;
   pointer-events: none;
-  color: var(--text);
+  color: var(--os-text);
 }
 
 .input {
   flex: 1;
   border: none;
   background: transparent;
-  color: var(--text);
+  color: var(--os-text);
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   font-size: 12.5px;
   padding: 0 8px 0 0;
@@ -72,15 +72,15 @@
 }
 
 .input:disabled {
-  color: var(--muted);
+  color: var(--os-muted);
 }
 
 .input::placeholder {
-  color: var(--muted);
+  color: var(--os-muted);
 }
 
 .inputFormula {
   color: transparent;
-  caret-color: var(--ink);
+  caret-color: var(--os-ink);
   background: transparent;
 }

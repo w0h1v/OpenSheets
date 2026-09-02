@@ -1,8 +1,8 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { SpreadsheetProviderEnhanced } from '../SpreadsheetContextEnhanced';
-import { SpreadsheetTableOptimized } from '../components/SpreadsheetTableOptimized';
+import { SpreadsheetProvider } from '../SpreadsheetProvider';
+import { SpreadsheetGrid } from '../components/SpreadsheetGrid';
 import { FormulaBar } from '../components/FormulaBar';
 import { keyOf } from '../types/spreadsheet';
 
@@ -23,10 +23,10 @@ jest.mock('@tanstack/react-virtual', () => ({
 
 describe('Spreadsheet Integration Tests', () => {
   const TestSpreadsheet = ({ initialData = new Map() }) => (
-    <SpreadsheetProviderEnhanced initialData={initialData} maxRows={10} maxCols={10}>
+    <SpreadsheetProvider initialData={initialData} maxRows={10} maxCols={10}>
       <FormulaBar />
-      <SpreadsheetTableOptimized />
-    </SpreadsheetProviderEnhanced>
+      <SpreadsheetGrid />
+    </SpreadsheetProvider>
   );
 
   describe('Keyboard Navigation', () => {

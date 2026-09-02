@@ -5,8 +5,8 @@
   gap: 2px;
   padding: 0 8px;
   height: 38px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
+  border-bottom: 1px solid var(--os-border);
+  background: var(--os-bg);
   flex: none;
   overflow-x: auto;
   overflow-y: hidden;
@@ -22,15 +22,15 @@
   border: none;
   border-radius: 5px;
   background: transparent;
-  color: var(--muted);
+  color: var(--os-muted);
   cursor: pointer;
   padding: 0;
   flex: none;
 }
 
 .iconButton:hover:not(:disabled) {
-  background: var(--hover);
-  color: var(--ink);
+  background: var(--os-hover);
+  color: var(--os-ink);
 }
 
 .iconButton:disabled {
@@ -39,8 +39,8 @@
 }
 
 .iconButton.active {
-  background: var(--toolbar-active-bg);
-  color: var(--accent);
+  background: var(--os-toolbar-active-bg);
+  color: var(--os-accent);
 }
 
 .textButton {
@@ -52,7 +52,7 @@
   border: none;
   border-radius: 5px;
   background: transparent;
-  color: var(--muted);
+  color: var(--os-muted);
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
@@ -61,19 +61,19 @@
 }
 
 .textButton:hover {
-  background: var(--hover);
-  color: var(--ink);
+  background: var(--os-hover);
+  color: var(--os-ink);
 }
 
 .textButton.active {
-  background: var(--toolbar-active-bg);
-  color: var(--accent);
+  background: var(--os-toolbar-active-bg);
+  color: var(--os-accent);
 }
 
 .divider {
   width: 1px;
   height: 20px;
-  background: var(--border);
+  background: var(--os-border);
   margin: 0 5px;
   flex: none;
 }
@@ -84,7 +84,7 @@
   border: none;
   border-radius: 5px;
   background: transparent;
-  color: var(--text);
+  color: var(--os-text);
   font-size: 12.5px;
   cursor: pointer;
   flex: none;
@@ -95,7 +95,7 @@
 
 .fontSelect:hover,
 .sizeSelect:hover {
-  background: var(--hover);
+  background: var(--os-hover);
 }
 
 /* "123 v" more-formats control: a styled label over a native select */
@@ -125,13 +125,13 @@
   border-radius: 5px;
   font-size: 12px;
   font-weight: 500;
-  color: var(--muted);
+  color: var(--os-muted);
   pointer-events: none;
 }
 
 .formatsWrap:hover .formatsLabel {
-  background: var(--hover);
-  color: var(--ink);
+  background: var(--os-hover);
+  color: var(--os-ink);
 }
 
 /* Color inputs hidden behind their icon buttons */

@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
-import { useSpreadsheet } from '../SpreadsheetContext';
+import { useSpreadsheetBase } from '../SpreadsheetContext';
 import { singleCellSelection } from '../utils/selectionUtils';
 
 export const useKeyboardShortcuts = () => {
-  const { state, setState, setCell } = useSpreadsheet();
+  const { state, setState, setCell } = useSpreadsheetBase();
   const active = state.selection.active;
 
   useEffect(() => {

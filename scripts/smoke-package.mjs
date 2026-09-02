@@ -57,7 +57,7 @@ try {
   });
 
   await check('Node CommonJS require', async () => {
-    const out = node(['-e', "const m = require('opensheets'); if (typeof m.SpreadsheetProviderPersisted !== 'function') throw new Error('missing provider'); console.log(Object.keys(m).length)"], dir);
+    const out = node(['-e', "const m = require('opensheets'); if (typeof m.SpreadsheetProvider !== 'function') throw new Error('missing provider'); console.log(Object.keys(m).length)"], dir);
     return `${out.trim()} exports`;
   });
 
@@ -71,12 +71,12 @@ try {
   await check('esbuild bundle with stylesheets', async () => {
     await writeFile(join(dir, 'app.jsx'), `
 import React from 'react';
-import { SpreadsheetProviderPersisted, SpreadsheetTableOptimized, FormulaBar, FormattingToolbar, useSpreadsheetPersisted, useCollaboration, exportToCSV } from 'opensheets';
+import { SpreadsheetProvider, SpreadsheetGrid, FormulaBar, FormattingToolbar, useSpreadsheet, useCollaboration, exportToCSV } from 'opensheets';
 import 'opensheets/styles.css';
 import 'opensheets/styles/tokens.css';
-export const App = () => React.createElement(SpreadsheetProviderPersisted, { spreadsheetId: 'x', persistenceMode: 'local' },
-  React.createElement(FormattingToolbar), React.createElement(FormulaBar), React.createElement(SpreadsheetTableOptimized, { sheetId: 'x' }));
-export { useSpreadsheetPersisted, useCollaboration, exportToCSV };
+export const App = () => React.createElement(SpreadsheetProvider, { spreadsheetId: 'x', persistence: 'local' },
+  React.createElement(FormattingToolbar), React.createElement(FormulaBar), React.createElement(SpreadsheetGrid, { sheetId: 'x' }));
+export { useSpreadsheet, useCollaboration, exportToCSV };
 `);
     node([join(dir, 'node_modules/esbuild/bin/esbuild'), 'app.jsx', '--bundle', '--format=esm', '--outdir=out', '--log-level=error'], dir);
     const js = (await readFile(join(dir, 'out/app.js'))).length;
@@ -89,13 +89,13 @@ export { useSpreadsheetPersisted, useCollaboration, exportToCSV };
   // ESM-only server subpath (a Node server file), type-checked under both
   // resolution modes bundlers and Node use
   await writeFile(join(dir, 'consumer.ts'), `
-import { SpreadsheetProviderPersisted, SpreadsheetTableOptimized, useCollaboration, type CellData, type SpreadsheetState, type Identity } from 'opensheets';
+import { SpreadsheetProvider, SpreadsheetGrid, useCollaboration, type CellData, type SpreadsheetState, type Identity } from 'opensheets';
 import type { FormulaEngine } from 'opensheets/hyperformula';
 import type { exportToExcel } from 'opensheets/excel';
 const c: CellData = { value: 1 };
 const s: Partial<SpreadsheetState> = { data: new Map() };
 const id: Identity = { id: 'guest-x', name: 'x', color: '#000000', authenticated: false };
-export { SpreadsheetProviderPersisted, SpreadsheetTableOptimized, useCollaboration, c, s, id };
+export { SpreadsheetProvider, SpreadsheetGrid, useCollaboration, c, s, id };
 export type { FormulaEngine, exportToExcel };
 `);
   await writeFile(join(dir, 'server-consumer.mts'), `
