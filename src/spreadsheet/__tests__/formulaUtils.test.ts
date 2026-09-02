@@ -122,9 +122,12 @@ describe('Formula Utils', () => {
       expect(evaluateFormula('=A2*2', mockGetCellValue)).toBe(40);
     });
 
-    it('should return #ERROR for invalid formulas', () => {
-      expect(evaluateFormula('=INVALID()', mockGetCellValue)).toBe('#ERROR');
-      expect(evaluateFormula('=1/0', mockGetCellValue)).toBe('#ERROR');
+    it('should return specific errors for invalid formulas', () => {
+      // Unknown names and division by zero now get their spreadsheet error
+      // codes instead of the old evaluator's catch-all '#ERROR'
+      expect(evaluateFormula('=INVALID()', mockGetCellValue)).toBe('#NAME?');
+      expect(evaluateFormula('=1/0', mockGetCellValue)).toBe('#DIV/0!');
+      expect(evaluateFormula('=1+', mockGetCellValue)).toBe('#ERROR!');
     });
 
     it('should return non-formula values as-is', () => {
