@@ -22,8 +22,9 @@ import { WebSocketServer, WebSocket } from 'ws';
  * Identity model:
  *   - An *account* is a person: id, name, color. Accounts have scrypt-hashed
  *     passwords; sessions are random tokens whose sha256 is stored on the
- *     account (tokens survive restarts, storage never holds a usable token).
- *     Accounts live in a JSON file (single instance) or a Redis hash.
+ *     account (tokens survive restarts, storage never holds a usable token)
+ *     and expire after sessionTtlSeconds. Accounts live in a JSON file
+ *     (single instance) or a Redis hash.
  *   - A *client* is one browser tab. The server assigns its id and a resume
  *     secret in the roster reply; a tab may resume its own slot on reconnect
  *     by presenting both, and nothing else can take a slot over. The token
@@ -91,6 +92,8 @@ export const DEFAULT_LIMITS = Object.freeze({
   loginLockMs: 15 * 60_000,
   /** Registrations per IP per hour. */
   registrationsPerHour: 20,
+  /** How long a session token stays valid after it was issued. */
+  sessionTtlSeconds: 30 * 24 * 3600,
   /** Edit timestamps further in the future than this are pulled back to now. */
   futureSkewMs: 60_000,
 });
@@ -498,7 +501,7 @@ const NAME_RE = /^[\p{L}\p{N} _.-]{2,24}$/u;
 export class FileAccountBackend {
   constructor(dataDir = DEFAULT_DATA_DIR) {
     this.file = join(dataDir, 'accounts.json');
-    this.accounts = new Map(); // id -> { id, name, color, salt, hash, sessions: [sha256(token)] }
+    this.accounts = new Map(); // id -> { id, name, color, salt, hash, sessions: [{ h, at }] }
     this.writing = Promise.resolve();
   }
 
@@ -555,9 +558,28 @@ export class RedisAccountBackend {
 
 export class AccountStore {
   /** @param backend a data directory (file backend) or an account backend */
-  constructor(backend = DEFAULT_DATA_DIR, { maxAccounts = 100_000 } = {}) {
+  constructor(backend = DEFAULT_DATA_DIR, { maxAccounts = 100_000, sessionTtlMs = DEFAULT_LIMITS.sessionTtlSeconds * 1000 } = {}) {
     this.backend = typeof backend === 'string' ? new FileAccountBackend(backend) : backend;
     this.maxAccounts = maxAccounts;
+    this.sessionTtlMs = sessionTtlMs;
+  }
+
+  /**
+   * Live sessions of an account: { h: sha256(token), at: issued }. Accounts
+   * written by older versions hold plain digests, which normalize to an
+   * expired entry — upgrading invalidates old tokens rather than trusting
+   * an unknown issue date.
+   */
+  liveSessions(account) {
+    const now = Date.now();
+    const out = [];
+    for (const s of account.sessions || []) {
+      const entry = typeof s === 'string' ? { h: s, at: 0 } : s;
+      if (entry && typeof entry.h === 'string' && Number.isFinite(entry.at) && now - entry.at <= this.sessionTtlMs) {
+        out.push(entry);
+      }
+    }
+    return out;
   }
 
   async init() {
@@ -601,8 +623,9 @@ export class AccountStore {
 
   async issueSession(account) {
     const token = randomBytes(24).toString('hex');
-    account.sessions.push(sha256(token));
-    if (account.sessions.length > 10) account.sessions = account.sessions.slice(-10);
+    const sessions = this.liveSessions(account);
+    sessions.push({ h: sha256(token), at: Date.now() });
+    account.sessions = sessions.slice(-10);
     await this.backend.put(account);
     return { token, user: this.publicUser(account) };
   }
@@ -610,9 +633,10 @@ export class AccountStore {
   async logout(token) {
     if (typeof token !== 'string' || !token) return;
     const digest = sha256(token);
-    const account = (await this.backend.all()).find((a) => a.sessions.includes(digest));
+    const account = (await this.backend.all()).find((a) =>
+      (a.sessions || []).some((s) => (typeof s === 'string' ? s : s?.h) === digest));
     if (!account) return;
-    account.sessions = account.sessions.filter((s) => s !== digest);
+    account.sessions = this.liveSessions(account).filter((s) => s.h !== digest);
     await this.backend.put(account);
   }
 
@@ -623,8 +647,10 @@ export class AccountStore {
   async byToken(token) {
     if (typeof token !== 'string' || !token || token.length > 128) return null;
     const digest = sha256(token);
-    const account = (await this.backend.all()).find((a) => a.sessions.includes(digest));
-    return account ? this.publicUser(account) : null;
+    for (const account of await this.backend.all()) {
+      if (this.liveSessions(account).some((s) => s.h === digest)) return this.publicUser(account);
+    }
+    return null;
   }
 }
 
@@ -867,7 +893,11 @@ export function createRelay({
     if (url.pathname !== '/healthz' && !url.pathname.startsWith('/auth/')) return false;
 
     const json = (status, body) => {
-      res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.writeHead(status, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+      });
       res.end(JSON.stringify(body));
     };
 

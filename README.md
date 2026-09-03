@@ -215,7 +215,8 @@ What the relay does: accepts WebSocket upgrades only from allowed origins
 (the page's own host by default), rate-limits connections, messages and the
 account endpoints, caps message, sheet and document sizes, validates every
 field it stores, assigns client ids that only the same tab can resume,
-hashes passwords with scrypt and session tokens with SHA-256, and enforces
+hashes passwords with scrypt and session tokens with SHA-256, expires
+sessions after 30 days (`sessionTtlSeconds` limit), and enforces
 protected ranges: a write inside a range owned by someone else is dropped,
 and only the owner can change or remove a range. With `REDIS_URL` set,
 snapshots, presence and accounts live in Redis and any instance can serve

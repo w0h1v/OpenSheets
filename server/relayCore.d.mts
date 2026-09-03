@@ -62,6 +62,7 @@ export interface RelayLimits {
   loginFailuresBeforeLock: number;
   loginLockMs: number;
   registrationsPerHour: number;
+  sessionTtlSeconds: number;
   futureSkewMs: number;
 }
 
@@ -134,13 +135,19 @@ export declare const DEFAULT_DATA_DIR: string;
 export declare const ACCOUNT_COLORS: string[];
 export declare function colorFor(id: string): string;
 
+/** One stored session: `h` is sha256(token), `at` is when it was issued. */
+export interface StoredSession {
+  h: string;
+  at: number;
+}
+
 export interface StoredAccount {
   id: string;
   name: string;
   color: string;
   salt: string;
   hash: string;
-  sessions: string[];
+  sessions: StoredSession[];
 }
 
 export interface AccountBackend {
@@ -172,7 +179,7 @@ export interface Session {
 }
 
 export declare class AccountStore {
-  constructor(backend?: string | AccountBackend, options?: { maxAccounts?: number });
+  constructor(backend?: string | AccountBackend, options?: { maxAccounts?: number; sessionTtlMs?: number });
   init(): Promise<void>;
   register(name: string, password: string): Promise<Session>;
   login(name: string, password: string): Promise<Session>;

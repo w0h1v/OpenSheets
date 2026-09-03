@@ -2,7 +2,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { createConnection } from 'node:net';
-import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -160,6 +160,41 @@ describe('accounts', () => {
     const again = new AccountStore(dir);
     await again.init();
     assert.equal((await again.byToken(reg.token)).name, 'Grace');
+  });
+
+  test('sessions expire after their TTL', async () => {
+    const ttlDir = await mkdtemp(join(tmpdir(), 'opensheets-ttl-'));
+    try {
+      const short = new AccountStore(ttlDir, { sessionTtlMs: 5 });
+      await short.init();
+      const reg = await short.register('Time Traveler', 'long-enough');
+      assert.equal((await short.byToken(reg.token)).name, 'Time Traveler');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      assert.equal(await short.byToken(reg.token), null, 'a token past its TTL is rejected');
+      // A fresh login works again; the expired session is not resurrected
+      const again = await short.login('Time Traveler', 'long-enough');
+      assert.equal((await short.byToken(again.token)).name, 'Time Traveler');
+      assert.equal(await short.byToken(reg.token), null);
+    } finally {
+      await rm(ttlDir, { recursive: true, force: true });
+    }
+  });
+
+  test('legacy plain-digest sessions do not survive an upgrade', async () => {
+    const legacyDir = await mkdtemp(join(tmpdir(), 'opensheets-legacy-'));
+    try {
+      const legacy = new AccountStore(legacyDir);
+      await legacy.init();
+      const reg = await legacy.register('Old Salt', 'password-1');
+      const account = JSON.parse(await readFile(join(legacyDir, 'accounts.json'), 'utf8'))[0];
+      account.sessions = account.sessions.map((s) => s.h); // what older versions wrote
+      await writeFile(join(legacyDir, 'accounts.json'), JSON.stringify([account]));
+      const upgraded = new AccountStore(legacyDir);
+      await upgraded.init();
+      assert.equal(await upgraded.byToken(reg.token), null, 'an entry with no issue date is treated as expired');
+    } finally {
+      await rm(legacyDir, { recursive: true, force: true });
+    }
   });
 });
 

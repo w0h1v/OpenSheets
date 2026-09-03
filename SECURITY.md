@@ -16,7 +16,8 @@ Only the latest published minor release receives security fixes.
 ## Scope notes
 
 - The collaboration relay (`opensheets/server`) hashes passwords (scrypt)
-  and session tokens, checks the Origin of WebSocket upgrades, rate-limits
+  and session tokens, expires sessions after 30 days, checks the Origin of
+  WebSocket upgrades, rate-limits
   connections, messages and account endpoints, caps sheet and message sizes,
   and enforces protected-range ownership on the server. It has no document
   access control beyond that: every connected client can read and write
