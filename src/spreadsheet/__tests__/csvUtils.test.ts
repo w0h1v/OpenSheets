@@ -87,6 +87,34 @@ describe('csvUtils', () => {
       expect(exportToCSV(data, { includeFormulas: true })).toBe('=1+2,');
     });
 
+    it('neutralizes text that a spreadsheet app would treat as a formula', () => {
+      const data = dataOf([
+        [0, 0, { value: '=HYPERLINK("http://evil.example","click")' }],
+        [0, 1, { value: '+SUM(A1:A2)' }],
+        [0, 2, { value: '@SUM(A1:A2)' }],
+        [0, 3, { value: '-2+3|cmd' }],
+        [0, 4, { value: 'plain text' }],
+      ]);
+      expect(exportToCSV(data)).toBe(
+        '"\'=HYPERLINK(""http://evil.example"",""click"")",\'+SUM(A1:A2),\'@SUM(A1:A2),\'-2+3|cmd,plain text'
+      );
+    });
+
+    it('never guards numbers, dates or an explicit formula export', () => {
+      const data = dataOf([
+        [0, 0, { value: -2.5 }],
+        [0, 1, { value: new Date('2026-09-02T00:00:00.000Z') }],
+        [0, 2, { value: 3, formula: '=1+2' }],
+      ]);
+      expect(exportToCSV(data)).toBe('-2.5,2026-09-02T00:00:00.000Z,3');
+      expect(exportToCSV(data, { includeFormulas: true })).toBe('-2.5,2026-09-02T00:00:00.000Z,=1+2');
+    });
+
+    it('leaves formula-looking text raw when the guard is switched off', () => {
+      const data = dataOf([[0, 0, { value: '=SUM(A1:A2)' }]]);
+      expect(exportToCSV(data, { guardFormulaInjection: false })).toBe('=SUM(A1:A2)');
+    });
+
     it('uses the configured line break and delimiter', () => {
       const data = dataOf([[0, 0, { value: 1 }], [1, 0, { value: 2 }]]);
       expect(exportToCSV(data, { lineBreak: '\r\n', delimiter: ';' })).toBe('1\r\n2');

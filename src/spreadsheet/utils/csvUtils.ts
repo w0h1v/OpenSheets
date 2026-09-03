@@ -6,9 +6,22 @@ export interface CSVOptions {
   lineBreak?: string;
   /** Write formulas instead of their computed values. */
   includeFormulas?: boolean;
+  /**
+   * Prefix text values that start with a character a spreadsheet app would
+   * interpret as a formula (= + - @, tab, CR) with a quote, so an exported
+   * file cannot execute on open (OWASP CSV-injection guidance). Numbers are
+   * never touched, and includeFormulas output is written as-is.
+   */
+  guardFormulaInjection?: boolean;
 }
 
-const DEFAULTS: Required<CSVOptions> = { delimiter: ',', quote: '"', lineBreak: '\n', includeFormulas: false };
+const DEFAULTS: Required<CSVOptions> = {
+  delimiter: ',',
+  quote: '"',
+  lineBreak: '\n',
+  includeFormulas: false,
+  guardFormulaInjection: true,
+};
 
 // Numeric-looking text becomes a number; everything else stays text
 const coerce = (text: string): CellValue => {
@@ -76,7 +89,7 @@ export function parseCSV(
 }
 
 export function exportToCSV(data: SparseMatrix<CellData>, options: CSVOptions = {}): string {
-  const { delimiter, quote, lineBreak, includeFormulas } = { ...DEFAULTS, ...options };
+  const { delimiter, quote, lineBreak, includeFormulas, guardFormulaInjection } = { ...DEFAULTS, ...options };
   let lastRow = -1;
   let lastCol = -1;
   data.forEach((_, key) => {
@@ -95,10 +108,23 @@ export function exportToCSV(data: SparseMatrix<CellData>, options: CSVOptions = 
     const cells: string[] = [];
     for (let col = 0; col <= lastCol; col++) {
       const cell = data.get(keyOf(row, col));
-      const text = !cell ? ''
-        : includeFormulas && cell.formula ? cell.formula
-        : cell.value instanceof Date ? cell.value.toISOString()
-        : String(cell.value ?? '');
+      let text = '';
+      let isFormula = false;
+      if (cell) {
+        if (includeFormulas && cell.formula) {
+          text = cell.formula;
+          isFormula = true;
+        } else if (cell.value instanceof Date) {
+          text = cell.value.toISOString();
+        } else {
+          text = String(cell.value ?? '');
+        }
+      }
+      // Only string values can carry an injection; numbers and dates export
+      // as themselves, and an explicit includeFormulas export is intentional
+      if (guardFormulaInjection && !isFormula && typeof cell?.value === 'string' && /^[=+\-@\t\r]/.test(text)) {
+        text = `'${text}`;
+      }
       cells.push(escape(text));
     }
     lines.push(cells.join(delimiter));
