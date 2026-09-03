@@ -42,6 +42,27 @@ const MIME = {
   '.woff2': 'font/woff2',
 };
 
+// The demo is a same-origin SPA: scripts and styles ship from /assets, the
+// WebSocket and /auth are on this host, and React sets style attributes
+const SECURITY_HEADERS = {
+  'Content-Security-Policy': [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join('; '),
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+};
+
 const bus = createBus();
 if (bus.kind === 'redis') console.log(`OpenSheets relay: connecting to Redis at ${process.env.REDIS_URL}`);
 await bus.init();
@@ -63,7 +84,7 @@ const server = createServer(async (req, res) => {
     // Resolve inside dist only (no traversal, and no sibling dirs sharing the prefix)
     let file = normalize(join(DIST, path));
     if (file !== DIST && !file.startsWith(DIST + sep)) {
-      res.writeHead(403).end('Forbidden');
+      res.writeHead(403, SECURITY_HEADERS).end('Forbidden');
       return;
     }
 
@@ -76,15 +97,15 @@ const server = createServer(async (req, res) => {
       try {
         body = await readFile(file);
       } catch {
-        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', ...SECURITY_HEADERS });
         res.end('Demo not built yet. Run: npm run build:examples');
         return;
       }
     }
-    res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream' });
+    res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream', ...SECURITY_HEADERS });
     res.end(body);
   } catch {
-    res.writeHead(500).end('Internal server error');
+    res.writeHead(500, SECURITY_HEADERS).end('Internal server error');
   }
 });
 

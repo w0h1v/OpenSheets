@@ -15,6 +15,33 @@ import { connect } from 'cloudflare:sockets';
 
 const DEMO_HOST = 'demo.opensheets.dev';
 
+// The landing page is fully static: one stylesheet, no inline styles or
+// scripts, no external origins (site.js is served but unused by the pages)
+const SECURITY_HEADERS = {
+  'Content-Security-Policy': [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self'",
+    "img-src 'self' data:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join('; '),
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+};
+
+const withSecurityHeaders = (response) => {
+  const headers = new Headers(response.headers);
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) headers.set(name, value);
+  return new Response(response.body, { status: response.status, headers });
+};
+
 export class DemoContainer extends Container {
   defaultPort = 8080;
   sleepAfter = '3h';
@@ -38,7 +65,7 @@ export default {
     if (url.hostname === 'www.opensheets.dev') {
       return Response.redirect(`https://opensheets.dev${url.pathname}${url.search}`, 301);
     }
-    return env.ASSETS.fetch(request);
+    return withSecurityHeaders(await env.ASSETS.fetch(request));
   },
 
   async scheduled(_event, env) {

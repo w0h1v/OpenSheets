@@ -15,6 +15,17 @@ repository before:
   sign-in, per-person presence across tabs, shared document fields with
   last-writer stamps, protected ranges enforced on the server, origin checks,
   rate limits and size caps, and Redis for running several instances.
+- Relay sessions expire 30 days after they are issued
+  (`sessionTtlSeconds`); upgrading invalidates tokens issued by older
+  versions rather than trusting an unknown issue date.
+- CSV/TSV export neutralizes text values that a spreadsheet app would
+  treat as a formula on open (leading `=`, `+`, `-`, `@`, tab, CR) by
+  prefixing a quote; numbers, dates and an explicit `includeFormulas`
+  export are untouched, and `guardFormulaInjection: false` restores the
+  old behaviour.
+- The demo server and the landing-page worker send security headers
+  (Content-Security-Policy, `X-Content-Type-Options`, `Referrer-Policy`,
+  `Permissions-Policy`, HSTS), and auth responses carry `nosniff`.
 - No native browser dialogs: comments, version labels, sheet names and
   confirmations go through an in-app dialog (`ConfirmDialog`, `PromptDialog`,
   `useDialogs`).
