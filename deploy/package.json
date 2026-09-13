@@ -9,5 +9,8 @@
   "devDependencies": {
     "@cloudflare/containers": "0.3.7",
     "wrangler": "4.128.0"
+  },
+  "overrides": {
+    "sharp": "0.35.4"
   }
 }
