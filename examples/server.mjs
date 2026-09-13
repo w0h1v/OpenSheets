@@ -47,11 +47,12 @@ const MIME = {
 const SECURITY_HEADERS = {
   'Content-Security-Policy': [
     "default-src 'self'",
-    "script-src 'self'",
+    // Cloudflare injects its cookie-less Web Analytics beacon into every page
+    "script-src 'self' https://static.cloudflareinsights.com",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self'",
-    "connect-src 'self'",
+    "connect-src 'self' https://cloudflareinsights.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

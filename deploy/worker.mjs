@@ -16,15 +16,17 @@ import { connect } from 'cloudflare:sockets';
 const DEMO_HOST = 'demo.opensheets.dev';
 
 // The landing page is fully static: one stylesheet, no inline styles or
-// scripts, no external origins (site.js is served but unused by the pages)
+// scripts, and no external origin apart from Cloudflare's analytics beacon
+// (site.js is served but unused by the pages)
 const SECURITY_HEADERS = {
   'Content-Security-Policy': [
     "default-src 'self'",
-    "script-src 'self'",
+    // Cloudflare injects its cookie-less Web Analytics beacon into every page
+    "script-src 'self' https://static.cloudflareinsights.com",
     "style-src 'self'",
     "img-src 'self' data:",
     "font-src 'self'",
-    "connect-src 'self'",
+    "connect-src 'self' https://cloudflareinsights.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
