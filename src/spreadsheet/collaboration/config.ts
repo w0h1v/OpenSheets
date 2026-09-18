@@ -18,11 +18,14 @@ export function configureCollaboration(next: CollaborationConfig) {
   config = { ...config, ...next };
 }
 
-export function relayUrl(): string {
+export function relayUrl(
+  location: Pick<Location, 'protocol' | 'host'> | undefined =
+    typeof window === 'undefined' ? undefined : window.location
+): string {
   if (config.relayUrl) return config.relayUrl;
-  if (typeof window === 'undefined') return '';
-  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${proto}://${window.location.host}/collab`;
+  if (!location) return '';
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  return `${proto}://${location.host}/collab`;
 }
 
 export function authUrl(path: string): string {
