@@ -113,7 +113,11 @@ export const FindReplaceBar: React.FC<{ onClose: () => void }> = ({ onClose }) =
         value={query}
         onChange={(e) => { setQuery(e.target.value); setIndex(0); }}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') { e.preventDefault(); e.shiftKey ? prev() : next(); }
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            if (e.shiftKey) prev();
+            else next();
+          }
           if (e.key === 'Escape') onClose();
         }}
       />

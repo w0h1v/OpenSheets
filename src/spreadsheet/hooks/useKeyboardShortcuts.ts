@@ -101,6 +101,10 @@ export const useKeyboardShortcuts = () => {
 
     // Start editing on any printable character
     if (!state.editing && !state.readOnly && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+      // The state update mounts and focuses the editor before the browser's
+      // default key action runs. Prevent that action so the opening character
+      // is supplied exactly once through formulaInput.
+      e.preventDefault();
       setState((prev) => ({
         ...prev,
         editing: { row: active.row, col: active.col },
