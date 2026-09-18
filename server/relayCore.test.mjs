@@ -166,11 +166,11 @@ describe('accounts', () => {
   test('sessions expire after their TTL', async () => {
     const ttlDir = await mkdtemp(join(tmpdir(), 'opensheets-ttl-'));
     try {
-      const short = new AccountStore(ttlDir, { sessionTtlMs: 5 });
+      const short = new AccountStore(ttlDir, { sessionTtlMs: 100 });
       await short.init();
       const reg = await short.register('Time Traveler', 'long-enough');
       assert.equal((await short.byToken(reg.token)).name, 'Time Traveler');
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 150));
       assert.equal(await short.byToken(reg.token), null, 'a token past its TTL is rejected');
       // A fresh login works again; the expired session is not resurrected
       const again = await short.login('Time Traveler', 'long-enough');
