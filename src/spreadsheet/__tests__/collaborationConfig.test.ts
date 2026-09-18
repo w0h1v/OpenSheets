@@ -3,13 +3,6 @@ type Config = typeof import('../collaboration/config');
 describe('collaboration config', () => {
   let config: Config;
 
-  const setLocation = (protocol: string, host: string) => {
-    Object.defineProperty(window, 'location', {
-      configurable: true,
-      value: { ...window.location, protocol, host },
-    });
-  };
-
   beforeEach(async () => {
     jest.resetModules();
     config = await import('../collaboration/config');
@@ -17,13 +10,13 @@ describe('collaboration config', () => {
 
   describe('relayUrl', () => {
     it('defaults to /collab on the page origin', () => {
-      setLocation('http:', 'example.test:3000');
-      expect(config.relayUrl()).toBe('ws://example.test:3000/collab');
+      expect(config.relayUrl({ protocol: 'http:', host: 'example.test:3000' }))
+        .toBe('ws://example.test:3000/collab');
     });
 
     it('upgrades to wss on an https page', () => {
-      setLocation('https:', 'example.test');
-      expect(config.relayUrl()).toBe('wss://example.test/collab');
+      expect(config.relayUrl({ protocol: 'https:', host: 'example.test' }))
+        .toBe('wss://example.test/collab');
     });
 
     it('uses a configured relay URL verbatim', () => {

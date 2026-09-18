@@ -131,7 +131,7 @@
     "hyperformula": "2.7.1",
     "identity-obj-proxy": "3.0.0",
     "jest": "30.5.1",
-    "jest-environment-jsdom": "29.7.0",
+    "jest-environment-jsdom": "30.5.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "redis": "6.2.1",
