@@ -90,7 +90,8 @@ const connect = (port, hello, headers = {}) => new Promise((resolve, reject) => 
     silence: (pred, ms = 250) => new Promise((res, rej) => {
       setTimeout(() => {
         const hit = inbox.find(pred);
-        hit ? rej(new Error(`unexpected message ${JSON.stringify(hit)}`)) : res();
+        if (hit) rej(new Error(`unexpected message ${JSON.stringify(hit)}`));
+        else res();
       }, ms);
     }),
     waitClosed: (ms = 3000) => new Promise((res, rej) => {
