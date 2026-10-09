@@ -88,7 +88,7 @@
     "typecheck:examples": "tsc -p examples/tsconfig.json"
   },
   "dependencies": {
-    "@tanstack/react-virtual": "^3.14.10"
+    "@tanstack/react-virtual": "^3.14.13"
   },
   "peerDependencies": {
     "hyperformula": ">=2.7.1",
