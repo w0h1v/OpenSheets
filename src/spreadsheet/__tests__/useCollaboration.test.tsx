@@ -149,6 +149,7 @@ describe('useCollaboration', () => {
         clientSecret: 'sec-1',
         token: 'tok',
         user: ME,
+        sheetId: 'Sheet1',
       });
       expect(socket().messages()[1]).toEqual({ type: 'sync', sheetId: 'Sheet1' });
       expect(getEditAuthor()).toBe('me');

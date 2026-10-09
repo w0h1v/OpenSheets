@@ -224,6 +224,19 @@ any client. What it does not do: decide who may open which sheet. Every
 connected client can read and write every sheet unless you pass an
 `authorize({ user, action, sheetId })` hook.
 
+With an `authorize` hook, the relay checks each recipient's read access before
+delivering sheet updates. Clients should include their active `sheetId` in
+`hello` to receive sheet-scoped roster and presence immediately; a successful
+`sync` also sets the active sheet. Whole-workbook `sheets` messages and unknown
+message types are not relayed in this mode because they have no single-sheet
+access boundary. Applications with private sheets should manage their sheet
+list through their own access-controlled backend.
+Custom buses that implement the older presence API still get protected sheet
+updates, but sheet-scoped roster and join/leave events require the optional
+`presenceSetSheet` method and `sheetId` in presence entries. Guest IDs are
+client-supplied display identities; private access should require an
+authenticated account or a separate server-issued capability, not a guest ID.
+
 Demo server environment: `PORT`, `REDIS_URL`, `OPENSHEETS_DATA_DIR` (where
 `accounts.json` lives without Redis), `ALLOWED_ORIGINS` (comma-separated),
 `TRUST_PROXY=1` behind a proxy so limits apply to the real client address.

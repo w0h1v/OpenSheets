@@ -50,7 +50,7 @@ import { WebSocketServer, WebSocket } from 'ws';
  * add, change or remove ranges it owns.
  *
  * Wire protocol (client -> server): hello{token?, user?, clientId?,
- * clientSecret?}, sync{sheetId}, cells{sheetId, updates},
+ * clientSecret?, sheetId?}, sync{sheetId}, cells{sheetId, updates},
  * document{sheetId, fields}, selection{...}, sheets{...}, bye.
  * Server -> client: roster{users, you, clientId, clientSecret},
  * snapshot{sheetId, data, doc}, join{user}, leave{user}, and every relayed
@@ -100,6 +100,7 @@ export const DEFAULT_LIMITS = Object.freeze({
 
 const CHANNEL = 'collab';
 const RESERVED_TYPES = new Set(['roster', 'snapshot', 'join', 'leave']);
+const SCOPED_TYPES = new Set(['cells', 'document', 'selection', 'join', 'leave']);
 const DOCUMENT_FIELDS = ['merges', 'protectedRanges', 'filters', 'frozenRows', 'frozenCols', 'rowHeights', 'colWidths'];
 const SHEET_ID_RE = /^[\w.-]{1,64}$/;
 const SCRYPT = { N: 2 ** 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
@@ -183,7 +184,7 @@ function leaveOutcome(entries, clientId, session) {
   return { last, user: prev.user };
 }
 
-const publicEntry = ({ clientId, user }) => ({ clientId, user });
+const publicEntry = ({ clientId, user, sheetId }) => ({ clientId, user, sheetId });
 
 /** Total order over edit stamps: true when `a` beats `b`. */
 const stampWins = (a, b) => !b || a.ts > b.ts || (a.ts === b.ts && a.by > b.by);
@@ -265,11 +266,17 @@ export class MemoryBus {
   async presenceGet(clientId) {
     return this.presence.get(clientId) || null;
   }
-  async presenceJoin(clientId, session, user, secretHash) {
+  async presenceJoin(clientId, session, user, secretHash, sheetId = null) {
     if (!this.presence.has(clientId) && this.presence.size >= this.limits.maxPresence) return null;
     const outcome = joinOutcome(Array.from(this.presence.values()), clientId, user);
-    this.presence.set(clientId, { clientId, session, secretHash, user });
+    this.presence.set(clientId, { clientId, session, secretHash, user, sheetId });
     return outcome;
+  }
+  async presenceSetSheet(clientId, session, sheetId) {
+    const entry = this.presence.get(clientId);
+    if (!entry || entry.session !== session) return false;
+    entry.sheetId = sheetId;
+    return true;
   }
   async presenceLeave(clientId, session) {
     const outcome = leaveOutcome(Array.from(this.presence.values()), clientId, session);
@@ -425,7 +432,7 @@ export class RedisBus {
       let entry;
       try { entry = JSON.parse(raw); } catch { stale.push(clientId); continue; }
       if (now - (entry.ts || 0) > this.staleMs) stale.push(clientId);
-      else live.push({ clientId, session: entry.session, secretHash: entry.secretHash, user: entry.user });
+      else live.push({ clientId, session: entry.session, secretHash: entry.secretHash, user: entry.user, sheetId: entry.sheetId || null });
     }
     if (stale.length) await this.client.hDel(this.key('presence'), stale).catch(() => {});
     return live;
@@ -448,12 +455,18 @@ export class RedisBus {
     return (await this.readPresence()).find((e) => e.clientId === clientId) || null;
   }
 
-  async presenceJoin(clientId, session, user, secretHash) {
+  async presenceJoin(clientId, session, user, secretHash, sheetId = null) {
     const entries = await this.readPresence();
     if (!entries.some((e) => e.clientId === clientId) && entries.length >= this.limits.maxPresence) return null;
     const outcome = joinOutcome(entries, clientId, user);
-    await this.writePresence({ clientId, session, secretHash, user });
+    await this.writePresence({ clientId, session, secretHash, user, sheetId });
     return outcome;
+  }
+  async presenceSetSheet(clientId, session, sheetId) {
+    const entry = this.local.get(clientId);
+    if (!entry || entry.session !== session) return false;
+    await this.writePresence({ ...entry, sheetId });
+    return true;
   }
 
   async presenceLeave(clientId, session) {
@@ -736,7 +749,11 @@ export function createRelay({
 }) {
   const limits = { ...DEFAULT_LIMITS, ...overrides };
   const instance = randomBytes(4).toString('hex');
-  const clients = new Map(); // ws -> { clientId, session, user, left, ip }
+  const tracksSheetPresence = typeof bus.presenceSetSheet === 'function';
+  if (authorize && !tracksSheetPresence) {
+    log.error('[relay] custom bus lacks presenceSetSheet; sheet-scoped roster and presence are unavailable');
+  }
+  const clients = new Map(); // ws -> { clientId, session, user, sheetId, left, ip, delivery }
   const perIp = new Map(); // ip -> open socket count
   const authBuckets = new BucketTable(limits.authRequestsPerMinute / 60, limits.authRequestsPerMinute);
   const registerBuckets = new BucketTable(limits.registrationsPerHour / 3600, limits.registrationsPerHour);
@@ -755,24 +772,40 @@ export function createRelay({
     if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
   };
 
-  // Single delivery path: every relayed message goes through the bus and
-  // comes back here on every instance (this one included); the author's
-  // own socket is skipped by clientId so nothing is ever echoed
+  // Every relayed message returns through the bus on each instance. With an
+  // authorize hook, only a current subscriber who can read the sheet sees it.
+  // Per-socket queues preserve order while an async hook makes its decision.
   bus.subscribe(CHANNEL, (msg) => {
     for (const [ws, c] of clients) {
-      if (c.clientId !== msg.clientId) send(ws, msg);
+      if (c.clientId === msg.clientId) continue;
+      if (!authorize) {
+        send(ws, msg);
+        continue;
+      }
+      c.delivery = c.delivery.then(async () => {
+        if (!SCOPED_TYPES.has(msg.type) || !validSheetId(msg.sheetId)) return;
+        if (clients.get(ws) !== c || c.left || c.sheetId !== msg.sheetId) return;
+        if (!(await allowed(c.user, 'read', msg.sheetId))) return;
+        if (clients.get(ws) === c && !c.left && c.sheetId === msg.sheetId) send(ws, msg);
+      }).catch((err) => log.error('[relay] delivery failed:', err));
     }
   });
 
   const publish = (msg, me) => bus.publish(CHANNEL, { ...msg, user: me.user, clientId: me.clientId });
 
-  const roster = async (exceptUserId) => {
+  const roster = async (exceptUserId, sheetId) => {
     const byUser = new Map();
-    for (const { user } of await bus.presenceList()) {
-      if (user.id !== exceptUserId && !byUser.has(user.id)) byUser.set(user.id, user);
+    for (const entry of await bus.presenceList()) {
+      const { user } = entry;
+      if (user.id === exceptUserId || byUser.has(user.id)) continue;
+      if (authorize && (entry.sheetId !== sheetId || !sheetId || !(await allowed(user, 'read', sheetId)))) continue;
+      byUser.set(user.id, user);
     }
     return Array.from(byUser.values());
   };
+
+  const hasOtherOnSheet = async (clientId, userId, sheetId) =>
+    (await bus.presenceList()).some((entry) => entry.clientId !== clientId && entry.user.id === userId && entry.sheetId === sheetId);
 
   const allowed = async (user, action, sheetId) => {
     if (!authorize) return true;
@@ -960,7 +993,12 @@ export function createRelay({
       me.left = true;
       clients.delete(ws);
       const { last, user } = await bus.presenceLeave(me.clientId, me.session);
-      if (last && user) await publish({ type: 'leave' }, { user, clientId: me.clientId });
+      if (!user) return;
+      if (!authorize) {
+        if (last) await publish({ type: 'leave' }, me);
+      } else if (tracksSheetPresence && me.sheetId && !(await hasOtherOnSheet(me.clientId, user.id, me.sheetId))) {
+        await publish({ type: 'leave', sheetId: me.sheetId }, me);
+      }
     };
 
     const handle = async (raw) => {
@@ -976,13 +1014,19 @@ export function createRelay({
         if (me) return; // one identity per socket
         // The token is authoritative; the client's own claim only shapes a guest
         const user = (await accounts.byToken(msg.token)) || guestFrom(msg.user);
+        const sheetId = authorize && validSheetId(msg.sheetId) && await allowed(user, 'read', msg.sheetId)
+          ? msg.sheetId : null;
         // A tab resumes its own slot only by proving it holds the secret
         let clientId = null;
+        let replaced = null;
         let clientSecret = typeof msg.clientSecret === 'string' ? msg.clientSecret.slice(0, 64) : '';
         const claimed = sanitizeClientId(msg.clientId);
         if (claimed && clientSecret) {
           const entry = await bus.presenceGet(claimed);
-          if (entry && entry.secretHash === sha256(clientSecret)) clientId = claimed;
+          if (entry && entry.secretHash === sha256(clientSecret)) {
+            clientId = claimed;
+            replaced = entry;
+          }
         }
         if (!clientId) {
           clientId = `c-${randomBytes(9).toString('hex')}`;
@@ -997,16 +1041,31 @@ export function createRelay({
             other.close(4000, 'superseded');
           }
         }
-        const outcome = await bus.presenceJoin(clientId, session, user, sha256(clientSecret));
+        const outcome = await bus.presenceJoin(clientId, session, user, sha256(clientSecret), sheetId);
         if (!outcome) {
           ws.close(1013, 'relay is full');
           return;
         }
-        me = { clientId, session, user, left: false, ip };
+        me = { clientId, session, user, sheetId, left: false, ip, delivery: Promise.resolve() };
         clients.set(ws, me);
-        send(ws, { type: 'roster', users: await roster(user.id), you: user, clientId, clientSecret });
-        if (outcome.left) await publish({ type: 'leave' }, { user: outcome.left, clientId });
-        if (outcome.first) await publish({ type: 'join' }, me);
+        const users = await roster(user.id, sheetId);
+        if (sheetId && !(await allowed(user, 'read', sheetId))) {
+          me.sheetId = null;
+          if (tracksSheetPresence) await bus.presenceSetSheet(clientId, session, null);
+        }
+        send(ws, { type: 'roster', users: authorize && !me.sheetId ? [] : users, you: user, clientId, clientSecret });
+        if (!authorize) {
+          if (outcome.left) await publish({ type: 'leave' }, { user: outcome.left, clientId });
+          if (outcome.first) await publish({ type: 'join' }, me);
+        } else if (tracksSheetPresence) {
+          if (replaced?.sheetId && (replaced.sheetId !== sheetId || replaced.user.id !== user.id)
+            && !(await hasOtherOnSheet(clientId, replaced.user.id, replaced.sheetId))) {
+            await publish({ type: 'leave', sheetId: replaced.sheetId }, { user: replaced.user, clientId });
+          }
+          if (me.sheetId && !(await hasOtherOnSheet(clientId, user.id, me.sheetId))) {
+            await publish({ type: 'join', sheetId: me.sheetId }, me);
+          }
+        }
         return;
       }
 
@@ -1019,9 +1078,34 @@ export function createRelay({
 
       if (msg.type === 'sync') {
         if (!validSheetId(msg.sheetId) || !(await allowed(me.user, 'read', msg.sheetId))) return;
+        const previous = me.sheetId;
+        let users = null;
+        if (authorize && me.sheetId !== msg.sheetId) {
+          if (tracksSheetPresence && !(await bus.presenceSetSheet(me.clientId, me.session, msg.sheetId))) return;
+          me.sheetId = msg.sheetId;
+          users = await roster(me.user.id, me.sheetId);
+        }
         const snap = await bus.getSnapshot(msg.sheetId);
         const doc = await bus.getDocument(msg.sheetId);
+        if (!(await allowed(me.user, 'read', msg.sheetId))) {
+          if (authorize && me.sheetId === msg.sheetId) {
+            me.sheetId = null;
+            if (tracksSheetPresence) await bus.presenceSetSheet(me.clientId, me.session, null);
+          }
+          return;
+        }
+        if (users) {
+          send(ws, { type: 'roster', users, you: me.user, clientId: me.clientId, clientSecret: null });
+        }
         send(ws, { type: 'snapshot', sheetId: msg.sheetId, data: snap ? Array.from(snap.entries()) : null, doc });
+        if (users) {
+          if (tracksSheetPresence && previous && !(await hasOtherOnSheet(me.clientId, me.user.id, previous))) {
+            await publish({ type: 'leave', sheetId: previous }, me);
+          }
+          if (tracksSheetPresence && !(await hasOtherOnSheet(me.clientId, me.user.id, me.sheetId))) {
+            await publish({ type: 'join', sheetId: me.sheetId }, me);
+          }
+        }
         return;
       }
 
@@ -1043,16 +1127,21 @@ export function createRelay({
         outgoing = { type: 'document', sheetId: msg.sheetId, fields };
       } else if (msg.type === 'selection') {
         if (!validSheetId(msg.sheetId)) return;
+        if (!(await allowed(me.user, 'read', msg.sheetId))) return;
         const selection = sanitizeSelection(msg.selection);
         if (!selection) return;
         outgoing = { type: 'selection', sheetId: msg.sheetId, selection };
       } else if (msg.type === 'sheets') {
+        // A whole-workbook manifest has no single sheet ACL. Applications
+        // with private sheets must distribute it through their own ACL layer.
+        if (authorize) return;
         if (!Array.isArray(msg.sheets) || msg.sheets.length > 200) return;
         const sheets = msg.sheets
           .filter((s) => isObject(s) && validSheetId(s.id) && typeof s.name === 'string')
           .map((s) => ({ id: s.id, name: s.name.slice(0, 64) }));
         outgoing = { type: 'sheets', sheets };
       } else {
+        if (authorize) return; // unknown messages have no enforceable sheet scope
         outgoing = { ...msg };
         delete outgoing.token;
       }

@@ -125,7 +125,7 @@ export function useCollaboration({ getState, dispatch, sheetId, enabled = true, 
         setEditAuthor(selfId);
         // The token decides who we are; the user claim only shapes a guest
         const slot = getClientSlot();
-        socket.send(JSON.stringify({ type: 'hello', ...(slot || {}), token: getAuthToken(), user: identity }));
+        socket.send(JSON.stringify({ type: 'hello', ...(slot || {}), token: getAuthToken(), user: identity, sheetId }));
         // Ask the server for a snapshot; applied only if we have no local data
         socket.send(JSON.stringify({ type: 'sync', sheetId }));
         // Baseline only on the first connection: after a drop, edits made

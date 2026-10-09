@@ -21,6 +21,7 @@ export interface RelayUser {
 export interface PresenceEntry {
   clientId: string;
   user: RelayUser;
+  sheetId?: string | null;
 }
 
 export interface CellUpdate {
@@ -80,9 +81,11 @@ export interface RelayBus {
   getDocument(sheetId: string): Promise<DocumentFields>;
   /** Last-writer-wins per field; resolves with the fields that were stored. */
   applyDocument(sheetId: string, fields: DocumentFields): Promise<DocumentFields>;
-  presenceGet(clientId: string): Promise<{ clientId: string; session: string; secretHash: string; user: RelayUser } | null>;
+  presenceGet(clientId: string): Promise<{ clientId: string; session: string; secretHash: string; user: RelayUser; sheetId?: string | null } | null>;
   /** Resolves null when the presence cap is reached. */
-  presenceJoin(clientId: string, session: string, user: RelayUser, secretHash: string): Promise<{ first: boolean; left: RelayUser | null } | null>;
+  presenceJoin(clientId: string, session: string, user: RelayUser, secretHash: string, sheetId?: string | null): Promise<{ first: boolean; left: RelayUser | null } | null>;
+  /** Optional for custom buses; enables presence updates after a sheet switch. */
+  presenceSetSheet?(clientId: string, session: string, sheetId: string | null): Promise<boolean>;
   presenceLeave(clientId: string, session: string): Promise<{ last: boolean; user: RelayUser | null }>;
   presenceList(): Promise<PresenceEntry[]>;
 }
@@ -98,8 +101,9 @@ export declare class MemoryBus implements RelayBus {
   applyCellUpdates(sheetId: string, updates: CellUpdate[]): Promise<CellUpdate[]>;
   getDocument(sheetId: string): Promise<DocumentFields>;
   applyDocument(sheetId: string, fields: DocumentFields): Promise<DocumentFields>;
-  presenceGet(clientId: string): Promise<{ clientId: string; session: string; secretHash: string; user: RelayUser } | null>;
-  presenceJoin(clientId: string, session: string, user: RelayUser, secretHash: string): Promise<{ first: boolean; left: RelayUser | null } | null>;
+  presenceGet(clientId: string): Promise<{ clientId: string; session: string; secretHash: string; user: RelayUser; sheetId?: string | null } | null>;
+  presenceJoin(clientId: string, session: string, user: RelayUser, secretHash: string, sheetId?: string | null): Promise<{ first: boolean; left: RelayUser | null } | null>;
+  presenceSetSheet(clientId: string, session: string, sheetId: string | null): Promise<boolean>;
   presenceLeave(clientId: string, session: string): Promise<{ last: boolean; user: RelayUser | null }>;
   presenceList(): Promise<PresenceEntry[]>;
 }
@@ -123,8 +127,9 @@ export declare class RedisBus implements RelayBus {
   applyCellUpdates(sheetId: string, updates: CellUpdate[]): Promise<CellUpdate[]>;
   getDocument(sheetId: string): Promise<DocumentFields>;
   applyDocument(sheetId: string, fields: DocumentFields): Promise<DocumentFields>;
-  presenceGet(clientId: string): Promise<{ clientId: string; session: string; secretHash: string; user: RelayUser } | null>;
-  presenceJoin(clientId: string, session: string, user: RelayUser, secretHash: string): Promise<{ first: boolean; left: RelayUser | null } | null>;
+  presenceGet(clientId: string): Promise<{ clientId: string; session: string; secretHash: string; user: RelayUser; sheetId?: string | null } | null>;
+  presenceJoin(clientId: string, session: string, user: RelayUser, secretHash: string, sheetId?: string | null): Promise<{ first: boolean; left: RelayUser | null } | null>;
+  presenceSetSheet(clientId: string, session: string, sheetId: string | null): Promise<boolean>;
   presenceLeave(clientId: string, session: string): Promise<{ last: boolean; user: RelayUser | null }>;
   presenceList(): Promise<PresenceEntry[]>;
 }

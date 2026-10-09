@@ -497,6 +497,194 @@ describe('relay abuse controls', () => {
   });
 });
 
+describe('relay authorization', () => {
+  test('scopes authorized sheet traffic and presence', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'opensheets-acl-'));
+    const accounts = new AccountStore(dir);
+    await accounts.init();
+    const owner = await accounts.register('Owner', 'password-1');
+    const reader = await accounts.register('Reader', 'password-2');
+    const outsider = await accounts.register('Outsider', 'password-3');
+    const writer = await accounts.register('Write Only', 'password-4');
+    const grants = new Map([
+      [owner.user.id, { read: ['private'], write: ['private'] }],
+      [reader.user.id, { read: ['private'], write: [] }],
+      [outsider.user.id, { read: ['other'], write: ['other'] }],
+      [writer.user.id, { read: [], write: ['private'] }],
+    ]);
+    let rejectReader = false;
+    const bus = new MemoryBus();
+    await bus.init();
+    const srv = await startServer({ bus, accounts, authorize: ({ user, action, sheetId }) => {
+      if (rejectReader && user.id === reader.user.id) throw new Error('policy unavailable');
+      return grants.get(user.id)?.[action].includes(sheetId) || false;
+    } });
+    const sockets = [];
+    try {
+      const a = await connect(srv.port, { token: owner.token, sheetId: 'private' }); sockets.push(a);
+      await a.roster;
+      const x = await connect(srv.port, { token: outsider.token, sheetId: 'other' }); sockets.push(x);
+      const xRoster = await x.roster;
+      assert.deepEqual(xRoster.users, [], 'a different sheet cannot expose the private roster');
+      const b = await connect(srv.port, { token: reader.token, sheetId: 'private' }); sockets.push(b);
+      assert.deepEqual((await b.roster).users.map((u) => u.id), [owner.user.id]);
+      a.send({ type: 'cells', sheetId: 'private', updates: [{ row: 0, col: 0, data: { value: 'private value' } }] });
+      assert.equal((await b.waitFor(isType('cells'))).updates[0].data.value, 'private value');
+      await x.silence((m) => m.type === 'cells' || m.type === 'join');
+
+      a.send({ type: 'document', sheetId: 'private', fields: { frozenRows: { value: 2, stamp: { ts: 1, by: 'spoof' } } } });
+      assert.equal((await b.waitFor(isType('document'))).fields.frozenRows.value, 2);
+      b.send({ type: 'selection', sheetId: 'private', selection: { startRow: 1, endRow: 1, startCol: 1, endCol: 1 } });
+      assert.equal((await a.waitFor(isType('selection'))).sheetId, 'private');
+      x.send({ type: 'selection', sheetId: 'private', selection: { startRow: 2, endRow: 2, startCol: 2, endCol: 2 } });
+      b.send({ type: 'cells', sheetId: 'private', updates: [{ row: 0, col: 1, data: { value: 'viewer write' } }] });
+      b.send({ type: 'document', sheetId: 'private', fields: { frozenRows: { value: 3, stamp: { ts: 2, by: 'spoof' } } } });
+      x.send({ type: 'sync', sheetId: 'private' });
+      x.send({ type: 'cells', sheetId: 'private', updates: [{ row: 0, col: 2, data: { value: 'outsider write' } }] });
+      a.send({ type: 'sheets', sheets: [{ id: 'private', name: 'Secret' }] });
+      a.send({ type: 'custom', sheetId: 'private', payload: 'secret' });
+      await Promise.all([
+        a.silence((m) => m.type === 'cells' || m.type === 'document' || (m.type === 'selection' && m.user.id === outsider.user.id)),
+        b.silence((m) => m.type === 'sheets' || m.type === 'custom'),
+        x.silence((m) => ['snapshot', 'cells', 'document', 'selection', 'sheets', 'custom'].includes(m.type)),
+      ]);
+      const w = await connect(srv.port, { token: writer.token, sheetId: 'private' }); sockets.push(w);
+      assert.deepEqual((await w.roster).users, [], 'write access alone does not expose the roster');
+      w.send({ type: 'cells', sheetId: 'private', updates: [{ row: 2, col: 0, data: { value: 'write only' } }] });
+      assert.equal((await a.waitFor(isType('cells'))).updates[0].data.value, 'write only');
+      assert.equal((await b.waitFor(isType('cells'))).updates[0].data.value, 'write only');
+      await w.silence((m) => m.type === 'cells' || m.type === 'join');
+      a.send({ type: 'sync', sheetId: 'private' });
+      const snap = await a.waitFor(isType('snapshot'));
+      assert.deepEqual(snap.data.map(([key]) => key).sort(), ['0:0', '2:0']);
+      assert.equal(snap.doc.frozenRows.value, 2);
+
+      rejectReader = true;
+      a.send({ type: 'cells', sheetId: 'private', updates: [{ row: 1, col: 0, data: { value: 'after revocation' } }] });
+      await b.silence(isType('cells'));
+    } finally {
+      await Promise.all(sockets.map((s) => s.close()));
+      await srv.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('revocation during a snapshot read does not disclose the snapshot', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'opensheets-revoke-'));
+    const accounts = new AccountStore(dir);
+    await accounts.init();
+    const user = await accounts.register('Revoked Reader', 'password-1');
+    const bus = new MemoryBus();
+    await bus.init();
+    await bus.applyCellUpdates('private', [{ row: 0, col: 0, data: { value: 'secret' } }]);
+    const getSnapshot = bus.getSnapshot.bind(bus);
+    let snapshotStarted;
+    const started = new Promise((resolve) => { snapshotStarted = resolve; });
+    let resumeSnapshot;
+    const paused = new Promise((resolve) => { resumeSnapshot = resolve; });
+    bus.getSnapshot = async (sheetId) => {
+      snapshotStarted();
+      await paused;
+      return getSnapshot(sheetId);
+    };
+    let canRead = true;
+    const srv = await startServer({ bus, accounts, authorize: ({ user: current, action, sheetId }) =>
+      current.id === user.user.id && action === 'read' && sheetId === 'private' && canRead });
+    let client;
+    try {
+      client = await connect(srv.port, { token: user.token });
+      await client.roster;
+      client.send({ type: 'sync', sheetId: 'private' });
+      await started;
+      canRead = false;
+      resumeSnapshot();
+      await client.silence((m) => m.type === 'snapshot' || (m.type === 'roster' && m.users.length));
+    } finally {
+      resumeSnapshot();
+      if (client) await client.close();
+      await srv.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('revocation during roster lookup does not disclose peers', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'opensheets-roster-revoke-'));
+    const accounts = new AccountStore(dir);
+    await accounts.init();
+    const owner = await accounts.register('Roster Owner', 'password-1');
+    const viewer = await accounts.register('Roster Viewer', 'password-2');
+    const bus = new MemoryBus();
+    await bus.init();
+    let viewerAllowed = true;
+    const srv = await startServer({ bus, accounts, authorize: ({ user, action, sheetId }) =>
+      action === 'read' && sheetId === 'private' && (user.id === owner.user.id || (user.id === viewer.user.id && viewerAllowed)) });
+    const sockets = [];
+    let resumeRoster = () => {};
+    try {
+      const a = await connect(srv.port, { token: owner.token, sheetId: 'private' }); sockets.push(a);
+      await a.roster;
+      const presenceList = bus.presenceList.bind(bus);
+      let lookupStarted;
+      const started = new Promise((resolve) => { lookupStarted = resolve; });
+      const paused = new Promise((resolve) => { resumeRoster = resolve; });
+      bus.presenceList = async () => {
+        lookupStarted();
+        await paused;
+        return presenceList();
+      };
+      const b = await connect(srv.port, { token: viewer.token, sheetId: 'private' }); sockets.push(b);
+      await started;
+      viewerAllowed = false;
+      resumeRoster();
+      assert.deepEqual((await b.roster).users, []);
+      a.send({ type: 'cells', sheetId: 'private', updates: [{ row: 0, col: 0, data: { value: 'secret' } }] });
+      await b.silence((m) => m.type === 'cells' || m.type === 'join');
+    } finally {
+      resumeRoster();
+      await Promise.all(sockets.map((s) => s.close()));
+      await srv.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('an older custom bus still protects sheet updates without scoped presence', async () => {
+    class LegacyBus extends MemoryBus {
+      presenceSetSheet = undefined;
+      async presenceJoin(clientId, session, user, secretHash) {
+        return super.presenceJoin(clientId, session, user, secretHash);
+      }
+    }
+    const dir = await mkdtemp(join(tmpdir(), 'opensheets-legacy-bus-'));
+    const accounts = new AccountStore(dir);
+    await accounts.init();
+    const owner = await accounts.register('Legacy Owner', 'password-1');
+    const viewer = await accounts.register('Legacy Viewer', 'password-2');
+    const denied = await accounts.register('Legacy Denied', 'password-3');
+    const bus = new LegacyBus();
+    await bus.init();
+    const srv = await startServer({ bus, accounts, authorize: ({ user, action, sheetId }) =>
+      sheetId === 'private' && (user.id === owner.user.id || (user.id === viewer.user.id && action === 'read')) });
+    const sockets = [];
+    try {
+      const a = await connect(srv.port, { token: owner.token, sheetId: 'private' }); sockets.push(a);
+      await a.roster;
+      const b = await connect(srv.port, { token: viewer.token }); sockets.push(b);
+      assert.deepEqual((await b.roster).users, []);
+      b.send({ type: 'sync', sheetId: 'private' });
+      await b.waitFor(isType('snapshot'));
+      const x = await connect(srv.port, { token: denied.token, sheetId: 'private' }); sockets.push(x);
+      assert.deepEqual((await x.roster).users, []);
+      a.send({ type: 'cells', sheetId: 'private', updates: [{ row: 0, col: 0, data: { value: 'private' } }] });
+      assert.equal((await b.waitFor(isType('cells'))).updates[0].data.value, 'private');
+      await x.silence(isType('cells'));
+    } finally {
+      await Promise.all(sockets.map((s) => s.close()));
+      await srv.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 const hasRedis = await redisReachable();
 
 describe('relay (redis bus, two instances)', { skip: hasRedis ? false : `no Redis at ${REDIS_URL}` }, () => {
@@ -556,6 +744,37 @@ describe('relay (redis bus, two instances)', { skip: hasRedis ? false : `no Redi
     await a.close();
     await b.waitFor((m) => m.type === 'leave' && m.user.id === ada.user.id);
     await b.close();
+  });
+
+  test('authorized delivery and sync subscriptions stay scoped across instances', async () => {
+    const viewer = await accounts.register('Scoped Viewer', 'password-4');
+    const outsider = await accounts.register('Scoped Outsider', 'password-5');
+    const can = ({ user, action, sheetId }) => {
+      if (user.id === ada.user.id) return sheetId === 'acl-private';
+      if (user.id === viewer.user.id) return action === 'read' && sheetId === 'acl-private';
+      return user.id === outsider.user.id && sheetId === 'acl-other';
+    };
+    const first = await startServer({ bus: busOne, accounts, authorize: can });
+    const second = await startServer({ bus: busTwo, accounts: createAccountStore(busTwo, dir), authorize: can });
+    const sockets = [];
+    try {
+      const owner = await connect(first.port, { token: ada.token, sheetId: 'acl-private' }); sockets.push(owner);
+      await owner.roster;
+      const denied = await connect(second.port, { token: outsider.token, sheetId: 'acl-other' }); sockets.push(denied);
+      assert.deepEqual((await denied.roster).users, []);
+      const readOnly = await connect(second.port, { token: viewer.token }); sockets.push(readOnly);
+      assert.deepEqual((await readOnly.roster).users, [], 'legacy hello has no sheet subscription');
+      readOnly.send({ type: 'sync', sheetId: 'acl-private' });
+      assert.deepEqual((await readOnly.waitFor(isType('roster'))).users.map((u) => u.id), [ada.user.id]);
+      await readOnly.waitFor(isType('snapshot'));
+      owner.send({ type: 'cells', sheetId: 'acl-private', updates: [{ row: 3, col: 2, data: { value: 'scoped' } }] });
+      assert.equal((await readOnly.waitFor(isType('cells'))).updates[0].data.value, 'scoped');
+      await denied.silence((m) => ['join', 'cells', 'document', 'selection'].includes(m.type));
+    } finally {
+      await Promise.all(sockets.map((s) => s.close()));
+      await first.close();
+      await second.close();
+    }
   });
 
   test('accounts are shared across instances', async () => {
