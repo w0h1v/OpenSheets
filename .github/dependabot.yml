@@ -11,6 +11,11 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+    ignore:
+      # eslint-plugin-react 7.x supports eslint up to ^9.7. Revisit once it
+      # supports eslint 10 (the 10.x bump fails with ERESOLVE until then).
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
     groups:
       typescript-eslint:
         patterns:
