@@ -14,7 +14,7 @@ consumer of the ecosystem and a link in other people's chains.
 | Development dependencies are pinned to exact versions | `package.json`, `.npmrc` (`save-exact`) |
 | Dependency install scripts never run | `.npmrc` (`ignore-scripts=true`), `npm ci --ignore-scripts` in CI |
 | New versions wait a week before being proposed | `.github/dependabot.yml` (`cooldown`) |
-| Known-vulnerable versions fail CI | `npm audit --audit-level=high` in CI |
+| Known-vulnerable runtime dependencies fail CI | `npm audit --omit=dev --audit-level=high` in CI. Dev-tool advisories are tracked by Dependabot alerts instead |
 | GitHub Actions are pinned to commit SHAs | `.github/workflows/*.yml` |
 | Installs on developer machines are screened | Socket CLI wraps `npm` (`socket npm`) |
 
