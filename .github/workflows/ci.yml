@@ -32,7 +32,9 @@ jobs:
           cache: npm
       # Exact lockfile, no dependency install scripts (also enforced by .npmrc)
       - run: npm ci --ignore-scripts
-      - run: npm audit --audit-level=high
+      # Production dependencies only. Dev tooling advisories with no fix (picomatch,
+      # 2026-11-17) must not block CI; Dependabot still raises dev alerts separately.
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test -- --ci
